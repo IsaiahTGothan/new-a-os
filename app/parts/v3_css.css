@@ -431,3 +431,4 @@ table.reg th{ font-family:var(--font-pixel); font-size:8.5px; letter-spacing:.04
 .minimap .open{ position:absolute; right:8px; bottom:8px; font:600 9.5px var(--font-mono); letter-spacing:.1em; color:var(--cyan); background:rgba(5,9,13,.8); padding:3px 7px; border-radius:5px; opacity:0; transition:opacity .2s; pointer-events:none; } .minimap.gm-mini:hover .open{ opacity:1; }
 .fieldnote .est{ margin-top:8px; padding:10px 12px; border:1px solid var(--line-2); border-radius:8px; background:var(--bg-2); } .fieldnote .est .big{ font:700 22px/1 Silkscreen, var(--font-mono); color:var(--good); margin-bottom:5px; } .fieldnote .est .why{ font-size:11.5px; color:var(--ink-3); line-height:1.45; } .fieldnote .est .acts{ display:flex; gap:6px; margin-top:8px; flex-wrap:wrap; }
 .rowlist.versions .r .mk{ margin-right:6px; }
+.callout code, .desc-line code{ overflow-wrap:anywhere; }

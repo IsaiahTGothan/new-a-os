@@ -13,7 +13,7 @@ OS.poll = async () => {
   const was = OS.online;
   try { const st = await OS.get('/api/status'); OS.online = !!st.ok; OS.status = st; OS.health = await OS.get('/api/health').catch(() => null); OS.lastPoll = now(); }
   catch { OS.online = false; OS.status = null; OS.health = null; }
-  if (!was && OS.online) { toast('New A OS bridge connected', 'good'); const bad = (OS.health?.alerts || []).filter(a => a.level === 'bad'); if (bad.length) toast(bad[0].text, 'bad', { label: 'VAULT & BACKUPS', fn: openDataModal }); }
+  if (!was && OS.online) { toast('New A OS bridge connected', 'good'); if (VAULT.status !== 'granted') await OS.vaultCheck(); const bad = (OS.health?.alerts || []).filter(a => a.level === 'bad'); if (bad.length) toast(bad[0].text, 'bad', { label: 'VAULT & BACKUPS', fn: openDataModal }); }
   OS.renderStatus(); return OS.online;
 };
 OS.start = () => { clearInterval(OS.timer); OS.poll(); OS.timer = setInterval(OS.poll, 30000); window.addEventListener('pagehide', OS.afterSession); document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'hidden') OS.afterSession(); }); };
@@ -75,9 +75,37 @@ function osCardHTML() {
     <div class="kv" style="margin:10px 0 0;border:0">${kvHTML('LAST VERIFIED BACKUP', h?.lastVerified ? `${ageText(h.lastVerified)}<small>${esc(h.last?.id || '')} · ${h.last?.kind || ''} · ${h.last?.files ?? '?'} files</small>` : (OS.online ? 'none yet' : null), 'num')}${kvHTML('RESTORE TEST', h?.lastRestoreTest ? ageText(h.lastRestoreTest) : (S.world.backups.lastRestoreTest ? ageText(S.world.backups.lastRestoreTest) : (OS.online ? 'never' : null)), 'num')}${kvHTML('BACKUPS ON DISK', h ? `${h.count}<small>${h.disk ? (h.disk.freeBytes / 1e9).toFixed(1) + ' GB free' : ''}</small>` : null, 'num')}${kvHTML('WORLD', h ? (h.world.readable ? `${h.world.regions}<small>region files · read-only</small>` : (h.world.configured ? 'not readable' : 'not set')) : null, 'num')}</div>
     ${alerts.length ? `<div class="issues-wrap" style="margin:10px 0 0">${alerts.map(a => `<div class="issue ${a.level}">${icon(a.level === 'info' ? 'flag' : 'warn')}<span>${esc(a.text)}</span></div>`).join('')}</div>` : ''}
     ${hist.length ? `<div class="desc-line" style="margin-top:8px">RECENT · ${hist.map(x => `${esc(x.kind)} ${ageText(x.at)}${x.verified ? ' ✓' : ' ✗'}`).join(' · ')}</div>` : ''}
+    ${OS.vaultHold ? `<div class="issue warn" style="margin-top:10px">${icon('warn')}<span><b>The vault folder holds a different registry</b> (${OS.vaultHold.buildings} buildings${OS.vaultHold.updated ? ', saved ' + esc(fmtDate(OS.vaultHold.updated)) : ''}). This browser has ${S.buildings.length}. Autosave through the bridge is paused until you choose. <div class="acts"><button class="btn sm primary" data-act="os-vault-load">${icon('up')} Load the vault copy (snapshot first)</button><button class="btn sm danger" data-act="os-vault-overwrite">Overwrite the vault with this browser's copy</button></div></span></div>` : ''}${OS.vaultError ? `<div class="issue bad" style="margin-top:10px">${icon('warn')}<span>Last bridge vault write failed: ${esc(OS.vaultError)}. The browser store is still saved; export a backup if this persists.</span></div>` : ''}
     <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:12px"><button class="btn primary sm" data-act="os-backup" ${OS.online ? '' : 'disabled'}>${icon('shield')} Back up now</button><button class="btn sm" data-act="os-backup-full" ${OS.online ? '' : 'disabled'}>Full backup</button><button class="btn sm" data-act="os-verify" ${OS.online ? '' : 'disabled'}>${icon('check')} Verify latest</button><button class="btn sm" data-act="os-restore-test" ${OS.online ? '' : 'disabled'}>${icon('undo')} Restore test</button><span class="spacer"></span><button class="btn sm" data-act="os-scan" ${OS.online ? '' : 'disabled'}>${icon('sat')} Scan the world…</button><button class="btn sm ghost" data-act="os-poll">${icon('redo')} Reconnect</button></div>
   </div>`;
 }
 
 /* autosave through the bridge when no folder is linked in the browser: no reconnect click, same files */
-OS.vaultWrite = async () => { if (!OS.online || !OS.status?.vaultOk) return false; await OS.post('/api/vault/write', { name: 'Registry.json', text: JSON.stringify(serializeMaster(), null, 2) }, 30000); if (S.settings.compatFile !== false) await OS.post('/api/vault/write', { name: 'NewA.json', text: JSON.stringify(serializeCompat(), null, 2) }, 30000); OS.lastVaultWrite = new Date(); return true; };
+OS.vaultMeta = null; OS.vaultHold = null; OS.vaultError = null; OS.fresh = false;
+/* when the bridge comes online: if the folder holds a registry that is newer or fuller than this browser's, hold writes and ask */
+OS.vaultCheck = async () => {
+  if (!OS.online || !OS.status?.vaultOk) return; let st; try { st = await OS.get('/api/vault/stat?name=Registry.json'); } catch { return; }
+  OS.vaultMeta = { updated: st.exists ? st.updated || null : null, buildings: st.exists ? st.buildings || 0 : 0 };
+  const newer = st.exists && st.buildings > 0 && (OS.fresh || (st.updated && (!S.meta.updated || st.updated > S.meta.updated)) || st.buildings > S.buildings.length);
+  if (newer && !OS.vaultHold) { OS.vaultHold = { updated: st.updated, buildings: st.buildings }; toast(`The vault folder holds a ${OS.fresh ? '' : 'newer '}registry (${st.buildings} buildings${st.updated ? ', ' + fmtDate(st.updated) : ''}) — load it, or overwrite it from Vault & settings`, 'warn', { label: 'LOAD IT', fn: OS.vaultLoad }); }
+  else if (!newer) OS.vaultHold = null;
+  renderStatus();
+};
+OS.vaultLoad = async () => {
+  try { const r = await OS.get('/api/vault/read?name=Registry.json'); if (!r.ok) throw new Error(r.error || 'read failed'); const payload = JSON.parse(r.text); await takeSnapshot('before loading the vault copy through the bridge'); mergePayload(payload, 'replace'); OS.vaultHold = null; OS.fresh = false; OS.vaultMeta = { updated: payload.meta?.updated || null, buildings: (payload.buildings || []).length }; commit({ now: true }); renderAll(); toast(`Loaded the vault copy — ${S.buildings.length} buildings`, 'good'); }
+  catch (e) { toast('Could not load the vault copy: ' + e.message, 'bad'); }
+};
+OS.vaultOverwrite = async () => { OS.vaultHold = null; OS.fresh = false; try { await OS.vaultWrite({ force: true }); toast('The vault folder now holds this browser\'s copy', 'good'); } catch (e) { toast('Overwrite failed: ' + e.message, 'bad'); } renderStatus(); };
+const bridgeImageName = (id, rec) => id.startsWith('basemap:') ? `images/basemap-${id.slice(8)}.${(rec?.full?.type || 'image/png').split('/')[1].replace('jpeg', 'jpg')}` : `images/${id}.jpg`;
+OS.vaultWrite = async ({ force = false } = {}) => {
+  if (!OS.online || !OS.status?.vaultOk) return false; if (OS.vaultHold && !force) return false;
+  const master = serializeMaster(); const written = master.meta?.updated || null;
+  const r = await OS.post('/api/vault/write', { name: 'Registry.json', text: JSON.stringify(master, null, 2), expectUpdated: force ? undefined : (OS.vaultMeta?.updated ?? null), force }, 30000);
+  if (r.conflict) { OS.vaultHold = { updated: r.updated, buildings: r.buildings }; OS.vaultMeta = { updated: r.updated, buildings: r.buildings }; renderStatus(); toast(`The vault folder changed under us (${r.buildings} buildings) — load it or overwrite it from Vault & settings`, 'warn', { label: 'LOAD IT', fn: OS.vaultLoad }); return false; }
+  if (!r.ok) throw new Error(r.error || 'vault write refused');
+  OS.vaultMeta = { updated: written, buildings: master.buildings.length };
+  if (S.settings.compatFile !== false) await OS.post('/api/vault/write', { name: 'NewA.json', text: JSON.stringify(serializeCompat(), null, 2) }, 30000);
+  for (const id of [...SAVE.dirtyImages]) { const rec = await idbGet('images', id); if (rec?.full) { const dataUrl = await blobToDataURL(rec.full); await OS.post('/api/vault/write-bin', { name: bridgeImageName(id, rec), base64: dataUrl.slice(dataUrl.indexOf(',') + 1) }, 60000); } SAVE.dirtyImages.delete(id); }
+  for (const id of [...SAVE.deletedImages]) { const names = id.startsWith('basemap:') ? ['png', 'jpg', 'webp'].map(ext => `images/basemap-${id.slice(8)}.${ext}`) : [`images/${id}.jpg`]; for (const name of names) await OS.post('/api/vault/delete', { name }, 15000).catch(() => {}); SAVE.deletedImages.delete(id); }
+  OS.lastVaultWrite = new Date(); OS.vaultError = null; return true;
+};

@@ -301,14 +301,13 @@ function jmPick(entries) {
   return { tiles: tiles.filter(t => t.dir === best), dir: best, dirs };
 }
 async function jmStitch(tiles, { name = 'JourneyMap', maxPixels = 48e6 } = {}) {
-  const imgs = []; for (const t of tiles) imgs.push({ ...t, bmp: await createImageBitmap(t.file) });
-  const ts = imgs[0].bmp.width || 512; const blocksPerPx = 512 / ts;
-  const txs = imgs.map(t => t.tx), tzs = imgs.map(t => t.tz); const minTx = Math.min(...txs), maxTx = Math.max(...txs), minTz = Math.min(...tzs), maxTz = Math.max(...tzs);
-  const cols = maxTx - minTx + 1, rows = maxTz - minTz + 1; let f = 1; while ((cols * ts / f) * (rows * ts / f) > maxPixels) f *= 2;
+  const first = await createImageBitmap(tiles[0].file); const ts = first.width || 512; first.close?.(); const blocksPerPx = 512 / ts;
+  const txs = tiles.map(t => t.tx), tzs = tiles.map(t => t.tz); const minTx = Math.min(...txs), maxTx = Math.max(...txs), minTz = Math.min(...tzs), maxTz = Math.max(...tzs);
+  const cols = maxTx - minTx + 1, rows = maxTz - minTz + 1; let f = 1; while ((cols * ts / f) * (rows * ts / f) > maxPixels || Math.max(cols, rows) * ts / f > 16384) f *= 2;
   const c = document.createElement('canvas'); c.width = Math.ceil(cols * ts / f); c.height = Math.ceil(rows * ts / f); const g = c.getContext('2d'); g.imageSmoothingEnabled = f > 1;
-  for (const t of imgs) { g.drawImage(t.bmp, (t.tx - minTx) * ts / f, (t.tz - minTz) * ts / f, ts / f, ts / f); t.bmp.close?.(); }
+  for (const t of tiles) { const bmp = await createImageBitmap(t.file); g.drawImage(bmp, (t.tx - minTx) * ts / f, (t.tz - minTz) * ts / f, ts / f, ts / f); bmp.close?.(); }
   const blob = await new Promise(r => c.toBlob(r, 'image/png')); const file = new File([blob], `${name}.png`, { type: 'image/png' });
-  return { file, x: minTx * 512, z: minTz * 512, scale: blocksPerPx * f, w: c.width, h: c.height, tiles: imgs.length, cols, rows, downscaled: f };
+  return { file, x: minTx * 512, z: minTz * 512, scale: blocksPerPx * f, w: c.width, h: c.height, tiles: tiles.length, cols, rows, downscaled: f };
 }
 async function importJourneyMap(entries, { name = 'JourneyMap tiles' } = {}) {
   const { tiles, dir, dirs } = jmPick(entries); if (!tiles.length) { toast('No JourneyMap tiles found — expected files named like 0,0.png, ideally from overworld/day', 'warn'); return null; }

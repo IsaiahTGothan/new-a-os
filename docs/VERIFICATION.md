@@ -1,10 +1,10 @@
 # Verification report · New A OS V3 (birthday update)
 
-Date: 2026-10-05 · branch `claude/new-a-os-system-ht3oxf`
+Date: 2026-10-05 · branch `claude/new-a-os-system-ht3oxf` · updated after the round-2 fixes
 
 ## Verified automatically, on the real data
 
-`app/test.js` boots the built HTML in headless Chromium, loads the real schema-2 store (153 buildings, 34 historical, 13 legacy parcels, 18 chronicle entries, 151 placed) and runs **215 checks**, with the console required to be clean after every section:
+`app/test.js` boots the built HTML in headless Chromium, loads the real schema-2 store (153 buildings, 34 historical, 13 legacy parcels, 18 chronicle entries, 151 placed) and runs **240 checks**, with the console required to be clean after every section:
 
 | Section | What it proves |
 |---|---|
@@ -16,7 +16,8 @@ Date: 2026-10-05 · branch `claude/new-a-os-system-ht3oxf`
 | O | Playback V3: speeds, change stepping, filters, compare, inferred marking, dated renders, loop |
 | P | Civic facilities and coverage, officials with homes, record sections, editor round-trip, valuation maths (factors sum exactly), service timetable (200 blk at 8 blk/s + 10 s dwell = 35 s; measured segments override), sandbox and promotion, service map colour, health navigation, digest → draft, quality fix with snapshot and note, projects, public guide (no owners, private buildings excluded), export round-trip, reload |
 | Q | Clawson: answers (officials, homes, hospitals, best served, journeys, health, valuations), a request becomes an Inbox proposal with the record untouched, apply there, undo from Activity, newsletter draft saved locally, refuses to publish, honest "did not understand", provider-on-without-key path, Esc/K |
-| R | The real bridge (`os/server.js`) against a synthetic world: online tile, scan → 3 proposals → apply creates a building at middle coordinates X 63 · Z 115 and a road, update sets height + footprint, all undone; render → dated basemap; verified backup and restore test from the app; proxy allow-list; offline fallback |
+| R | The real bridge (`os/server.js`) against a synthetic world: online tile, scan → 3 proposals → apply creates a building at middle coordinates X 63 · Z 115 and a road, update sets height + footprint, all undone; render → dated basemap; autosave through the bridge vault (Registry.json, NewA.json and photos), conflict protection when the folder holds a newer registry (paused, then Overwrite), verified backup and restore test from the app; proxy allow-list; offline fallback |
+| S | Round-2 fixes: the + Add menu is hit-testable above the page; editor auto-estimate from nearby comparables and transit applied as assessed total; dated road shapes (2013 shape kept through 2019, current from Early 2020) and dated track alignments drawn in playback; Unnamed road, line and building pass validation and are labelled by number; Rotate lot, Centre on footprint and Snap to street (inspector and editor, exact coordinates checked); the beam overlay is gone; the record's Location map carries the Maps wordmark and opens explore mode with the place card; JourneyMap tiles (folder), a stored ZIP and a deflated ZIP with 256-px tiles stitch into basemaps placed from their names; a second dated shape keeps the current one ahead of it; playback pixels prove the dated road; the rotated lot is visible on the map; a real click on + Add starts a record; the dated-shape editor/inspector buttons, Swap in and remove; unnamed road and applied estimate survive a reload; all new fields are in the master file |
 
 `app/smoke.js` opens every page, every Transit and Civic tab, History tabs, the drawer, modals (data, issues, inbox, digest, valuations, official, project), Clawson chat and activity: **0 console errors** on each.
 

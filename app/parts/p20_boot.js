@@ -7,7 +7,7 @@ async function boot() {
   // an older store is about to be upgraded: keep an untouched copy in memory (downloadable) and as a labelled snapshot
   const fromSchema = stored ? (stored.schema ?? 1) : null;
   if (stored && fromSchema < APP.schema) MIGRATION.pre = JSON.stringify(stored);
-  S = stored ? migrate(stored) : seedState();
+  S = stored ? migrate(stored) : seedState(); if (typeof OS !== 'undefined') OS.fresh = !stored;
   UI.view = S.settings.view || 'table';
   UI.nav = NAV.some(n => n.id === S.settings.lastNav) ? S.settings.lastNav : 'overview';
   UI.scope = S.settings.lastScope && (S.settings.lastScope.kind === 'all' || scopeNode(S.settings.lastScope)) ? S.settings.lastScope : (regionById('new-a-city') ? { kind: 'region', id: 'new-a-city' } : { kind: 'all', id: null });

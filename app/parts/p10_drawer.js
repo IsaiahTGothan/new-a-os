@@ -245,7 +245,7 @@ function renderEditor(b) {
           <div class="f"><label for="f-name">Building name <span class="hint">optional</span></label>${inp('name', b.name, 'placeholder="New BK Tower"')}</div>
           ${f('x', 'X coordinate', numI('x', b.x, 'placeholder="0" step="1"'), 'Minecraft X')}
           ${f('z', 'Z coordinate', numI('z', b.z, 'placeholder="0" step="1"'), 'Minecraft Z')}
-          <div class="f"><label>Unnamed</label><label class="switch"><input type="checkbox" id="f-unnamed" ${b.unnamed ? 'checked' : ''}> <span class="muted" style="font-size:12px">no name or address known — shown by number</span></label></div>
+          <div class="f"><label>Unnamed</label><label class="switch"><input type="checkbox" id="f-unnamed" ${b.unnamed ? 'checked' : ''}> <span class="muted" style="font-size:12px">shown by number</span></label></div>
         </div>
         <div class="frow c3">
           <div class="f" style="align-self:end;display:flex;gap:6px;flex-wrap:wrap"><button type="button" class="btn sm" data-act="place-on-map">${icon('pin')} Pick on the map</button><button type="button" class="btn sm" data-act="snap-street-draft" title="Centre the building on its serving road's frontage and turn the lot to face the street">${icon('road')} Snap to street</button>${b.footprint ? `<button type="button" class="btn sm" data-act="center-footprint-draft" title="Move the coordinates to the middle of the footprint">${icon('fit')} Centre on footprint</button>` : ''}</div>
@@ -305,7 +305,7 @@ function renderEditor(b) {
           ${f('floorArea', 'Floor area', numI('floorArea', b.floorArea, 'placeholder="measured" min="0"'), 'blocks² · measured, not assumed')}
           ${f('lotFront', 'Frontage', numI('lotFront', b.lotFront, 'placeholder="20" min="0"'), 'blocks')}
           ${f('lotDepth', 'Depth', numI('lotDepth', b.lotDepth, 'placeholder="30" min="0"'), 'blocks')}
-          ${f('lotRotated', 'Lot orientation', `<select id="f-lotRotated"><option value="" ${!b.lotRotated ? 'selected' : ''}>Frontage along X (east–west)</option><option value="1" ${b.lotRotated ? 'selected' : ''}>Frontage along Z (north–south)</option></select>`, 'how the lot sits on the map · Snap to street sets it')}
+          ${f('lotRotated', 'Lot orientation', `<select id="f-lotRotated"><option value="" ${!b.lotRotated ? 'selected' : ''}>Frontage along X</option><option value="1" ${b.lotRotated ? 'selected' : ''}>Frontage along Z</option></select>`, 'on the map')}
           ${f('lotArea', 'Total lot size', numI('lotArea', b.lotArea, 'placeholder="auto" min="0"'), 'blocks² · auto = front × depth')}
         </div>
         <div class="fieldnote" style="margin-top:8px">Footprint: ${b.footprint ? `<b>${fmtInt(footprintAreaOf(b))} blk²</b> measured from ${b.footprint.length} vertices` : 'not drawn'} · <button type="button" class="rowlink" data-act="footprint-draw" style="font:inherit">${b.footprint ? 'redraw on the map' : 'draw on the map'}</button>${b.footprint ? ` · <button type="button" class="rowlink" data-act="footprint-clear" style="font:inherit">clear</button>` : ''}</div>

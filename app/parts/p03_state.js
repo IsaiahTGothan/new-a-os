@@ -215,6 +215,7 @@ function ensureV3(st) {
   }
   if (Array.isArray(st.parcels)) { for (const p of st.parcels) if (!st.legacy.parcels.some(x => x.id === p.id)) st.legacy.parcels.push(p); delete st.parcels; }
   for (const a of st.archive) { a.districtId ??= null; a.neighborhoodId ??= null; a.month ??= null; a.title ??= ''; a.description ??= ''; a.source ??= ''; a.sourceType ??= ''; a.confidence ??= ''; if (!Array.isArray(a.tags)) a.tags = []; a.image = !!a.image; a.created ??= now(); a.updated ??= a.created; }
+  for (const b of st.buildings) { b.unnamed ??= false; b.lotRotated ??= false; }
   for (const r of st.roads) { const d = newRoad({ meta: { gseq: {} } }); for (const k of Object.keys(d)) if (r[k] === undefined) r[k] = k === 'reg' ? '' : d[k]; if (!Array.isArray(r.geometry)) r.geometry = []; }
   for (const t of st.tracks) { const d = newTrack({ meta: { gseq: {} } }); for (const k of Object.keys(d)) if (t[k] === undefined) t[k] = k === 'reg' ? '' : d[k]; }
   for (const l of st.lines) { const d = newLine({ meta: { gseq: {} }, lines: [] }); for (const k of Object.keys(d)) if (l[k] === undefined) l[k] = k === 'reg' ? '' : d[k]; for (const k of ['trackIds', 'roadIds', 'stopIds', 'segments']) if (!Array.isArray(l[k])) l[k] = []; if (l.service && typeof l.service !== 'object') l.service = null; }
@@ -458,6 +459,7 @@ function analyzeImport(payload) {
 const cleanForCompare = o => { const c = { ...o }; for (const k of ['updated', 'imageFile', 'district', 'neighborhood', 'region', 'roadName', 'parcelRegs', 'areaBlocks', 'parentName', 'lengthBlocks', 'buildingRegs', 'trackRegs', 'stopNames', 'lineNames', 'buildingReg', 'businessName', 'jurisdiction', 'officeBuildingReg', 'residenceBuildingReg']) delete c[k]; return c; };
 /* mode 'merge' (update matching ids, add new; blanks never overwrite values unless opts.blanks) | 'replace' (within the file's scope) */
 function mergePayload(payload, mode, opts = {}) {
+  if (typeof OS !== 'undefined') OS.fresh = false;   // an import makes this profile the real one
   if (!payload || typeof payload !== 'object') throw new Error('Not a registry file');
   if (payload.filter && mode === 'replace') mode = 'merge';          // a filtered extract can only add or update — never wipe what it left out
   const incoming = {}; for (const k of ['regions', 'districts', 'neighborhoods', 'buildings', 'roads', 'tracks', 'lines', 'stations', 'businesses', 'tenancies', 'officials', 'projects', 'archive', 'parcels']) incoming[k] = Array.isArray(payload[k]) ? payload[k].map(x => ({ ...x })) : [];

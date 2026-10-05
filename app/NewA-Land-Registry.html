@@ -1767,6 +1767,7 @@ table.reg th{ font-family:var(--font-pixel); font-size:8.5px; letter-spacing:.04
 .minimap .open{ position:absolute; right:8px; bottom:8px; font:600 9.5px var(--font-mono); letter-spacing:.1em; color:var(--cyan); background:rgba(5,9,13,.8); padding:3px 7px; border-radius:5px; opacity:0; transition:opacity .2s; pointer-events:none; } .minimap.gm-mini:hover .open{ opacity:1; }
 .fieldnote .est{ margin-top:8px; padding:10px 12px; border:1px solid var(--line-2); border-radius:8px; background:var(--bg-2); } .fieldnote .est .big{ font:700 22px/1 Silkscreen, var(--font-mono); color:var(--good); margin-bottom:5px; } .fieldnote .est .why{ font-size:11.5px; color:var(--ink-3); line-height:1.45; } .fieldnote .est .acts{ display:flex; gap:6px; margin-top:8px; flex-wrap:wrap; }
 .rowlist.versions .r .mk{ margin-right:6px; }
+.callout code, .desc-line code{ overflow-wrap:anywhere; }
 
 </style>
 </head>
@@ -2604,6 +2605,7 @@ function ensureV3(st) {
   }
   if (Array.isArray(st.parcels)) { for (const p of st.parcels) if (!st.legacy.parcels.some(x => x.id === p.id)) st.legacy.parcels.push(p); delete st.parcels; }
   for (const a of st.archive) { a.districtId ??= null; a.neighborhoodId ??= null; a.month ??= null; a.title ??= ''; a.description ??= ''; a.source ??= ''; a.sourceType ??= ''; a.confidence ??= ''; if (!Array.isArray(a.tags)) a.tags = []; a.image = !!a.image; a.created ??= now(); a.updated ??= a.created; }
+  for (const b of st.buildings) { b.unnamed ??= false; b.lotRotated ??= false; }
   for (const r of st.roads) { const d = newRoad({ meta: { gseq: {} } }); for (const k of Object.keys(d)) if (r[k] === undefined) r[k] = k === 'reg' ? '' : d[k]; if (!Array.isArray(r.geometry)) r.geometry = []; }
   for (const t of st.tracks) { const d = newTrack({ meta: { gseq: {} } }); for (const k of Object.keys(d)) if (t[k] === undefined) t[k] = k === 'reg' ? '' : d[k]; }
   for (const l of st.lines) { const d = newLine({ meta: { gseq: {} }, lines: [] }); for (const k of Object.keys(d)) if (l[k] === undefined) l[k] = k === 'reg' ? '' : d[k]; for (const k of ['trackIds', 'roadIds', 'stopIds', 'segments']) if (!Array.isArray(l[k])) l[k] = []; if (l.service && typeof l.service !== 'object') l.service = null; }
@@ -2847,6 +2849,7 @@ function analyzeImport(payload) {
 const cleanForCompare = o => { const c = { ...o }; for (const k of ['updated', 'imageFile', 'district', 'neighborhood', 'region', 'roadName', 'parcelRegs', 'areaBlocks', 'parentName', 'lengthBlocks', 'buildingRegs', 'trackRegs', 'stopNames', 'lineNames', 'buildingReg', 'businessName', 'jurisdiction', 'officeBuildingReg', 'residenceBuildingReg']) delete c[k]; return c; };
 /* mode 'merge' (update matching ids, add new; blanks never overwrite values unless opts.blanks) | 'replace' (within the file's scope) */
 function mergePayload(payload, mode, opts = {}) {
+  if (typeof OS !== 'undefined') OS.fresh = false;   // an import makes this profile the real one
   if (!payload || typeof payload !== 'object') throw new Error('Not a registry file');
   if (payload.filter && mode === 'replace') mode = 'merge';          // a filtered extract can only add or update — never wipe what it left out
   const incoming = {}; for (const k of ['regions', 'districts', 'neighborhoods', 'buildings', 'roads', 'tracks', 'lines', 'stations', 'businesses', 'tenancies', 'officials', 'projects', 'archive', 'parcels']) incoming[k] = Array.isArray(payload[k]) ? payload[k].map(x => ({ ...x })) : [];
@@ -2963,7 +2966,7 @@ async function flush() {
     await SAVE.write(JSON.parse(JSON.stringify(S)));
     await maybeSnapshot();
     if (VAULT.status === 'granted') await vaultWrite();
-    else if (typeof OS !== 'undefined' && OS.online && OS.status?.vaultOk) { try { await OS.vaultWrite(); } catch (e) { console.warn('bridge vault write failed', e); } }
+    else if (typeof OS !== 'undefined' && OS.online && OS.status?.vaultOk && !OS.vaultHold) { try { await OS.vaultWrite(); } catch (e) { console.warn('bridge vault write failed', e); OS.vaultError = e.message || String(e); } }
     SAVE.dirty = false; SAVE.lastSaved = new Date(); SAVE.lastError = null;
     setSaveState('saved', 'SAVED ' + fmtTime(SAVE.lastSaved));
   } catch (e) {
@@ -3291,7 +3294,7 @@ function renderStatus() {
   idb.className = SAVE.lastError ? 'warn' : SAVE.dirty ? 'warn' : ''; $('#st-idb-t').textContent = SAVE.lastError ? 'browser store · SAVE FAILED' : SAVE.dirty ? 'browser store · unsaved' : 'browser store · ok';
   const v = $('#st-vault'), vt = $('#st-vault-t');
   if (VAULT.status === 'granted') { v.className = ''; vt.textContent = `vault · ${VAULT.name}${VAULT.lastWrite ? ' · ' + fmtTime(VAULT.lastWrite) : ''}`; }
-  else if (typeof OS !== 'undefined' && OS.online && OS.status?.vaultOk) { v.className = ''; vt.textContent = `vault · via OS bridge${OS.lastVaultWrite ? ' · ' + fmtTime(OS.lastVaultWrite) : ''}`; }
+  else if (typeof OS !== 'undefined' && OS.online && OS.status?.vaultOk) { if (OS.vaultHold) { v.className = 'warn'; vt.innerHTML = `vault · <button data-act="os-open" style="color:var(--warn)">newer copy in the folder (${OS.vaultHold.buildings} buildings) — load or overwrite</button>`; } else if (OS.vaultError) { v.className = 'warn'; vt.innerHTML = `vault · <button data-act="os-open" style="color:var(--warn)">bridge write failed — ${esc(truncate(OS.vaultError, 40))}</button>`; } else { v.className = ''; vt.textContent = `vault · via OS bridge${OS.lastVaultWrite ? ' · ' + fmtTime(OS.lastVaultWrite) : ''}`; } }
   else if (VAULT.status === 'prompt') { v.className = 'warn'; vt.innerHTML = `vault · <button data-act="vault-reconnect" style="color:var(--warn)">reconnect ${esc(VAULT.name)}</button>`; }
   else if (VAULT.status === 'unsupported') { v.className = 'off'; vt.textContent = 'vault · unsupported browser (use backups)'; }
   else { v.className = 'off'; vt.innerHTML = `vault · <button data-act="vault-link">link a folder</button>`; }
@@ -4051,7 +4054,7 @@ function geometryAt(o, hy) {
   const vs = (o.versions || []).filter(v => Array.isArray(v.geometry) && v.geometry.length >= 2 && v.year != null);
   if (hy == null || !vs.length) return { geometry: o.geometry, width: o.width, version: null };
   const list = vs.map(v => ({ v, idx: hyIndex(v.year, v.half || '') })).sort((a, b) => a.idx - b.idx);
-  const curIdx = o.geometryFromYear != null ? hyIndex(o.geometryFromYear, o.geometryFromHalf || '') : list[list.length - 1].idx + 1;
+  const afterLast = list[list.length - 1].idx + 1; const curIdx = o.geometryFromYear != null ? Math.max(hyIndex(o.geometryFromYear, o.geometryFromHalf || ''), afterLast) : afterLast;
   list.push({ v: null, idx: curIdx }); list.sort((a, b) => a.idx - b.idx);
   let pick = null; for (const e of list) if (e.idx <= hy) pick = e; if (!pick) pick = list[0];
   return pick.v ? { geometry: pick.v.geometry, width: pick.v.width ?? o.width, version: pick.v } : { geometry: o.geometry, width: o.width, version: null };
@@ -4059,7 +4062,7 @@ function geometryAt(o, hy) {
 function saveShapeVersion(o, year, half, note = '') {
   const v = { id: uid('gv'), year, half: half || '', geometry: JSON.parse(JSON.stringify(o.geometry || [])), width: o.width ?? null, note, saved: now() };
   o.versions = [...(o.versions || []), v].sort((a, b) => hyIndex(a.year, a.half || '') - hyIndex(b.year, b.half || ''));
-  if (o.geometryFromYear == null) { const n = hyFromIndex(hyIndex(year, half || 'E') + 1); o.geometryFromYear = n.year; o.geometryFromHalf = n.half; }
+  const vi = hyIndex(year, half || 'E'); if (o.geometryFromYear == null || hyIndex(o.geometryFromYear, o.geometryFromHalf || '') <= vi) { const n = hyFromIndex(vi + 1); o.geometryFromYear = n.year; o.geometryFromHalf = n.half; }
   o.updated = now(); return v;
 }
 /* ---- lots: frontage runs along X unless the lot is rotated; snapping to the serving road sets the side and the orientation ---- */
@@ -4070,6 +4073,12 @@ function snapToStreet(b, road = null) {
   const alongX = Math.abs(ux) >= Math.abs(uz); const dp = num(b.lotDepth) || num(b.lotFront) || 20;
   const side = Math.sign((b.x - c.q[0]) * -uz + (b.z - c.q[1]) * ux) || 1; const off = (num(r.width) || 5) / 2 + 1 + dp / 2;
   return { x: Math.round(c.q[0] - uz * side * off), z: Math.round(c.q[1] + ux * side * off), lotRotated: !alongX, road: r, d: c.d };
+}
+/* swap a dated shape in as the current one: the current shape is kept, dated from when it applied */
+function swapShapeVersion(o, v) {
+  const vs = (o.versions || []).filter(x => x.id !== v.id); const curIdx = o.geometryFromYear != null ? hyIndex(o.geometryFromYear, o.geometryFromHalf || '') : hyIndex(CURRENT_YEAR, CURRENT_HALF); const cf = hyFromIndex(Math.max(curIdx, hyIndex(v.year, v.half || 'E') + 1));
+  vs.push({ id: uid('gv'), year: cf.year, half: cf.half, geometry: JSON.parse(JSON.stringify(o.geometry || [])), width: o.width ?? null, note: 'previous current shape', saved: now() });
+  o.versions = vs.sort((a, b) => hyIndex(a.year, a.half || '') - hyIndex(b.year, b.half || '')); o.geometry = JSON.parse(JSON.stringify(v.geometry)); if (v.width) o.width = v.width; o.geometryFromYear = v.year; o.geometryFromHalf = v.half || ''; o.updated = now();
 }
 
 
@@ -4682,7 +4691,7 @@ function renderEditor(b) {
           <div class="f"><label for="f-name">Building name <span class="hint">optional</span></label>${inp('name', b.name, 'placeholder="New BK Tower"')}</div>
           ${f('x', 'X coordinate', numI('x', b.x, 'placeholder="0" step="1"'), 'Minecraft X')}
           ${f('z', 'Z coordinate', numI('z', b.z, 'placeholder="0" step="1"'), 'Minecraft Z')}
-          <div class="f"><label>Unnamed</label><label class="switch"><input type="checkbox" id="f-unnamed" ${b.unnamed ? 'checked' : ''}> <span class="muted" style="font-size:12px">no name or address known — shown by number</span></label></div>
+          <div class="f"><label>Unnamed</label><label class="switch"><input type="checkbox" id="f-unnamed" ${b.unnamed ? 'checked' : ''}> <span class="muted" style="font-size:12px">shown by number</span></label></div>
         </div>
         <div class="frow c3">
           <div class="f" style="align-self:end;display:flex;gap:6px;flex-wrap:wrap"><button type="button" class="btn sm" data-act="place-on-map">${icon('pin')} Pick on the map</button><button type="button" class="btn sm" data-act="snap-street-draft" title="Centre the building on its serving road's frontage and turn the lot to face the street">${icon('road')} Snap to street</button>${b.footprint ? `<button type="button" class="btn sm" data-act="center-footprint-draft" title="Move the coordinates to the middle of the footprint">${icon('fit')} Centre on footprint</button>` : ''}</div>
@@ -4742,7 +4751,7 @@ function renderEditor(b) {
           ${f('floorArea', 'Floor area', numI('floorArea', b.floorArea, 'placeholder="measured" min="0"'), 'blocks² · measured, not assumed')}
           ${f('lotFront', 'Frontage', numI('lotFront', b.lotFront, 'placeholder="20" min="0"'), 'blocks')}
           ${f('lotDepth', 'Depth', numI('lotDepth', b.lotDepth, 'placeholder="30" min="0"'), 'blocks')}
-          ${f('lotRotated', 'Lot orientation', `<select id="f-lotRotated"><option value="" ${!b.lotRotated ? 'selected' : ''}>Frontage along X (east–west)</option><option value="1" ${b.lotRotated ? 'selected' : ''}>Frontage along Z (north–south)</option></select>`, 'how the lot sits on the map · Snap to street sets it')}
+          ${f('lotRotated', 'Lot orientation', `<select id="f-lotRotated"><option value="" ${!b.lotRotated ? 'selected' : ''}>Frontage along X</option><option value="1" ${b.lotRotated ? 'selected' : ''}>Frontage along Z</option></select>`, 'on the map')}
           ${f('lotArea', 'Total lot size', numI('lotArea', b.lotArea, 'placeholder="auto" min="0"'), 'blocks² · auto = front × depth')}
         </div>
         <div class="fieldnote" style="margin-top:8px">Footprint: ${b.footprint ? `<b>${fmtInt(footprintAreaOf(b))} blk²</b> measured from ${b.footprint.length} vertices` : 'not drawn'} · <button type="button" class="rowlink" data-act="footprint-draw" style="font:inherit">${b.footprint ? 'redraw on the map' : 'draw on the map'}</button>${b.footprint ? ` · <button type="button" class="rowlink" data-act="footprint-clear" style="font:inherit">clear</button>` : ''}</div>
@@ -5160,7 +5169,7 @@ function renderRoadEditor(r) {
       <div class="f span"><label for="f-name">Name <span class="hint">renaming keeps the old name as a former name</span></label>${inpF('name', r.name, 'placeholder="Mill Street"')}</div>
       ${fld('aliases', 'Aliases', inpF('aliases', (r.aliases || []).join(', '), 'placeholder="Route 9, The Boulevard"'), 'comma separated')}
       ${fld('formerNames', 'Former names', inpF('formerNames', (r.formerNames || []).join(', '), 'placeholder=""'), 'comma separated')}
-      <div class="f"><label>Unnamed</label><label class="switch"><input type="checkbox" id="f-unnamed" ${r.unnamed ? 'checked' : ''}> <span class="muted" style="font-size:12px">no name known — shown by number, no label on the map</span></label></div>
+      <div class="f"><label>Unnamed</label><label class="switch"><input type="checkbox" id="f-unnamed" ${r.unnamed ? 'checked' : ''}> <span class="muted" style="font-size:12px">shown by number</span></label></div>
     </div></div>
     <div class="fsect"><h4>KIND</h4><div class="frow c3">
       ${fld('type', 'Type', selF('type', ROAD_TYPES, r.type))}${fld('grade', 'Grade', selF('grade', GRADES, r.grade), 'bridges & tunnels never form junctions with surface roads')}${fld('direction', 'Access', selF('direction', DIRECTIONS, r.direction))}
@@ -5231,7 +5240,7 @@ function renderLineEditor(l) {
       <div class="f" style="grid-column:span 2"><label for="f-name">Name</label>${inpF('name', l.name, 'placeholder="Red Line"')}</div>
       ${fld('shortName', 'Short name', inpF('shortName', l.shortName, 'placeholder="R" maxlength="6"'), 'badge label')}
       ${fld('mode', 'Mode', selF('mode', TRANSIT_MODES, l.mode))}${fld('status', 'Status', selF('status', LINE_STATUSES.map(([id, label]) => [id, label]), l.status))}${fld('operator', 'Operator', inpF('operator', l.operator, 'placeholder="New A Metro"'))}
-      <div class="f"><label>Unnamed</label><label class="switch"><input type="checkbox" id="f-unnamed" ${l.unnamed ? 'checked' : ''}> <span class="muted" style="font-size:12px">no name known — shown by number</span></label></div>
+      <div class="f"><label>Unnamed</label><label class="switch"><input type="checkbox" id="f-unnamed" ${l.unnamed ? 'checked' : ''}> <span class="muted" style="font-size:12px">shown by number</span></label></div>
     </div></div>
     <div class="fsect"><h4>APPEARANCE <span style="font-weight:400;letter-spacing:0;color:var(--ink-4);font-family:var(--font-mono);font-size:10.5px">colour · pattern · width — the label is always shown too</span></h4>
       <div class="swatchrow" id="line-swatches">${TRANSIT_COLORS.map(c => `<button type="button" data-color="${c}" aria-pressed="${(l.color || '').toLowerCase() === c.toLowerCase()}" style="--c:${c}" title="${c}"></button>`).join('')}<input type="color" id="f-color" value="${esc(/^#[0-9a-f]{6}$/i.test(l.color || '') ? l.color : TRANSIT_COLORS[0])}" title="Custom colour"></div>
@@ -5920,12 +5929,12 @@ function snapPoint(p, { exclude = null } = {}) {
 }
 
 /* ---- undo / redo: whole geometry snapshots ---- */
-function geomSnapshot() { return JSON.stringify({ regions: S.regions.map(r => ({ id: r.id, polygons: r.polygons })), districts: S.districts.map(d => ({ id: d.id, polygons: d.polygons })), hoods: S.neighborhoods.map(h => ({ id: h.id, polygons: h.polygons })), roads: S.roads, tracks: S.tracks, lines: S.lines, stations: S.stations, buildings: S.buildings.map(b => ({ id: b.id, x: b.x, z: b.z, entrance: b.entrance, footprint: b.footprint, districtId: b.districtId, neighborhoodId: b.neighborhoodId })), gseq: S.meta.gseq }); }
+function geomSnapshot() { return JSON.stringify({ regions: S.regions.map(r => ({ id: r.id, polygons: r.polygons })), districts: S.districts.map(d => ({ id: d.id, polygons: d.polygons })), hoods: S.neighborhoods.map(h => ({ id: h.id, polygons: h.polygons })), roads: S.roads, tracks: S.tracks, lines: S.lines, stations: S.stations, buildings: S.buildings.map(b => ({ id: b.id, x: b.x, z: b.z, entrance: b.entrance, footprint: b.footprint, districtId: b.districtId, neighborhoodId: b.neighborhoodId, lotRotated: b.lotRotated, roadId: b.roadId, roadIdSource: b.roadIdSource })), gseq: S.meta.gseq }); }
 function geomRestore(json) {
   const g = JSON.parse(json);
   for (const r of g.regions) { const x = regionById(r.id); if (x) x.polygons = r.polygons; } for (const d of g.districts) { const x = districtById(d.id); if (x) x.polygons = d.polygons; } for (const h of g.hoods) { const x = hoodById(h.id); if (x) x.polygons = h.polygons; }
   S.roads = g.roads; S.tracks = g.tracks; S.lines = g.lines; S.stations = g.stations; S.meta.gseq = g.gseq;
-  const map = new Map(g.buildings.map(b => [b.id, b])); for (const b of S.buildings) { const o = map.get(b.id); if (o) { b.x = o.x; b.z = o.z; b.entrance = o.entrance; b.footprint = o.footprint; } }
+  const map = new Map(g.buildings.map(b => [b.id, b])); for (const b of S.buildings) { const o = map.get(b.id); if (o) { b.x = o.x; b.z = o.z; b.entrance = o.entrance; b.footprint = o.footprint; if ('lotRotated' in o) { b.lotRotated = o.lotRotated; b.roadId = o.roadId; b.roadIdSource = o.roadIdSource; } } }
   ensureV3(S);
 }
 function mapPushUndo() { MAPW.undo.push(geomSnapshot()); if (MAPW.undo.length > 40) MAPW.undo.shift(); MAPW.redo = []; }
@@ -6481,7 +6490,7 @@ function inspectorAction(act, t) {
     case 'insp-center-footprint': { const b = byId(sel.id); if (!b?.footprint) break; const c = centroidOf(b.footprint); mapPushUndo(); b.x = Math.round(c[0]); b.z = Math.round(c[1]); b.updated = now(); commit(); renderDock(); mapDraw(); toast(`${b.reg} centred on its footprint · X ${b.x} · Z ${b.z}`, 'good'); break; }
     case 'insp-snap-street': { const b = byId(sel.id); if (!b) break; const sn = snapToStreet(b); if (!sn) { toast('No road near this building to snap to', 'warn'); break; } mapPushUndo(); const was = { x: b.x, z: b.z, lotRotated: b.lotRotated, roadId: b.roadId, roadIdSource: b.roadIdSource }; b.x = sn.x; b.z = sn.z; b.lotRotated = sn.lotRotated; if (!b.roadId) { b.roadId = sn.road.id; b.roadIdSource = 'snap'; } b.updated = now(); commit(); renderDock(); mapDraw(); toast(`${b.reg} snapped to ${roadLabel(sn.road)} · X ${b.x} · Z ${b.z}`, 'good', { label: 'UNDO', fn: () => { Object.assign(b, was); b.updated = now(); commit(); renderDock(); mapDraw(); } }); break; }
     case 'insp-version-save': shapeVersionSaveFlow(sel); break;
-    case 'insp-version-restore': { const o = sel.kind === 'road' ? roadById(sel.id) : trackById(t.dataset.t); const v = (o?.versions || []).find(x => x.id === t.dataset.v); if (!o || !v) break; mapPushUndo(); o.geometry = JSON.parse(JSON.stringify(v.geometry)); if (v.width) o.width = v.width; o.updated = now(); afterGeometryChange({ kind: sel.kind === 'road' ? 'road' : 'track', id: o.id }); commit(); renderDock(); mapDraw(); toast(`Loaded the ${hyLabel(v.year, v.half)} shape as the current one`, 'good'); break; }
+    case 'insp-version-restore': { const o = sel.kind === 'road' ? roadById(sel.id) : trackById(t.dataset.t); const v = (o?.versions || []).find(x => x.id === t.dataset.v); if (!o || !v) break; mapPushUndo(); swapShapeVersion(o, v); afterGeometryChange({ kind: sel.kind === 'road' ? 'road' : 'track', id: o.id }); commit(); renderDock(); mapDraw(); toast(`The ${hyLabel(v.year, v.half)} shape is now the current one; the previous current shape is kept, dated ${hyLabel(o.versions[o.versions.length - 1]?.year, o.versions[o.versions.length - 1]?.half)}`, 'good'); break; }
     case 'insp-version-remove': { const o = sel.kind === 'road' ? roadById(sel.id) : trackById(t.dataset.t); if (!o) break; mapPushUndo(); o.versions = (o.versions || []).filter(x => x.id !== t.dataset.v); o.updated = now(); commit(); renderDock(); break; }
     case 'insp-select': MAPW.sel = { kind: t.dataset.kind, id: t.dataset.id }; MAPW.dock = 'inspector'; renderDock(); refreshTools(); const ext = selExtent(MAPW.sel); if (ext && t.closest('.streets, .chips, .issue')) mapFit(ext); else mapDraw(); break;
     case 'insp-open': if (sel) openRecord(sel.kind, sel.id); break;
@@ -6557,8 +6566,8 @@ function drawFootprintForDraft() {
 function shapeVersionsHTML(o, kind, line = null) {
   const objs = kind === 'line' ? lineTracks(line) : [o]; const vs = objs.flatMap(t => (t.versions || []).map(v => ({ v, t }))).sort((a, b) => hyIndex(a.v.year, a.v.half || '') - hyIndex(b.v.year, b.v.half || ''));
   if (kind === 'line' && !objs.length) return '';
-  return `<div class="secthead">DATED SHAPES <span class="muted" style="letter-spacing:0;font-weight:400">· ${vs.length ? vs.length + ' saved' : 'none yet'}</span><span class="acts"><button class="btn sm" data-act="insp-version-save" title="Keep the shape as drawn now, dated — then edit the current shape for later years">${icon('clock')} Save shape as dated</button></span></div>
-  ${vs.length ? `<div class="rowlist versions">${vs.map(({ v, t }) => `<div class="r"><div><div class="t"><span class="mk">${esc(hyLabel(v.year, v.half))}</span>${kind === 'line' ? esc(t.name || t.reg) + ' · ' : ''}${v.geometry.length} points${v.width ? ` · ${esc(v.width)} wide` : ''}${v.note ? ` · ${esc(v.note)}` : ''}</div><div class="s">playback shows it from ${esc(hyLabel(v.year, v.half))} until the next dated shape</div></div><div class="v" style="display:flex;gap:4px"><button class="btn sm ghost" data-act="insp-version-restore" data-t="${t.id}" data-v="${v.id}" title="Load this shape as the current one">Load</button><button class="btn sm ghost" data-act="insp-version-remove" data-t="${t.id}" data-v="${v.id}" title="Remove this dated shape">${icon('x')}</button></div></div>`).join('')}</div><div class="desc-line">Current shape applies from ${objs[0].geometryFromYear != null ? esc(hyLabel(objs[0].geometryFromYear, objs[0].geometryFromHalf)) : 'the half-year after the latest dated shape'}${kind === 'road' ? ' — change it on the record' : ''}.</div>` : `<div class="desc-line">${kind === 'line' ? 'Alignments' : 'Roads'} change: save today's shape with the year it was true for, then redraw the current one. Playback shows the right shape for each half-year.</div>`}`;
+  return `<div class="secthead">DATED SHAPES <span class="muted" style="letter-spacing:0;font-weight:400">· ${vs.length ? vs.length + ' saved' : 'none yet'}</span><span class="acts"><button class="btn sm" data-act="insp-version-save" title="Keep the shape as drawn now, dated — then edit the current shape for later years">${icon('clock')} Save dated</button></span></div>
+  ${vs.length ? `<div class="rowlist versions">${vs.map(({ v, t }) => `<div class="r"><div><div class="t"><span class="mk">${esc(hyLabel(v.year, v.half))}</span>${kind === 'line' ? esc(t.name || t.reg) + ' · ' : ''}${v.geometry.length} points${v.width ? ` · ${esc(v.width)} wide` : ''}${v.note ? ` · ${esc(v.note)}` : ''}</div><div class="s">playback shows it from ${esc(hyLabel(v.year, v.half))} until the next dated shape</div></div><div class="v" style="display:flex;gap:4px"><button class="btn sm ghost" data-act="insp-version-restore" data-t="${t.id}" data-v="${v.id}" title="Make this the current shape; the current one is kept as a dated shape">Swap in</button><button class="btn sm ghost" data-act="insp-version-remove" data-t="${t.id}" data-v="${v.id}" title="Remove this dated shape">${icon('x')}</button></div></div>`).join('')}</div><div class="desc-line">Current shape applies from ${objs[0].geometryFromYear != null ? esc(hyLabel(objs[0].geometryFromYear, objs[0].geometryFromHalf)) : 'the half-year after the latest dated shape'}${kind === 'road' ? ' — change it on the record' : ''}.</div>` : `<div class="desc-line">${kind === 'line' ? 'Alignments' : 'Roads'} change: save today's shape with the year it was true for, then redraw the current one. Playback shows the right shape for each half-year.</div>`}`;
 }
 async function shapeVersionSaveFlow(sel) {
   const objs = sel?.kind === 'road' ? [roadById(sel.id)].filter(Boolean) : sel?.kind === 'line' ? lineTracks(lineById(sel.id) || { trackIds: [] }) : []; if (!objs.length) { toast('Nothing with a shape is selected', 'warn'); return; }
@@ -7722,7 +7731,7 @@ document.addEventListener('click', async e => {
     case 'dr-cancel': if (DR.isNew) closeDrawer(); else { if (formDirty()) { const r = await confirmDialog({ title: 'Discard changes?', body: '<p>Your edits to this record will be lost.</p>', ok: 'Discard', cancel: 'Keep editing', danger: true }); if (r !== 'ok') break; } openRecord(DR.kind, DR.id, 'view', { keepStack: true }); } break;
     case 'dr-save': saveDrawer(); break;
     case 'dr-delete': if (DR.kind === 'building') deleteBuilding(DR.id); else deleteOther(DR.kind, DR.id); break;
-    case 'dr-map': { const ref = { kind: DR.kind, id: DR.id }; closeDrawer(true); if (MAPW.edit) { if (UI.nav === 'map') setMapEdit(false); else MAPW.edit = false; } mapLocate(ref); break; }
+    case 'dr-map': { const ref = { kind: DR.kind, id: DR.id }; closeDrawer(true); if (MAPW.edit) { if (UI.nav === 'map') setMapEdit(false); else { MAPW.edit = false; MAPW.mode = 'select'; MAPW.draft = null; MAPW.pending = null; } } mapLocate(ref); break; }
     case 'dr-photo': $('#file-img').click(); break;
     case 'dr-photo-remove': { const b = DR.mode === 'edit' ? DR.draft : recordById(DR.kind, DR.id); if (b) { await removeBuildingImage(b); const real = recordById(DR.kind, b.id); if (real) real.image = false; if (DR.mode === 'edit') renderDrawerPhotoOnly(); else renderDrawer(); renderView(false); } break; }
     case 'dr-copy': { const b = byId(DR.id); if (b) copySummary(b); break; }
@@ -7775,10 +7784,12 @@ document.addEventListener('click', async e => {
     case 'estimate-apply': { const v = num(t.dataset.v); if (v == null) break; const a = $('#f-assessTotal'); if (a) a.value = v; const y = $('#f-assessYear'); if (y && !y.value) y.value = CURRENT_YEAR; const bs = $('#f-valuationBasis'); if (bs) bs.value = 'estimate'; toast('Estimate placed in Assessed total — save the record to keep it', 'good'); break; }
     case 'snap-street-draft': { if (!DR.draft) break; readFormInto(DR.draft, false); const sn = snapToStreet(DR.draft); if (!sn) { toast(DR.draft.x == null ? 'Give the building coordinates first' : 'No road near this building to snap to', 'warn'); break; } $('#f-x').value = sn.x; $('#f-z').value = sn.z; const lr = $('#f-lotRotated'); if (lr) lr.value = sn.lotRotated ? '1' : ''; const rd = $('#f-road'); if (rd && !rd.value) rd.value = sn.road.id; updatePlaceHint(); toast(`Centred on ${roadLabel(sn.road)} · X ${sn.x} · Z ${sn.z} · lot turned to face it`, 'good'); break; }
     case 'center-footprint-draft': { if (!DR.draft?.footprint) break; const c = centroidOf(DR.draft.footprint); $('#f-x').value = Math.round(c[0]); $('#f-z').value = Math.round(c[1]); updatePlaceHint(); toast('Coordinates set to the middle of the footprint', 'good'); break; }
-    case 'road-version-save': { if (!DR.draft) break; readAnyFormInto(DR.draft, false); if ((DR.draft.geometry || []).length < 2) { toast('Draw the road on the map first', 'warn'); break; } const r = await hyPromptDialog({ title: 'Save the current shape as a dated version', body: '<p>The shape as drawn now is kept for the date you give; playback shows it from that half-year until the next dated shape. Then redraw the current shape.</p>', ok: 'Save dated shape', kicker: 'DATED SHAPE', label: 'This shape was true in', year: FOUNDED_YEAR, half: 'E' }); if (!r || r.year == null) break; saveShapeVersion(DR.draft, r.year, r.half); rerenderEditor(); toast(`Shape saved as ${hyLabel(r.year, r.half)}`, 'good'); break; }
+    case 'road-version-save': { if (!DR.draft) break; readAnyFormInto(DR.draft, false); if ((DR.draft.geometry || []).length < 2) { toast('Draw the road on the map first', 'warn'); break; } const r = await hyPromptDialog({ title: 'Save the current shape as a dated version', body: '<p>The shape as drawn now is kept for the date you give; playback shows it from that half-year until the next dated shape. Then redraw the current shape.</p>', ok: 'Save dated shape', kicker: 'DATED SHAPE', label: 'This shape was true in', year: FOUNDED_YEAR, half: 'E' }); if (!r || r.year == null) break; saveShapeVersion(DR.draft, r.year, r.half); const gy = $('#f-gfrom-y'), gh = $('#f-gfrom-h'); if (gy) gy.value = DR.draft.geometryFromYear ?? ''; if (gh) gh.value = DR.draft.geometryFromHalf || ''; rerenderEditor(); toast(`Shape saved as ${hyLabel(r.year, r.half)} — the current shape now counts from ${hyLabel(DR.draft.geometryFromYear, DR.draft.geometryFromHalf)}`, 'good'); break; }
     case 'road-version-remove': { if (!DR.draft) break; readAnyFormInto(DR.draft, false); DR.draft.versions = (DR.draft.versions || []).filter(v => v.id !== t.dataset.v); rerenderEditor(); break; }
     // OS bridge
     case 'os-open': openDataModal(); break;
+    case 'os-vault-load': closeModal(); await OS.vaultLoad(); break;
+    case 'os-vault-overwrite': { const r = await confirmDialog({ title: 'Overwrite the vault folder?', body: `<p>The registry in the folder (${OS.vaultHold?.buildings ?? '?'} buildings) is replaced by this browser's copy (${S.buildings.length} buildings). The bridge keeps its last verified backup; nothing else is touched.</p>`, ok: 'Overwrite', danger: true }); if (r !== 'ok') break; closeModal(); await OS.vaultOverwrite(); break; }
     case 'os-poll': await OS.poll(); openDataModal(); break;
     case 'os-backup': await OS.backupRun('auto'); openDataModal(); break;
     case 'os-backup-full': await OS.backupRun('full'); openDataModal(); break;
@@ -8229,14 +8240,13 @@ function jmPick(entries) {
   return { tiles: tiles.filter(t => t.dir === best), dir: best, dirs };
 }
 async function jmStitch(tiles, { name = 'JourneyMap', maxPixels = 48e6 } = {}) {
-  const imgs = []; for (const t of tiles) imgs.push({ ...t, bmp: await createImageBitmap(t.file) });
-  const ts = imgs[0].bmp.width || 512; const blocksPerPx = 512 / ts;
-  const txs = imgs.map(t => t.tx), tzs = imgs.map(t => t.tz); const minTx = Math.min(...txs), maxTx = Math.max(...txs), minTz = Math.min(...tzs), maxTz = Math.max(...tzs);
-  const cols = maxTx - minTx + 1, rows = maxTz - minTz + 1; let f = 1; while ((cols * ts / f) * (rows * ts / f) > maxPixels) f *= 2;
+  const first = await createImageBitmap(tiles[0].file); const ts = first.width || 512; first.close?.(); const blocksPerPx = 512 / ts;
+  const txs = tiles.map(t => t.tx), tzs = tiles.map(t => t.tz); const minTx = Math.min(...txs), maxTx = Math.max(...txs), minTz = Math.min(...tzs), maxTz = Math.max(...tzs);
+  const cols = maxTx - minTx + 1, rows = maxTz - minTz + 1; let f = 1; while ((cols * ts / f) * (rows * ts / f) > maxPixels || Math.max(cols, rows) * ts / f > 16384) f *= 2;
   const c = document.createElement('canvas'); c.width = Math.ceil(cols * ts / f); c.height = Math.ceil(rows * ts / f); const g = c.getContext('2d'); g.imageSmoothingEnabled = f > 1;
-  for (const t of imgs) { g.drawImage(t.bmp, (t.tx - minTx) * ts / f, (t.tz - minTz) * ts / f, ts / f, ts / f); t.bmp.close?.(); }
+  for (const t of tiles) { const bmp = await createImageBitmap(t.file); g.drawImage(bmp, (t.tx - minTx) * ts / f, (t.tz - minTz) * ts / f, ts / f, ts / f); bmp.close?.(); }
   const blob = await new Promise(r => c.toBlob(r, 'image/png')); const file = new File([blob], `${name}.png`, { type: 'image/png' });
-  return { file, x: minTx * 512, z: minTz * 512, scale: blocksPerPx * f, w: c.width, h: c.height, tiles: imgs.length, cols, rows, downscaled: f };
+  return { file, x: minTx * 512, z: minTz * 512, scale: blocksPerPx * f, w: c.width, h: c.height, tiles: tiles.length, cols, rows, downscaled: f };
 }
 async function importJourneyMap(entries, { name = 'JourneyMap tiles' } = {}) {
   const { tiles, dir, dirs } = jmPick(entries); if (!tiles.length) { toast('No JourneyMap tiles found — expected files named like 0,0.png, ideally from overworld/day', 'warn'); return null; }
@@ -9107,7 +9117,7 @@ OS.poll = async () => {
   const was = OS.online;
   try { const st = await OS.get('/api/status'); OS.online = !!st.ok; OS.status = st; OS.health = await OS.get('/api/health').catch(() => null); OS.lastPoll = now(); }
   catch { OS.online = false; OS.status = null; OS.health = null; }
-  if (!was && OS.online) { toast('New A OS bridge connected', 'good'); const bad = (OS.health?.alerts || []).filter(a => a.level === 'bad'); if (bad.length) toast(bad[0].text, 'bad', { label: 'VAULT & BACKUPS', fn: openDataModal }); }
+  if (!was && OS.online) { toast('New A OS bridge connected', 'good'); if (VAULT.status !== 'granted') await OS.vaultCheck(); const bad = (OS.health?.alerts || []).filter(a => a.level === 'bad'); if (bad.length) toast(bad[0].text, 'bad', { label: 'VAULT & BACKUPS', fn: openDataModal }); }
   OS.renderStatus(); return OS.online;
 };
 OS.start = () => { clearInterval(OS.timer); OS.poll(); OS.timer = setInterval(OS.poll, 30000); window.addEventListener('pagehide', OS.afterSession); document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'hidden') OS.afterSession(); }); };
@@ -9169,12 +9179,40 @@ function osCardHTML() {
     <div class="kv" style="margin:10px 0 0;border:0">${kvHTML('LAST VERIFIED BACKUP', h?.lastVerified ? `${ageText(h.lastVerified)}<small>${esc(h.last?.id || '')} · ${h.last?.kind || ''} · ${h.last?.files ?? '?'} files</small>` : (OS.online ? 'none yet' : null), 'num')}${kvHTML('RESTORE TEST', h?.lastRestoreTest ? ageText(h.lastRestoreTest) : (S.world.backups.lastRestoreTest ? ageText(S.world.backups.lastRestoreTest) : (OS.online ? 'never' : null)), 'num')}${kvHTML('BACKUPS ON DISK', h ? `${h.count}<small>${h.disk ? (h.disk.freeBytes / 1e9).toFixed(1) + ' GB free' : ''}</small>` : null, 'num')}${kvHTML('WORLD', h ? (h.world.readable ? `${h.world.regions}<small>region files · read-only</small>` : (h.world.configured ? 'not readable' : 'not set')) : null, 'num')}</div>
     ${alerts.length ? `<div class="issues-wrap" style="margin:10px 0 0">${alerts.map(a => `<div class="issue ${a.level}">${icon(a.level === 'info' ? 'flag' : 'warn')}<span>${esc(a.text)}</span></div>`).join('')}</div>` : ''}
     ${hist.length ? `<div class="desc-line" style="margin-top:8px">RECENT · ${hist.map(x => `${esc(x.kind)} ${ageText(x.at)}${x.verified ? ' ✓' : ' ✗'}`).join(' · ')}</div>` : ''}
+    ${OS.vaultHold ? `<div class="issue warn" style="margin-top:10px">${icon('warn')}<span><b>The vault folder holds a different registry</b> (${OS.vaultHold.buildings} buildings${OS.vaultHold.updated ? ', saved ' + esc(fmtDate(OS.vaultHold.updated)) : ''}). This browser has ${S.buildings.length}. Autosave through the bridge is paused until you choose. <div class="acts"><button class="btn sm primary" data-act="os-vault-load">${icon('up')} Load the vault copy (snapshot first)</button><button class="btn sm danger" data-act="os-vault-overwrite">Overwrite the vault with this browser's copy</button></div></span></div>` : ''}${OS.vaultError ? `<div class="issue bad" style="margin-top:10px">${icon('warn')}<span>Last bridge vault write failed: ${esc(OS.vaultError)}. The browser store is still saved; export a backup if this persists.</span></div>` : ''}
     <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:12px"><button class="btn primary sm" data-act="os-backup" ${OS.online ? '' : 'disabled'}>${icon('shield')} Back up now</button><button class="btn sm" data-act="os-backup-full" ${OS.online ? '' : 'disabled'}>Full backup</button><button class="btn sm" data-act="os-verify" ${OS.online ? '' : 'disabled'}>${icon('check')} Verify latest</button><button class="btn sm" data-act="os-restore-test" ${OS.online ? '' : 'disabled'}>${icon('undo')} Restore test</button><span class="spacer"></span><button class="btn sm" data-act="os-scan" ${OS.online ? '' : 'disabled'}>${icon('sat')} Scan the world…</button><button class="btn sm ghost" data-act="os-poll">${icon('redo')} Reconnect</button></div>
   </div>`;
 }
 
 /* autosave through the bridge when no folder is linked in the browser: no reconnect click, same files */
-OS.vaultWrite = async () => { if (!OS.online || !OS.status?.vaultOk) return false; await OS.post('/api/vault/write', { name: 'Registry.json', text: JSON.stringify(serializeMaster(), null, 2) }, 30000); if (S.settings.compatFile !== false) await OS.post('/api/vault/write', { name: 'NewA.json', text: JSON.stringify(serializeCompat(), null, 2) }, 30000); OS.lastVaultWrite = new Date(); return true; };
+OS.vaultMeta = null; OS.vaultHold = null; OS.vaultError = null; OS.fresh = false;
+/* when the bridge comes online: if the folder holds a registry that is newer or fuller than this browser's, hold writes and ask */
+OS.vaultCheck = async () => {
+  if (!OS.online || !OS.status?.vaultOk) return; let st; try { st = await OS.get('/api/vault/stat?name=Registry.json'); } catch { return; }
+  OS.vaultMeta = { updated: st.exists ? st.updated || null : null, buildings: st.exists ? st.buildings || 0 : 0 };
+  const newer = st.exists && st.buildings > 0 && (OS.fresh || (st.updated && (!S.meta.updated || st.updated > S.meta.updated)) || st.buildings > S.buildings.length);
+  if (newer && !OS.vaultHold) { OS.vaultHold = { updated: st.updated, buildings: st.buildings }; toast(`The vault folder holds a ${OS.fresh ? '' : 'newer '}registry (${st.buildings} buildings${st.updated ? ', ' + fmtDate(st.updated) : ''}) — load it, or overwrite it from Vault & settings`, 'warn', { label: 'LOAD IT', fn: OS.vaultLoad }); }
+  else if (!newer) OS.vaultHold = null;
+  renderStatus();
+};
+OS.vaultLoad = async () => {
+  try { const r = await OS.get('/api/vault/read?name=Registry.json'); if (!r.ok) throw new Error(r.error || 'read failed'); const payload = JSON.parse(r.text); await takeSnapshot('before loading the vault copy through the bridge'); mergePayload(payload, 'replace'); OS.vaultHold = null; OS.fresh = false; OS.vaultMeta = { updated: payload.meta?.updated || null, buildings: (payload.buildings || []).length }; commit({ now: true }); renderAll(); toast(`Loaded the vault copy — ${S.buildings.length} buildings`, 'good'); }
+  catch (e) { toast('Could not load the vault copy: ' + e.message, 'bad'); }
+};
+OS.vaultOverwrite = async () => { OS.vaultHold = null; OS.fresh = false; try { await OS.vaultWrite({ force: true }); toast('The vault folder now holds this browser\'s copy', 'good'); } catch (e) { toast('Overwrite failed: ' + e.message, 'bad'); } renderStatus(); };
+const bridgeImageName = (id, rec) => id.startsWith('basemap:') ? `images/basemap-${id.slice(8)}.${(rec?.full?.type || 'image/png').split('/')[1].replace('jpeg', 'jpg')}` : `images/${id}.jpg`;
+OS.vaultWrite = async ({ force = false } = {}) => {
+  if (!OS.online || !OS.status?.vaultOk) return false; if (OS.vaultHold && !force) return false;
+  const master = serializeMaster(); const written = master.meta?.updated || null;
+  const r = await OS.post('/api/vault/write', { name: 'Registry.json', text: JSON.stringify(master, null, 2), expectUpdated: force ? undefined : (OS.vaultMeta?.updated ?? null), force }, 30000);
+  if (r.conflict) { OS.vaultHold = { updated: r.updated, buildings: r.buildings }; OS.vaultMeta = { updated: r.updated, buildings: r.buildings }; renderStatus(); toast(`The vault folder changed under us (${r.buildings} buildings) — load it or overwrite it from Vault & settings`, 'warn', { label: 'LOAD IT', fn: OS.vaultLoad }); return false; }
+  if (!r.ok) throw new Error(r.error || 'vault write refused');
+  OS.vaultMeta = { updated: written, buildings: master.buildings.length };
+  if (S.settings.compatFile !== false) await OS.post('/api/vault/write', { name: 'NewA.json', text: JSON.stringify(serializeCompat(), null, 2) }, 30000);
+  for (const id of [...SAVE.dirtyImages]) { const rec = await idbGet('images', id); if (rec?.full) { const dataUrl = await blobToDataURL(rec.full); await OS.post('/api/vault/write-bin', { name: bridgeImageName(id, rec), base64: dataUrl.slice(dataUrl.indexOf(',') + 1) }, 60000); } SAVE.dirtyImages.delete(id); }
+  for (const id of [...SAVE.deletedImages]) { const names = id.startsWith('basemap:') ? ['png', 'jpg', 'webp'].map(ext => `images/basemap-${id.slice(8)}.${ext}`) : [`images/${id}.jpg`]; for (const name of names) await OS.post('/api/vault/delete', { name }, 15000).catch(() => {}); SAVE.deletedImages.delete(id); }
+  OS.lastVaultWrite = new Date(); OS.vaultError = null; return true;
+};
 
 
 /* =====================================================================
@@ -9186,7 +9224,7 @@ async function boot() {
   // an older store is about to be upgraded: keep an untouched copy in memory (downloadable) and as a labelled snapshot
   const fromSchema = stored ? (stored.schema ?? 1) : null;
   if (stored && fromSchema < APP.schema) MIGRATION.pre = JSON.stringify(stored);
-  S = stored ? migrate(stored) : seedState();
+  S = stored ? migrate(stored) : seedState(); if (typeof OS !== 'undefined') OS.fresh = !stored;
   UI.view = S.settings.view || 'table';
   UI.nav = NAV.some(n => n.id === S.settings.lastNav) ? S.settings.lastNav : 'overview';
   UI.scope = S.settings.lastScope && (S.settings.lastScope.kind === 'all' || scopeNode(S.settings.lastScope)) ? S.settings.lastScope : (regionById('new-a-city') ? { kind: 'region', id: 'new-a-city' } : { kind: 'all', id: null });

@@ -56,7 +56,7 @@ function renderRoadEditor(r) {
       <div class="f span"><label for="f-name">Name <span class="hint">renaming keeps the old name as a former name</span></label>${inpF('name', r.name, 'placeholder="Mill Street"')}</div>
       ${fld('aliases', 'Aliases', inpF('aliases', (r.aliases || []).join(', '), 'placeholder="Route 9, The Boulevard"'), 'comma separated')}
       ${fld('formerNames', 'Former names', inpF('formerNames', (r.formerNames || []).join(', '), 'placeholder=""'), 'comma separated')}
-      <div class="f"><label>Unnamed</label><label class="switch"><input type="checkbox" id="f-unnamed" ${r.unnamed ? 'checked' : ''}> <span class="muted" style="font-size:12px">no name known — shown by number, no label on the map</span></label></div>
+      <div class="f"><label>Unnamed</label><label class="switch"><input type="checkbox" id="f-unnamed" ${r.unnamed ? 'checked' : ''}> <span class="muted" style="font-size:12px">shown by number</span></label></div>
     </div></div>
     <div class="fsect"><h4>KIND</h4><div class="frow c3">
       ${fld('type', 'Type', selF('type', ROAD_TYPES, r.type))}${fld('grade', 'Grade', selF('grade', GRADES, r.grade), 'bridges & tunnels never form junctions with surface roads')}${fld('direction', 'Access', selF('direction', DIRECTIONS, r.direction))}
@@ -127,7 +127,7 @@ function renderLineEditor(l) {
       <div class="f" style="grid-column:span 2"><label for="f-name">Name</label>${inpF('name', l.name, 'placeholder="Red Line"')}</div>
       ${fld('shortName', 'Short name', inpF('shortName', l.shortName, 'placeholder="R" maxlength="6"'), 'badge label')}
       ${fld('mode', 'Mode', selF('mode', TRANSIT_MODES, l.mode))}${fld('status', 'Status', selF('status', LINE_STATUSES.map(([id, label]) => [id, label]), l.status))}${fld('operator', 'Operator', inpF('operator', l.operator, 'placeholder="New A Metro"'))}
-      <div class="f"><label>Unnamed</label><label class="switch"><input type="checkbox" id="f-unnamed" ${l.unnamed ? 'checked' : ''}> <span class="muted" style="font-size:12px">no name known — shown by number</span></label></div>
+      <div class="f"><label>Unnamed</label><label class="switch"><input type="checkbox" id="f-unnamed" ${l.unnamed ? 'checked' : ''}> <span class="muted" style="font-size:12px">shown by number</span></label></div>
     </div></div>
     <div class="fsect"><h4>APPEARANCE <span style="font-weight:400;letter-spacing:0;color:var(--ink-4);font-family:var(--font-mono);font-size:10.5px">colour · pattern · width — the label is always shown too</span></h4>
       <div class="swatchrow" id="line-swatches">${TRANSIT_COLORS.map(c => `<button type="button" data-color="${c}" aria-pressed="${(l.color || '').toLowerCase() === c.toLowerCase()}" style="--c:${c}" title="${c}"></button>`).join('')}<input type="color" id="f-color" value="${esc(/^#[0-9a-f]{6}$/i.test(l.color || '') ? l.color : TRANSIT_COLORS[0])}" title="Custom colour"></div>

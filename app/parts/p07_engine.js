@@ -341,7 +341,7 @@ function geometryAt(o, hy) {
   const vs = (o.versions || []).filter(v => Array.isArray(v.geometry) && v.geometry.length >= 2 && v.year != null);
   if (hy == null || !vs.length) return { geometry: o.geometry, width: o.width, version: null };
   const list = vs.map(v => ({ v, idx: hyIndex(v.year, v.half || '') })).sort((a, b) => a.idx - b.idx);
-  const curIdx = o.geometryFromYear != null ? hyIndex(o.geometryFromYear, o.geometryFromHalf || '') : list[list.length - 1].idx + 1;
+  const afterLast = list[list.length - 1].idx + 1; const curIdx = o.geometryFromYear != null ? Math.max(hyIndex(o.geometryFromYear, o.geometryFromHalf || ''), afterLast) : afterLast;
   list.push({ v: null, idx: curIdx }); list.sort((a, b) => a.idx - b.idx);
   let pick = null; for (const e of list) if (e.idx <= hy) pick = e; if (!pick) pick = list[0];
   return pick.v ? { geometry: pick.v.geometry, width: pick.v.width ?? o.width, version: pick.v } : { geometry: o.geometry, width: o.width, version: null };
@@ -349,7 +349,7 @@ function geometryAt(o, hy) {
 function saveShapeVersion(o, year, half, note = '') {
   const v = { id: uid('gv'), year, half: half || '', geometry: JSON.parse(JSON.stringify(o.geometry || [])), width: o.width ?? null, note, saved: now() };
   o.versions = [...(o.versions || []), v].sort((a, b) => hyIndex(a.year, a.half || '') - hyIndex(b.year, b.half || ''));
-  if (o.geometryFromYear == null) { const n = hyFromIndex(hyIndex(year, half || 'E') + 1); o.geometryFromYear = n.year; o.geometryFromHalf = n.half; }
+  const vi = hyIndex(year, half || 'E'); if (o.geometryFromYear == null || hyIndex(o.geometryFromYear, o.geometryFromHalf || '') <= vi) { const n = hyFromIndex(vi + 1); o.geometryFromYear = n.year; o.geometryFromHalf = n.half; }
   o.updated = now(); return v;
 }
 /* ---- lots: frontage runs along X unless the lot is rotated; snapping to the serving road sets the side and the orientation ---- */
@@ -360,4 +360,10 @@ function snapToStreet(b, road = null) {
   const alongX = Math.abs(ux) >= Math.abs(uz); const dp = num(b.lotDepth) || num(b.lotFront) || 20;
   const side = Math.sign((b.x - c.q[0]) * -uz + (b.z - c.q[1]) * ux) || 1; const off = (num(r.width) || 5) / 2 + 1 + dp / 2;
   return { x: Math.round(c.q[0] - uz * side * off), z: Math.round(c.q[1] + ux * side * off), lotRotated: !alongX, road: r, d: c.d };
+}
+/* swap a dated shape in as the current one: the current shape is kept, dated from when it applied */
+function swapShapeVersion(o, v) {
+  const vs = (o.versions || []).filter(x => x.id !== v.id); const curIdx = o.geometryFromYear != null ? hyIndex(o.geometryFromYear, o.geometryFromHalf || '') : hyIndex(CURRENT_YEAR, CURRENT_HALF); const cf = hyFromIndex(Math.max(curIdx, hyIndex(v.year, v.half || 'E') + 1));
+  vs.push({ id: uid('gv'), year: cf.year, half: cf.half, geometry: JSON.parse(JSON.stringify(o.geometry || [])), width: o.width ?? null, note: 'previous current shape', saved: now() });
+  o.versions = vs.sort((a, b) => hyIndex(a.year, a.half || '') - hyIndex(b.year, b.half || '')); o.geometry = JSON.parse(JSON.stringify(v.geometry)); if (v.width) o.width = v.width; o.geometryFromYear = v.year; o.geometryFromHalf = v.half || ''; o.updated = now();
 }
