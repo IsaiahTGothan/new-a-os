@@ -7,7 +7,7 @@
 /* =====================================================================
    §0  CONFIG
    ===================================================================== */
-const APP = { name: 'New A OS', version: '3.0.0', schema: 3, site: 'zays.us/new-a', newsSite: 'https://newa-site.vercel.app', feedUrl: 'https://newa-site.vercel.app/feed.xml', marketsUrl: 'https://newa-site.vercel.app/api/markets' };
+const APP = { name: 'New A OS', version: '3.0.0', schema: 4, site: 'zays.us/new-a', newsSite: 'https://newa-site.vercel.app', feedUrl: 'https://newa-site.vercel.app/feed.xml', marketsUrl: 'https://newa-site.vercel.app/api/markets' };
 const FOUNDED_YEAR = 2013;                       // Jan 27, 2013 — the timeline starts here
 const CURRENT_YEAR = new Date().getFullYear();   // the "present" end of the timeline
 const CURRENT_HALF = new Date().getMonth() < 6 ? 'E' : 'L';
@@ -132,7 +132,33 @@ const NAV = [
   { id: 'overview', label: 'Home', icon: 'home', key: 'O', title: 'Home — city health, the scope at a glance, charts, league tables (O)' },
   { id: 'map', label: 'Map', icon: 'map', key: 'M', title: 'Map — explore like Google Maps, or switch to Edit to draw borders, roads, transit and buildings (M)' },
   { id: 'registry', label: 'Registry', icon: 'rows', key: 'R', title: 'Every building in the scope (R)' },
-  { id: 'transit', label: 'Transit', icon: 'transit', key: 'T', title: 'Transit dashboard — lines, stations, status (T)' },
+  { id: 'transit', label: 'Transit', icon: 'transit', key: 'T', title: 'Transit — lines, stations, service map, travel times, planning sandbox (T)' },
+  { id: 'civic', label: 'Civic', icon: 'civic', key: 'C', title: 'Civic — hospitals, police, fire, city halls, government offices, officials and their residences, coverage (C)' },
   { id: 'businesses', label: 'Business', icon: 'biz', key: 'B', title: 'Businesses — operators, tenants, listings, revenue (B)' },
   { id: 'history', label: 'History', icon: 'hist', key: 'H', title: 'History — playback, demolished records, chronicle, statistics (H)' },
 ];
+
+/* ---- civic facilities & government ---- */
+const CIVIC_TYPES = [
+  ['hospital', 'Hospital', 'H', 'beds'], ['clinic', 'Clinic / health centre', '+', 'beds'], ['police', 'Police station', 'P', 'officers'], ['fire', 'Fire station', 'F', 'engines'],
+  ['city-hall', 'City Hall', 'C', 'desks'], ['white-house', 'White House', 'W', 'residents'], ['capitol', 'Capitol / legislature', 'L', 'seats'], ['courthouse', 'Courthouse', 'J', 'courtrooms'],
+  ['gov-office', 'Government office', 'G', 'desks'], ['post-office', 'Post office', 'M', ''], ['school', 'School', 'S', 'students'], ['university', 'University', 'U', 'students'], ['library', 'Library', 'B', 'seats'],
+  ['park', 'Park / recreation', '▲', 'visitors'], ['transit-hub', 'Transit hub / terminal', 'T', 'platforms'], ['utility', 'Utility · water · power', 'E', ''], ['prison', 'Prison / jail', 'X', 'cells'], ['embassy', 'Embassy / consulate', 'D', ''], ['military', 'Military / guard', 'A', ''],
+  ['residence', 'Official residence', 'R', 'residents'], ['monument', 'Monument / memorial', '★', ''], ['other', 'Other civic', '•', ''],
+].map(([id, label, glyph, unit]) => ({ id, label, glyph, unit }));
+const CIVIC_BY_ID = Object.fromEntries(CIVIC_TYPES.map(t => [t.id, t]));
+const civicTypeLabel = id => CIVIC_BY_ID[id]?.label || id || '';
+const CIVIC_STATUSES = [['planned', 'Planned', 'muted'], ['construction', 'Under construction', 'warn'], ['operating', 'Operating', 'good'], ['closed', 'Closed', 'bad'], ['replaced', 'Replaced', 'info']];
+const CIVIC_STATUS = Object.fromEntries(CIVIC_STATUSES.map(([id, label, tone]) => [id, { id, label, tone }]));
+const ESSENTIAL_CIVIC = ['hospital', 'police', 'fire'];
+const CONDITIONS = [['', 'Not assessed'], ['excellent', 'Excellent'], ['good', 'Good'], ['fair', 'Fair'], ['poor', 'Poor']];
+const OFFICE_KINDS = ['Mayor', 'Governor', 'President', 'Deputy mayor', 'Council member', 'Commissioner', 'Judge', 'Chief of police', 'Fire commissioner', 'Senator', 'Representative', 'Ambassador', 'Other'];
+const OFFICIAL_STATUSES = [['serving', 'Serving', 'good'], ['elect', 'Elect', 'info'], ['former', 'Former', 'muted']];
+/* ---- transit service: defaults per mode (blocks per second · minutes between trains · seconds at a stop) ---- */
+const SERVICE_DEFAULTS = { subway: { speed: 8, headwayMin: 5, dwellSec: 10 }, rail: { speed: 8, headwayMin: 10, dwellSec: 15 }, bus: { speed: 4.3, headwayMin: 8, dwellSec: 8 }, tram: { speed: 5, headwayMin: 6, dwellSec: 8 }, ferry: { speed: 4, headwayMin: 15, dwellSec: 30 }, cable: { speed: 3, headwayMin: 4, dwellSec: 10 }, other: { speed: 5, headwayMin: 10, dwellSec: 10 } };
+const TIME_BASES = [['estimated', 'Estimated', 'muted'], ['measured', 'Measured', 'good'], ['scheduled', 'Scheduled', 'info']];
+const TIME_BASIS = Object.fromEntries(TIME_BASES.map(([id, label, tone]) => [id, { id, label, tone }]));
+/* ---- valuations: every factor is a percentage, editable under Vault & settings ---- */
+const VALUATION_DEFAULTS = { version: 1, fallbackPerBlock: 250000, transitNear: 15, transitMid: 8, transitFar: 3, transitNone: -5, hospital: 4, police: 3, fire: 3, park: 5, school: 2, servicesCap: 12, landmark: 10, floorStep: 2, floorCap: 30, excellent: 8, fair: -8, poor: -20, construction: -20, closed: -15, vacantLot: -65, officeCondo: 10, industrial: -10, defaultArea: 300 };
+const PROJECT_STAGES = [['idea', 'Idea', 'muted'], ['planning', 'Planning', 'info'], ['construction', 'Under construction', 'warn'], ['open', 'Open', 'good'], ['renovation', 'Renovation', 'warn'], ['demolition', 'Demolition', 'bad'], ['done', 'Done', 'good'], ['abandoned', 'Abandoned', 'muted']];
+const PROJECT_STAGE = Object.fromEntries(PROJECT_STAGES.map(([id, label, tone]) => [id, { id, label, tone }]));

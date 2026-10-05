@@ -332,5 +332,6 @@ function allIssues(sc = UI.scope) {
   for (const r of S.roads) if (roadInScope(r, sc)) for (const i of roadIssues(r)) if (!i.summary && i.level !== 'info') out.push({ ...i, kind: 'road', id: r.id, reg: r.reg, title: roadLabel(r) });
   for (const i of transitIssues()) { const o = i.kind === 'line' ? lineById(i.id) : stationById(i.id); if (!o) continue; if (i.kind === 'line' ? !lineInScope(o, sc) : !stationInScope(o, sc)) continue; out.push({ ...i, reg: o.reg, title: i.kind === 'line' ? lineLabel(o) : (o.name || o.reg) }); }
   for (const i of geographyIssues()) { const node = i.kind === 'region' ? regionById(i.id) : i.kind === 'district' ? districtById(i.id) : hoodById(i.id); out.push({ ...i, reg: node?.code || '', title: node?.name || '' }); }
+  if (typeof civicIssues === 'function') for (const i of civicIssues(sc)) out.push(i);
   return out.sort((a, b) => LEVEL_RANK[a.level] - LEVEL_RANK[b.level]);
 }

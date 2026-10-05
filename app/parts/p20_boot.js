@@ -22,6 +22,7 @@ async function boot() {
   renderAll(); setSaveState('saved', stored ? (MIGRATION.report ? 'UPGRADED' : 'LOADED') : 'SEEDED');
   await playBoot({ stored: !!stored });
   if (MIGRATION.report) { openUpgradeReport(MIGRATION.report); MIGRATION.report = null; commit({ now: true }); }
+  if (MIGRATION.minor) { toast(`Registry upgraded to schema ${MIGRATION.minor.to} — civic facilities, officials, projects, service times and valuations are ready; every existing record is unchanged`, 'good'); MIGRATION.minor = null; commit({ now: true }); }
   if (VAULT.status === 'prompt') toast(`Vault “${VAULT.name}” needs a click to reconnect`, 'warn', { label: 'RECONNECT', fn: vaultReconnect });
   newsAutoRefresh();
 }
@@ -31,7 +32,7 @@ function playBoot({ stored }) {
   if (!S.settings.boot || !motionOn()) { skip(); return Promise.resolve(); }
   const { i1 } = hyRange(S.buildings);
   const lines = [
-    ['mounting browser store', MIGRATION.report ? `schema ${MIGRATION.report.from} → 3 · upgraded` : `schema ${S.schema} · ok`], ['reading vault', VAULT.status === 'granted' ? VAULT.name : VAULT.status === 'prompt' ? 'awaiting permission' : 'not linked'],
+    ['mounting browser store', MIGRATION.report ? `schema ${MIGRATION.report.from} → ${APP.schema} · upgraded` : `schema ${S.schema} · ok`], ['reading vault', VAULT.status === 'granted' ? VAULT.name : VAULT.status === 'prompt' ? 'awaiting permission' : 'not linked'],
     ['loading geography', `${S.regions.length} jurisdictions · ${S.districts.length} districts · ${S.neighborhoods.length} hoods`], ['indexing buildings', `${activeBuildings().length} standing · ${histBuildings().length} historical`],
     ['roads · transit · businesses', `${S.roads.length} · ${S.lines.length} lines / ${S.stations.length} stations · ${S.businesses.length}`], ['timeline index', `${i1 + 1} half-years · ${relEdges().length} site links · ${S.archive.length} chronicle`],
     ['photos · news', `${imageOwners().filter(b => b.image).length} · ${S.news.items.length} articles`], ['rendering', stored ? 'ok' : 'seeded from zays.us/new-a'],

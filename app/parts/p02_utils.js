@@ -66,7 +66,7 @@ function parseReg(reg) {
   let m; reg = String(reg || '').trim();
   if ((m = /^H-([A-Z0-9]+)-(\d+)$/i.exec(reg))) return { code: m[1].toUpperCase(), n: +m[2], hist: true, series: 'hist' };
   if ((m = /^([A-Z0-9]+)-P-(\d+)$/i.exec(reg))) return { code: m[1].toUpperCase(), n: +m[2], parcel: true, series: 'parcel' };
-  if ((m = /^(RD|TL|ST|BZ|TR)-(\d+)$/i.exec(reg))) return { code: m[1].toUpperCase(), n: +m[2], series: m[1].toLowerCase() };
+  if ((m = /^(RD|TL|ST|BZ|TR|GV|PJ)-(\d+)$/i.exec(reg))) return { code: m[1].toUpperCase(), n: +m[2], series: m[1].toLowerCase() };
   if ((m = /^([A-Z0-9]+)-(\d+)$/i.exec(reg))) return { code: m[1].toUpperCase(), n: +m[2], series: 'current' };
   return null;
 }

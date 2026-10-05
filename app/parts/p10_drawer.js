@@ -113,6 +113,7 @@ function renderRecord(b) {
     ${siteHistoryHTML(b)}
     ${relationsHTML(b)}
     ${businessesHereHTML(b)}
+    ${civicSectionHTML(b)}
     ${roadSectionHTML(b)}
     ${hist ? `<div class="secthead">DEMOLITION</div>
     <div class="kv">
@@ -147,6 +148,7 @@ function renderRecord(b) {
       ${kv('ASSESSED TOTAL', num(b.assessTotal) != null ? `${fmtMoney(num(b.assessTotal))}${b.assessYear ? `<small>${esc(b.assessYear)}${b.valuationBasis ? ' · ' + esc(b.valuationBasis) : ''}</small>` : (b.valuationBasis ? `<small>${esc(b.valuationBasis)}</small>` : '')}` : null, 'num money')}${kv(b.market === 'for-lease' ? 'ASKING RENT' : 'ASKING PRICE', fmtMoney(num(b.listPrice)), 'num money')}
       ${kv('$ / BLOCK² (ASKING)', num(b.listPrice) && lot ? fmtMoney(num(b.listPrice) / lot) : null, 'num')}${kv('$ / BLOCK² (ASSESSED)', num(b.assessTotal) && lot ? fmtMoney(num(b.assessTotal) / lot) : null, 'num')}
     </div>
+    ${valuationSectionHTML(b)}
     ${listingsHTML(b)}`}
     <div class="secthead">PROVENANCE</div>
     <div class="kv">
@@ -306,6 +308,7 @@ function renderEditor(b) {
         </div>
         <div class="fieldnote" style="margin-top:8px">Footprint: ${b.footprint ? `<b>${fmtInt(footprintAreaOf(b))} blk²</b> measured from ${b.footprint.length} vertices` : 'not drawn'} · <button type="button" class="rowlink" data-act="footprint-draw" style="font:inherit">${b.footprint ? 'redraw on the map' : 'draw on the map'}</button>${b.footprint ? ` · <button type="button" class="rowlink" data-act="footprint-clear" style="font:inherit">clear</button>` : ''}</div>
       </div>
+      ${civicEditorHTML(b)}
       <div class="fsect"><h4>VALUATION <span style="font-weight:400;letter-spacing:0;color:var(--ink-4);font-family:var(--font-mono);font-size:10.5px">assessment · asking · agreed prices stay distinct</span></h4>
         <div class="frow c3">
           ${f('assessLand', 'Assessed land', `<div class="pre"><span>$</span>${numI('assessLand', b.assessLand, 'placeholder="0" min="0" step="1000"')}</div>`)}
@@ -318,6 +321,7 @@ function renderEditor(b) {
         <div id="f-listings">${editorListingsHTML(b)}</div>
         <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:8px"><button type="button" class="btn sm" data-act="listing-add">${icon('plus')} Listing</button><button type="button" class="btn sm" data-act="tx-add">${icon('plus')} Transaction</button></div>
       </div>
+      ${valuationEditorHTML(b)}
       <div class="fsect"><h4>PROVENANCE <span style="font-weight:400;letter-spacing:0;color:var(--ink-4);font-family:var(--font-mono);font-size:10.5px">evidence behind this record</span></h4>
         <div class="frow c3">
           ${f('confidence', 'Confidence', `<select id="f-confidence"><option value="">— not assessed —</option>${CONFIDENCE.map(c => `<option value="${c.id}" ${c.id === b.confidence ? 'selected' : ''}>${esc(c.label)} — ${esc(c.hint)}</option>`).join('')}</select>`)}
@@ -430,7 +434,7 @@ function readFormInto(b, strict = true) {
   b.lotFront = num(g('lotFront')); b.lotDepth = num(g('lotDepth')); b.lotArea = num(g('lotArea'));
   b.assessLand = num(g('assessLand')); b.assessBuilding = num(g('assessBuilding')); b.assessTotal = num(g('assessTotal')); b.assessYear = num(g('assessYear')); b.valuationBasis = g('valuationBasis'); b.listPrice = num(g('listPrice'));
   b.tags = g('tags').split(/[\s,]+/).map(t => t.trim().toLowerCase()).filter(Boolean);
-  b.notes = g('notes');
+  b.notes = g('notes'); readCivicForm(b); readValuationForm(b);
   b.demolitionReason = g('reason').trim(); b.significance = g('significance').trim(); b.historyNotes = g('historyNotes');
   b.confidence = g('confidence'); b.sourceType = g('sourceType'); b.verified = !!$('#f-verified')?.checked; b.source = g('source').trim();
   b.status = summaryStatus(b);

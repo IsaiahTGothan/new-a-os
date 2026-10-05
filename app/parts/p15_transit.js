@@ -13,7 +13,7 @@ function renderTransit() {
   const seg = UI.tseg;
   return `
   <section class="dhead" style="margin-bottom:14px">
-    <div><div class="code transit"><i></i>TRANSIT · ${esc(scopeName().toUpperCase())} · ${allLines.length} LINES · ${allSt.length} STATIONS</div><h2>Transit</h2><p>Every line and station on file, with status, opening dates and what still needs connecting. Alignments are drawn in the Map workspace; shared track and shared stations are stored once. No ridership, schedules or travel times are invented.</p></div>
+    <div><div class="code transit"><i></i>TRANSIT · ${esc(scopeName().toUpperCase())} · ${allLines.length} LINES · ${allSt.length} STATIONS</div><h2>Transit</h2><p>Every line and station on file, with status, opening dates and what still needs connecting. Alignments are drawn in the Map workspace; shared track and shared stations are stored once. Travel times are estimated from alignment length and per-mode speeds unless you record a measured one; ridership is never invented.</p></div>
     <div class="stats"><button class="btn sm" data-act="export-transit-csv">${icon('down')} Transit CSV</button><button class="btn sm" data-act="draw-line">${icon('draw')} Draw a line</button><button class="btn sm primary" data-act="new-line">${icon('plus')} New line</button></div>
   </section>
   <section class="tiles">
@@ -25,14 +25,14 @@ function renderTransit() {
     ${tile('TO CONNECT', `<span class="count" data-to="${issues.length}">0</span>`, issues.length ? 'see Checks below' : 'nothing flagged', issues.length ? 'money' : '')}
   </section>
   <div class="toolbar" style="margin:0 0 14px">
-    <div class="seg lg" role="group">${[['lines', 'Lines', 'transit', allLines.length], ['stations', 'Stations', 'station', allSt.length], ['checks', 'Checks', 'warn', issues.length]].map(([id, l, ic, n]) => `<button data-tseg="${id}" aria-pressed="${seg === id}" class="${seg === id ? 'transit' : ''}">${icon(ic)} ${l} <span class="cnt" style="font-family:var(--font-mono);font-size:11px;opacity:.8">${n}</span></button>`).join('')}</div>
+    <div class="seg lg" role="group">${[['lines', 'Lines', 'transit', allLines.length], ['stations', 'Stations', 'station', allSt.length], ['service', 'Service', 'route', serviceByPlace().filter(p => p.tier === 'best').length], ['times', 'Times', 'clock', allLines.length], ['sandbox', 'Sandbox', 'draw', (S.sandbox?.stations || []).length], ['checks', 'Checks', 'warn', issues.length]].map(([id, l, ic, n]) => `<button data-tseg="${id}" aria-pressed="${seg === id}" class="${seg === id ? 'transit' : ''}">${icon(ic)} ${l} <span class="cnt" style="font-family:var(--font-mono);font-size:11px;opacity:.8">${n}</span></button>`).join('')}</div>
     <label class="field"><span>Find</span><input id="tq" value="${esc(UI.tq)}" placeholder="line, stop, operator…" style="width:170px"></label>
     <label class="field ${UI.tf.mode ? 'on' : ''}"><span>Mode</span><select data-tf="mode"><option value="">Any</option>${TRANSIT_MODES.map(([id, l]) => `<option value="${id}" ${UI.tf.mode === id ? 'selected' : ''}>${l}</option>`).join('')}</select></label>
     <label class="field ${UI.tf.status ? 'on' : ''}"><span>Status</span><select data-tf="status"><option value="">Any</option>${LINE_STATUSES.map(([id, l]) => `<option value="${id}" ${UI.tf.status === id ? 'selected' : ''}>${l}</option>`).join('')}</select></label>
     <button class="field ${UI.tf.all ? 'on' : ''}" data-tf-toggle="all" style="cursor:pointer">${icon('globe')} All jurisdictions</button>
     <span class="spacer"></span><button class="btn sm" data-act="map-transit">${icon('map')} Show on the map</button>
   </div>
-  ${seg === 'stations' ? renderStationList(stations) : seg === 'checks' ? renderTransitChecks(issues) : renderLineList(lines)}`;
+  ${seg === 'stations' ? renderStationList(stations) : seg === 'checks' ? renderTransitChecks(issues) : seg === 'service' ? renderServiceTab() : seg === 'times' ? renderTimesTab() : seg === 'sandbox' ? renderSandboxTab() : renderLineList(lines)}`;
 }
 function renderLineList(lines) {
   if (!lines.length) return `<div class="panel empty"><b>${S.lines.length ? 'No line matches' : 'No transit lines yet'}</b>${S.lines.length ? 'Try clearing the filters, or include all jurisdictions.' : 'Draw the first alignment in the Map workspace (L), then name the line, pick its colour and add stations along it.'}<br><button class="btn primary" data-act="draw-line">${icon('draw')} Draw a line on the map</button></div>`;

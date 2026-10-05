@@ -364,6 +364,7 @@ function dotColor(b) {
   if (UI.mapColor === 'status') return b.landmark && b.physical === 'standing' ? statusColor('landmark') : b.market && b.physical === 'standing' ? statusColor(b.market) : statusColor(b.physical || 'standing');
   if (UI.mapColor === 'family') { const f = classFamily(b.bldgClass); return f ? PALETTE.marks[FAMILY_SLOT[f]] : PALETTE.neutral; }
   if (UI.mapColor === 'era') { const y = num(b.yearBuilt); const i = ERAS.findIndex(e => y >= e.from && y < e.to); return i === -1 ? (y >= ERAS[ERAS.length - 1].to ? ERA_COLORS[ERAS.length - 1] : PALETTE.neutral) : ERA_COLORS[i]; }
+  if (UI.mapColor === 'service') { const s = buildingService(b); return serviceColor(s ? s.score : null); }
   return distMark(districtById(b.districtId));
 }
 const easeOut = t => 1 - Math.pow(1 - clamp(t, 0, 1), 3);
@@ -451,6 +452,7 @@ function drawScene(R) {
     }
   }
   // buildings
+  if (L.sandbox !== false && hy == null && (S.sandbox?.stations || []).length) drawSandbox(ctx, P, k);
   if (L.buildings) {
     const list = R.buildings || mapBuildings();
     for (const b of list) {
@@ -472,7 +474,7 @@ function drawScene(R) {
         if (hy != null) { const di = demolishedIndex(b); const cur = anim && anim.t < 1 ? anim.from + (anim.to - anim.from) * easeOut(anim.t) : hy; const g = ghostAlpha(di == null ? 0 : cur - di, !!L.ghostsAll); if (g <= 0) continue; alpha *= g; }
         ctx.beginPath(); ctx.arc(x, y, r0 + 1, 0, Math.PI * 2); ctx.setLineDash([2, 2]); ctx.strokeStyle = hexA('#FF7A59', .85 * alpha); ctx.lineWidth = 1.5; ctx.stroke(); ctx.setLineDash([]); ctx.beginPath(); ctx.moveTo(x - 3, y - 3); ctx.lineTo(x + 3, y + 3); ctx.moveTo(x + 3, y - 3); ctx.lineTo(x - 3, y + 3); ctx.strokeStyle = hexA('#FF7A59', .8 * alpha); ctx.lineWidth = 1; ctx.stroke(); if (ring) { ctx.beginPath(); ctx.arc(x, y, r0 + ring, 0, Math.PI * 2); ctx.strokeStyle = hexA('#FF7A59', (1 - ring / 12) * .8); ctx.lineWidth = 1.5; ctx.stroke(); } }
       else if (state === 'construction') { ctx.beginPath(); ctx.arc(x, y, Math.max(1, r), 0, Math.PI * 2); ctx.fillStyle = hexA('#FFD166', .25 * alpha); ctx.fill(); ctx.setLineDash([3, 2]); ctx.strokeStyle = hexA('#FFD166', .95 * alpha); ctx.lineWidth = 1.6; ctx.stroke(); ctx.setLineDash([]); }
-      else { ctx.beginPath(); ctx.arc(x, y, Math.max(0.5, r), 0, Math.PI * 2); ctx.fillStyle = hexA(hy != null && b.physical === 'vacant-lot' ? '#6F8494' : dotColor(b), alpha); ctx.fill(); ctx.lineWidth = 2; ctx.strokeStyle = '#05090D'; ctx.stroke(); if (b.landmark && k > 1.2) { ctx.fillStyle = hexA('#E7C36A', alpha); ctx.font = `${Math.max(8, r * 1.4)}px sans-serif`; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillText('✦', x, y + 0.5); } }
+      else { ctx.beginPath(); ctx.arc(x, y, Math.max(0.5, r), 0, Math.PI * 2); ctx.fillStyle = hexA(hy != null && b.physical === 'vacant-lot' ? '#6F8494' : dotColor(b), alpha); ctx.fill(); ctx.lineWidth = 2; ctx.strokeStyle = '#05090D'; ctx.stroke(); if (L.civic !== false && k > 1.2) drawCivicGlyph(ctx, x, y, r0, b, alpha); if (b.landmark && k > 1.2) { ctx.fillStyle = hexA('#E7C36A', alpha); ctx.font = `${Math.max(8, r * 1.4)}px sans-serif`; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillText('✦', x, y + 0.5); } }
       if (ring && state !== 'gone') { ctx.beginPath(); ctx.arc(x, y, r0 + ring, 0, Math.PI * 2); ctx.strokeStyle = hexA('#4FE3FF', .9 * (1 - ring / 14)); ctx.lineWidth = 1.5; ctx.stroke(); }
       if (hy != null && R.evidence && (state === 'standing' || state === 'construction') && inferredAt(b, hy, state)) { ctx.beginPath(); ctx.arc(x, y, r0 + 3.5, 0, Math.PI * 2); ctx.setLineDash([2, 3]); ctx.strokeStyle = hexA('#FFD166', .5 * alpha); ctx.lineWidth = 1; ctx.stroke(); ctx.setLineDash([]); }
       if (s || hl) { ctx.beginPath(); ctx.arc(x, y, r0 + 7, 0, Math.PI * 2); ctx.strokeStyle = '#FFFFFF'; ctx.lineWidth = 2; ctx.stroke(); if (s && R.halo) { const ph = (Date.now() % 1600) / 1600; ctx.beginPath(); ctx.arc(x, y, r0 + 9 + ph * 16, 0, Math.PI * 2); ctx.strokeStyle = hexA('#4FE3FF', (1 - ph) * .7); ctx.lineWidth = 1.5; ctx.stroke(); } }
@@ -622,11 +624,13 @@ function renderLayersPanel() {
     ${row('historical', 'Demolished — ghosts', `${scopeBuildings().filter(b => isHist(b) && b.x != null).length} where lost buildings stood`, true)}
     ${row('footprints', 'Footprints', `${S.buildings.filter(b => b.footprint).length} drawn`, true)}
     ${row('businesses', 'Businesses', `mark buildings with current tenants`, true)}
+    ${row('civic', 'Civic glyphs', `${S.buildings.filter(isCivic).length} facilities · homes of officials`, true)}
+    ${row('sandbox', 'Planning sandbox', `${(S.sandbox?.stations || []).length} hypothetical stations`, true)}
     ${row('labels', 'Labels', 'density adapts to zoom')}
     ${row('grid', 'Grid', 'Minecraft block grid, X across · Z down')}
   </div>
   <div class="secthead">COLOUR BUILDINGS BY</div>
-  <div class="f" style="margin-top:8px"><select id="map-color">${[['district', 'borough / district'], ['status', 'physical · market · landmark'], ['family', 'class family'], ['era', 'era built']].map(([v, l]) => `<option value="${v}" ${UI.mapColor === v ? 'selected' : ''}>${l}</option>`).join('')}</select></div>
+  <div class="f" style="margin-top:8px"><select id="map-color">${[['district', 'borough / district'], ['status', 'physical · market · landmark'], ['family', 'class family'], ['era', 'era built'], ['service', 'transit service score']].map(([v, l]) => `<option value="${v}" ${UI.mapColor === v ? 'selected' : ''}>${l}</option>`).join('')}</select></div>
   <div class="maplegend" style="margin-top:10px">${mapLegendHTML()}</div>
   <div class="secthead">DRAWING</div>
   <div class="layer-rows">
@@ -637,6 +641,7 @@ function renderLayersPanel() {
 }
 function mapLegendHTML() {
   const ghost = UI.layers.historical ? `<div><i style="--c:transparent;border:1.5px dashed var(--hist)"></i>Demolished — stood here</div>` : '';
+  if (UI.mapColor === 'service') return [[92, 'Best served · 90+'], [70, 'Well served · 70'], [50, 'Average · 50'], [25, 'Poor · 25'], [4, 'Little or none']].map(([s, l]) => `<div><i style="--c:${serviceColor(s)}"></i>${l}</div>`).join('') + ghost;
   if (UI.mapColor === 'status') return PHYSICAL.map(s => `<div><i style="--c:${statusColor(s.id)}"></i>${s.glyph} ${s.label}</div>`).join('') + `<div><i style="--c:${statusColor('for-sale')}"></i>On the market</div><div><i style="--c:${statusColor('landmark')}"></i>Landmark</div>` + ghost;
   if (UI.mapColor === 'family') return CLASS_FAMILIES.map(f => `<div><i style="--c:${PALETTE.marks[FAMILY_SLOT[f]]}"></i>${esc(f)}</div>`).join('') + `<div><i style="--c:${PALETTE.neutral}"></i>Unclassified</div>` + ghost;
   if (UI.mapColor === 'era') return ERAS.map((e, i) => `<div><i style="--c:${ERA_COLORS[i]}"></i>${esc(e.name)} ${String(e.from).slice(2)}–${String(Math.min(e.to, CURRENT_YEAR)).slice(2)}</div>`).join('') + `<div><i style="--c:${PALETTE.neutral}"></i>Undated</div>` + ghost;

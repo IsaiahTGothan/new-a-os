@@ -12,7 +12,7 @@ function scopeKicker(sc = UI.scope) {
 function placementHTML(node) { if (!node?.placement || node.placement === 'verified') return ''; const p = PLACEMENTS[node.placement]; return `<span class="placement ${p?.[1] || ''}" title="${esc(node.typeNote || '')}${node.source ? ' · ' + esc(node.source) : ''}">${esc(p?.[0] || node.placement)}</span>`; }
 function renderOverview() {
   const sc = UI.scope; const node = scopeNode(sc); const all = scopeBuildings(sc); const rows = all.filter(isActive); const done = rows.filter(isCompleted);
-  const assessed = sum(rows, b => b.assessTotal);
+  const assessed = sum(rows, b => b.assessTotal); const estTotal = done.reduce((a, b) => a + (valuationOf(b).value || 0), 0);
   const listed = rows.filter(b => b.market === 'for-sale' || b.market === 'for-lease'); const asking = sum(listed, b => b.listPrice);
   const underWay = rows.filter(isUnderWay); const lot = sum(rows, b => lotAreaOf(b));
   const years = done.map(b => num(b.yearBuilt)).filter(Boolean); const med = median(years);
@@ -41,13 +41,17 @@ function renderOverview() {
     <div class="panel tile"><div class="lbl">UNDER WAY</div><div class="val"><span class="count" data-to="${underWay.length}">0</span></div><div class="sub ${underWay.length ? 'good' : ''}">${underWay.filter(b => b.physical === 'construction').length} under construction · ${underWay.filter(b => b.physical === 'planned').length} planned</div></div>
     <div class="panel tile money"><div class="lbl">ASSESSED VALUE</div><div class="val"><span class="count" data-to="${assessed}" data-fmt="money">$0</span></div><div class="sub">${rows.filter(b => num(b.assessTotal) != null).length} of ${rows.length} assessed</div></div>
     <div class="panel tile"><div class="lbl">ON THE MARKET</div><div class="val"><span class="count" data-to="${listed.length}">0</span><small>listings</small></div><div class="sub ${listed.length ? 'good' : ''}">${listed.length ? fmtMoneyCompact(asking) + ' total asking' : 'nothing for sale or lease'}</div></div>
-    <div class="panel tile"><div class="lbl">LOT AREA</div><div class="val"><span class="count" data-to="${lot}" data-fmt="compact">0</span><small>blocks²</small></div><div class="sub">${rows.filter(b => lotAreaOf(b) != null).length} lots measured${node?.polygons?.length ? ` · border ${fmtCompact(polysArea(node.polygons))} blk²` : ''}</div></div>
+    <div class="panel tile money"><div class="lbl">ESTIMATED VALUE</div><div class="val"><span class="count" data-to="${estTotal}" data-fmt="money">$0</span></div><div class="sub">${done.filter(b => num(b.assessTotal) != null).length} assessed · the rest from comparables · click a building for the reasons</div></div>
     <div class="panel tile"><div class="lbl">TALLEST</div><div class="val" style="font-size:20px;line-height:1.15">${top ? esc(top.name || titleOf(top)) : '—'}</div><div class="sub">${top ? `${top.floors ? top.floors + ' floors · ' : ''}${heightOf(top) ? Math.round(heightOf(top)) + ' blocks' : ''} · ${esc(districtById(top.districtId)?.name || '')}` : med ? `median year built ${med} · ${esc(eraOf(med)?.name || '')}` : 'add floors or heights'}</div></div>
   </section>
+
+  ${renderHealthCards(sc)}
 
   ${renderThroughTime(all)}
 
   ${children.length ? renderJurisdictions(children, sc) : ''}
+
+  <section class="grid cols-3 city" style="margin-bottom:18px"><div style="grid-column:span 2">${renderProfilePanel(sc)}</div><div>${renderProjectsPanel(sc)}</div></section>
 
   <section class="grid cols-3" style="margin-bottom:18px">
     <div class="panel hud"><div class="panel-head"><h3>BUILT BY YEAR · ERAS</h3><span class="note">${years.length} dated</span></div>${renderEraHistogram(done)}</div>
@@ -151,9 +155,9 @@ function renderHealth(rows) {
   <div class="desc-line" style="margin-top:12px">Overall completeness <b>${overall}%</b> across ${rows.length} record${rows.length === 1 ? '' : 's'}</div>`;
 }
 function renderIssuesSummary(issues) {
-  if (!issues.length) return `<div class="chart-empty" style="padding:16px 6px">Nothing flagged — dates, values, borders and links agree with each other.</div>`;
+  if (!issues.length) return `<div class="chart-empty" style="padding:16px 6px">Nothing flagged — dates, values, borders and links agree with each other.</div>${qualityRowsHTML()}`;
   const by = { bad: issues.filter(i => i.level === 'bad').length, warn: issues.filter(i => i.level === 'warn').length, info: issues.filter(i => i.level === 'info').length };
   return `<div class="hbars">${[['bad', 'Problems', 'var(--bad)'], ['warn', 'Warnings', 'var(--warn)'], ['info', 'Notes', 'var(--info)']].filter(([k]) => by[k]).map(([k, l, c]) => `<div class="hbar" style="--c:${c};grid-template-columns:90px 1fr 40px"><span class="nm">${l}</span><div class="trk"><div class="fill" style="width:${(by[k] / issues.length * 100).toFixed(1)}%"></div></div><span class="v">${by[k]}</span></div>`).join('')}</div>
   <div class="desc-line" style="margin-top:10px">${esc(truncate(issues[0].title || '', 28))}: ${esc(truncate(issues[0].text, 90))}</div>
-  <button class="btn sm" style="margin-top:10px" data-act="open-issues">${icon('warn')} Review ${issues.length} issue${issues.length === 1 ? '' : 's'}</button>`;
+  <button class="btn sm" style="margin-top:10px" data-act="open-issues">${icon('warn')} Review ${issues.length} issue${issues.length === 1 ? '' : 's'}</button>${qualityRowsHTML()}`;
 }

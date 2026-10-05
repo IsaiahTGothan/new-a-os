@@ -2,7 +2,7 @@
    §19 INTERACTIONS — one delegated click handler · changes · keyboard · search
    ===================================================================== */
 document.addEventListener('click', async e => {
-  const t = e.target.closest('[data-act],[data-nav],[data-scope-kind],[data-open],[data-open-h],[data-arch],[data-arch-year],[data-sort],[data-hsort],[data-view],[data-f-toggle],[data-tf-toggle],[data-bf-toggle],[data-hood],[data-fdistrict],[data-hseg],[data-tseg],[data-mode],[data-dock],[data-pi],[data-add]');
+  const t = e.target.closest('[data-act],[data-nav],[data-scope-kind],[data-open],[data-open-h],[data-arch],[data-arch-year],[data-sort],[data-hsort],[data-view],[data-f-toggle],[data-tf-toggle],[data-bf-toggle],[data-cseg],[data-cf-toggle],[data-hood],[data-fdistrict],[data-hseg],[data-tseg],[data-mode],[data-dock],[data-pi],[data-add]');
   if (!t) return;
   if (t.dataset.pi !== undefined && t.closest('#palette')) { openSearchHit(UI.palette.items[+t.dataset.pi]); return; }
   if (t.dataset.nav) { setNav(t.dataset.nav); return; }
@@ -11,6 +11,7 @@ document.addEventListener('click', async e => {
   if (t.dataset.openH !== undefined || t.dataset.open !== undefined) {
     if (!(await leaveEditor())) return;
     const v = t.dataset.openH ?? t.dataset.open; const inDrawer = DR.id && $('#drawer').classList.contains('on');
+    if (v.startsWith('official:')) { openOfficialModal(v.slice(9)); return; } if (v.startsWith('project:')) { openProjectModal(v.slice(8)); return; }
     if (v.includes(':')) { const [kind, id] = v.split(':'); openRecord(kind, id, 'view', inDrawer ? { push: true } : {}); }
     else openBuilding(v, 'view', t.dataset.openH !== undefined && inDrawer ? { push: true } : {});
     return;
@@ -27,6 +28,8 @@ document.addEventListener('click', async e => {
   if (t.dataset.fdistrict !== undefined) { UI.filters.district = t.dataset.fdistrict; UI.filters.hood = ''; renderView(false); return; }
   if (t.dataset.hseg) { UI.hseg = t.dataset.hseg; UI.animateRows = true; renderView(false); $('#main').scrollTop = Math.min($('#main').scrollTop, 300); return; }
   if (t.dataset.tseg) { UI.tseg = t.dataset.tseg; renderView(false); return; }
+  if (t.dataset.cseg) { UI.cseg = t.dataset.cseg; renderView(false); return; }
+  if (t.dataset.cfToggle) { UI.cf[t.dataset.cfToggle] = !UI.cf[t.dataset.cfToggle]; renderView(false); return; }
   if (t.dataset.mode) { setMapMode(t.dataset.mode); return; }
   if (t.dataset.dock) { MAPW.dock = t.dataset.dock; renderDock(); return; }
   const act = t.dataset.act; if (!act) return;
@@ -201,6 +204,28 @@ document.addEventListener('click', async e => {
     case 'markets-import': $('#file-markets').click(); break;
     case 'markets-refresh': marketsRefresh({ source: 'live' }); break;
     case 'markets-vault': marketsRefresh({ source: 'vault' }); break;
+    // civic · service · city
+    case 'civic-map': UI.layers.civic = true; UI.layers.buildings = true; setNav('map'); break;
+    case 'civic-new': { const bid = await buildingPickDialog([], 'Which building is the civic facility?', 'Open to edit'); if (bid) openBuilding(bid, 'edit'); break; }
+    case 'official-new': openOfficialModal(null); break;
+    case 'official-edit': openOfficialModal(t.dataset.id); break;
+    case 'official-delete': deleteOfficial(t.dataset.id); break;
+    case 'service-map': UI.mapColor = 'service'; UI.layers.buildings = true; setNav('map'); break;
+    case 'sandbox-add': sandboxAdd(); break;
+    case 'sandbox-remove': sandboxRemove(t.dataset.id); break;
+    case 'sandbox-promote': sandboxPromote(t.dataset.id); break;
+    case 'health-open': healthOpen(t.dataset.id); break;
+    case 'val-open': openValuationModal(); break;
+    case 'val-record': { const b = byId(DR.id); if (b) { recordValuations([b], 'manual'); renderDrawer(); toast('Estimate recorded in the valuation history', 'good'); } break; }
+    case 'val-record-all': { const n = recordValuations(scopeActive().filter(isCompleted), 'scope'); closeModal(); renderView(false); toast(`${n} estimates recorded`, 'good'); break; }
+    case 'profile-copy': { const pr = placeProfile(); navigator.clipboard?.writeText(pr.paragraphs.join('\n\n')).then(() => toast('Profile copied', 'good'), () => toast('Clipboard blocked — select and copy by hand', 'warn')); break; }
+    case 'export-guide': exportPublicGuide(); break;
+    case 'digest-open': openDigestModal(); break;
+    case 'quality-fix': qualityFix(t.dataset.id); break;
+    case 'quality-review': openQualityReview(t.dataset.id); break;
+    case 'project-new': openProjectModal(null); break;
+    case 'project-open': openProjectModal(t.dataset.id); break;
+    case 'project-delete': deleteProject(t.dataset.id); break;
     case 'clear-filters': UI.filters = { ...UI.filters, physical: '', market: '', landmark: false, family: '', zfam: '', yearMin: '', yearMax: '', photo: false, hist: false }; UI.q = ''; $('#q').value = ''; refreshRegistry(); break;
   }
 });
@@ -209,6 +234,12 @@ document.addEventListener('change', e => {
   if (el.dataset.f) { UI.filters[el.dataset.f] = el.value; refreshRegistry(); return; }
   if (el.dataset.hf) { UI.hf[el.dataset.hf] = el.value; if (el.dataset.hf === 'district') UI.hf.hood = ''; renderView(false); return; }
   if (el.dataset.tf) { UI.tf[el.dataset.tf] = el.value; renderView(false); return; }
+  if (el.dataset.cf) { UI.cf[el.dataset.cf] = el.value; renderView(false); return; }
+  if (el.dataset.tline !== undefined) { UI.tline = el.value; UI.tfrom = null; UI.tto = null; renderView(false); return; }
+  if (el.dataset.tfrom !== undefined) { UI.tfrom = el.value || null; renderView(false); return; }
+  if (el.dataset.tto !== undefined) { UI.tto = el.value || null; renderView(false); return; }
+  if (el.dataset.val !== undefined) { S.settings.valuation ??= { ...VALUATION_DEFAULTS }; const v = num(el.value); S.settings.valuation[el.dataset.val] = v ?? VALUATION_DEFAULTS[el.dataset.val]; commit({ silentRender: true }); return; }
+  if (el.dataset.pub !== undefined) { S.settings.publishing ??= {}; S.settings.publishing[el.dataset.pub] = el.checked; commit({ silentRender: true }); return; }
   if (el.dataset.bf) { UI.bf[el.dataset.bf] = el.value; renderView(false); return; }
   if (el.dataset.bsort !== undefined) { UI.bsort = { key: el.value, dir: ['revenue', 'locations'].includes(el.value) ? -1 : 1 }; renderView(false); return; }
   if (el.dataset.bperiod !== undefined) { UI.bperiod = el.value; renderView(false); return; }
@@ -216,6 +247,7 @@ document.addEventListener('change', e => {
 document.addEventListener('input', debounce(e => {
   const el = e.target;
   if (el.id === 'tq') { UI.tq = el.value; const pos = el.selectionStart; renderView(false); const n = $('#tq'); if (n) { n.focus(); n.setSelectionRange(pos, pos); } }
+  else if (el.id === 'cq') { UI.cq = el.value; const pos = el.selectionStart; renderView(false); const n = $('#cq'); if (n) { n.focus(); n.setSelectionRange(pos, pos); } }
   else if (el.id === 'bq') { UI.bq = el.value; const pos = el.selectionStart; renderView(false); const n = $('#bq'); if (n) { n.focus(); n.setSelectionRange(pos, pos); } }
 }, 160));
 $('#backdrop').addEventListener('click', () => closeDrawer());
@@ -284,11 +316,12 @@ document.addEventListener('keydown', e => {
   else if (k === 'm' || k === 'M') setNav('map');
   else if (k === 't' || k === 'T') setNav('transit');
   else if ((k === 'b' || k === 'B') && !onMap) setNav('businesses');
+  else if ((k === 'c' || k === 'C') && !onMap) setNav('civic');
   else if (k === 'h' || k === 'H') setNav('history');
   else if (k === 'e' || k === 'E') { if (DR.id && DR.mode === 'view') openRecord(DR.kind, DR.id, 'edit', { keepStack: true }); }
   else if (k === 'Backspace' && DR.id && DR.mode === 'view' && DR.stack.length) { e.preventDefault(); drawerBack(); }
   else if (k === 'ArrowDown' && DR.id) { e.preventDefault(); stepRecord(1); }
   else if (k === 'ArrowUp' && DR.id) { e.preventDefault(); stepRecord(-1); }
-  else if (/^[1-6]$/.test(k)) { const n = NAV[+k - 1]; if (n) setNav(n.id); }
+  else if (/^[1-7]$/.test(k)) { const n = NAV[+k - 1]; if (n) setNav(n.id); }
   else if (k === '[' || k === ']') { const i = NAV.findIndex(n => n.id === UI.nav); setNav(NAV[(i + (k === ']' ? 1 : NAV.length - 1)) % NAV.length].id); }
 });

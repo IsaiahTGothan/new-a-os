@@ -17,12 +17,13 @@ const MIGRATION = { pre: null, report: null };
 function emptyState() {
   return {
     schema: APP.schema, app: APP.name,
-    meta: { created: now(), updated: now(), seq: {}, hseq: {}, pseq: {}, gseq: { RD: 0, TL: 0, ST: 0, BZ: 0, TR: 0 }, lastSnapshot: 0, migrations: [] },
+    meta: { created: now(), updated: now(), seq: {}, hseq: {}, pseq: {}, gseq: { RD: 0, TL: 0, ST: 0, BZ: 0, TR: 0, GV: 0, PJ: 0 }, lastSnapshot: 0, migrations: [] },
     regions: [], districts: [], neighborhoods: [], buildings: [], archive: [],
-    roads: [], tracks: [], lines: [], stations: [], businesses: [], tenancies: [],
-    news: { items: [], decisions: {}, log: [], lastSync: null, lastError: null, rules: { landmark: false, listing: false, groundbreaking: false } },
+    roads: [], tracks: [], lines: [], stations: [], businesses: [], tenancies: [], officials: [], projects: [],
+    sandbox: { stations: [], roads: [] }, world: { snapshots: [], scans: [], proposals: [], backups: { history: [], schedule: { afterSession: true, monthlyFull: true, mirror: '', retain: 30 }, lastVerified: null, lastRestoreTest: null } },
+    news: { items: [], decisions: {}, log: [], drafts: [], lastSync: null, lastError: null, rules: { landmark: false, listing: false, groundbreaking: false } },
     legacy: { parcels: [], parcelLinks: [], notes: [] },
-    settings: { scanlines: true, boot: true, motion: true, density: 'comfortable', basemaps: [], lastNav: 'overview', lastScope: { kind: 'region', id: 'new-a-city' }, view: 'table', columns: {}, fabricYear: 2016, tlSpeed: 1, compatFile: true, ai: { enabled: false, endpoint: 'https://api.openai.com/v1/chat/completions', model: 'gpt-4o-mini' }, newsAuto: false, newsRefreshMin: 0 },
+    settings: { scanlines: true, boot: true, motion: true, density: 'comfortable', basemaps: [], lastNav: 'overview', lastScope: { kind: 'region', id: 'new-a-city' }, view: 'table', columns: {}, fabricYear: 2016, tlSpeed: 1, compatFile: true, ai: { enabled: false, provider: 'anthropic', endpoint: 'https://api.anthropic.com/v1/messages', model: 'claude-sonnet-4-5' }, newsAuto: false, newsRefreshMin: 0, valuation: { ...VALUATION_DEFAULTS }, publishing: { autoDraftDigest: false, publicNotes: false } },
   };
 }
 
@@ -50,11 +51,15 @@ function newBuilding(st, districtId) {
     dateBuilt: '', dateDemolished: '', dateStarted: '',
     roadId: null, roadIdSource: null, entrance: null, footprint: null, floorArea: null, assessBuilding: null, assessYear: null, valuationBasis: '',
     listings: [], transactions: [], migrationNotes: [],
+    // v3 · civic, condition, publishing, valuation
+    civic: null, condition: '', public: true, valuation: null, valuations: [], valuationOverride: null,
   };
 }
+function newOfficial(st) { return { id: uid('g'), reg: nextGlobal(st, 'GV'), name: '', office: '', jurisdictionId: 'new-a-city', party: '', status: 'serving', termFromYear: null, termFromHalf: '', termToYear: null, termToHalf: '', officeBuildingId: null, residenceBuildingId: null, notes: '', source: '', created: now(), updated: now() }; }
+function newProject(st) { return { id: uid('p'), reg: nextGlobal(st, 'PJ'), name: '', stage: 'idea', districtId: null, buildingIds: [], roadIds: [], lineIds: [], startedYear: null, startedHalf: '', targetYear: null, targetHalf: '', notes: '', log: [], archiveIds: [], created: now(), updated: now() }; }
 function newRoad(st) { return { id: uid('r'), reg: nextGlobal(st, 'RD'), name: '', aliases: [], formerNames: [], type: 'street', grade: 'surface', width: 5, direction: 'two-way', surface: '', yearOpened: null, halfOpened: '', yearOpenedApprox: false, yearClosed: null, halfClosed: '', geometry: [], notes: '', source: '', sourceType: '', confidence: '', verified: false, created: now(), updated: now() }; }
 function newTrack(st, mode = 'subway') { return { id: uid('k'), reg: nextGlobal(st, 'TR'), name: '', mode, grade: 'surface', geometry: [], yearOpened: null, halfOpened: '', yearClosed: null, halfClosed: '', notes: '', created: now(), updated: now() }; }
-function newLine(st) { return { id: uid('l'), reg: nextGlobal(st, 'TL'), name: '', shortName: '', mode: 'subway', color: TRANSIT_COLORS[(st.lines?.length || 0) % TRANSIT_COLORS.length], width: 4, style: 'solid', status: 'open', operator: '', yearOpened: null, halfOpened: '', yearOpenedApprox: false, yearClosed: null, halfClosed: '', trackIds: [], roadIds: [], stopIds: [], notes: '', source: '', sourceType: '', confidence: '', verified: false, created: now(), updated: now() }; }
+function newLine(st) { return { id: uid('l'), reg: nextGlobal(st, 'TL'), name: '', shortName: '', mode: 'subway', color: TRANSIT_COLORS[(st.lines?.length || 0) % TRANSIT_COLORS.length], width: 4, style: 'solid', status: 'open', operator: '', yearOpened: null, halfOpened: '', yearOpenedApprox: false, yearClosed: null, halfClosed: '', trackIds: [], roadIds: [], stopIds: [], service: null, segments: [], notes: '', source: '', sourceType: '', confidence: '', verified: false, created: now(), updated: now() }; }
 function newStation(st) { return { id: uid('s'), reg: nextGlobal(st, 'ST'), name: '', aliases: [], kind: 'station', x: null, z: null, buildingId: null, parentId: null, districtId: null, status: 'open', yearOpened: null, halfOpened: '', yearClosed: null, halfClosed: '', notes: '', source: '', confidence: '', created: now(), updated: now() }; }
 function newBusiness(st) { return { id: uid('z'), reg: nextGlobal(st, 'BZ'), name: '', aliases: [], category: '', orgType: 'company', parentId: null, status: 'open', yearOpened: null, halfOpened: '', yearOpenedApprox: false, yearClosed: null, halfClosed: '', website: '', ticker: '', exchangeListed: false, exchangeSince: null, sector: '', locations: [], revenue: [], listings: [], marketQuotes: [], notes: '', source: '', sourceType: '', confidence: '', verified: false, tags: [], image: false, created: now(), updated: now() }; }
 function newTenancy(businessId, buildingId, role = 'tenant') { return { id: uid('t'), businessId, buildingId, role, unit: '', yearFrom: null, halfFrom: '', yearTo: null, halfTo: '', current: true, notes: '', created: now() }; }
@@ -73,6 +78,7 @@ const SEED_BUILDINGS = [
   { name: 'New BK Tower',           district: 'new-bk', hood: 'Downtown New BK', number: '',   street: '',                   cls: 'O4', zoning: 'C6-4', year: 2024, floors: 48, height: 162 },
   { name: 'One Man A Square',       district: 'man-a',  hood: 'Two Bridges',    number: '1',   street: 'Man A Square',       cls: 'D8', zoning: 'C6-4', year: 2023, floors: 44, height: 150 },
 ];
+const SEED_HOODS_V = 0;
 const SEED_HOODS = { 'man-a': ['Lower Man A', 'Central Man A', 'Midtown Man A', 'Two Bridges'], 'new-bk': ['Downtown New BK'] };
 function seedState() {
   const st = emptyState();
@@ -104,9 +110,17 @@ function migrate(st) {
     st.schema = 2;
   }
   if (st.schema < 3) migrate2to3(st);
+  if (st.schema < 4) migrate3to4(st);
   ensureV3(st);
-  if (from < 3) MIGRATION.report = Object.assign(MIGRATION.report || {}, { from, to: 3 });
+  if (from < 3) MIGRATION.report = Object.assign(MIGRATION.report || {}, { from, to: APP.schema });
+  else if (from < 4) MIGRATION.minor = { from, to: 4 };
   return st;
+}
+/* 3 → 4 (New A OS · V3): only additions — civic fields, condition, publishing flag, valuations on buildings; service and measured
+   segments on lines; officials[], projects[], sandbox, world. Nothing renamed, renumbered or removed. */
+function migrate3to4(st) {
+  st.meta.migrations = [...(st.meta.migrations || []), { from: st.schema, to: 4, at: now(), app: APP.version, buildings: (st.buildings || []).length, note: 'ids and numbers preserved · civic / condition / public / valuation fields added to buildings · service + segments added to lines · officials, projects, sandbox and world added (empty)' }];
+  st.schema = 4;
 }
 function migrate2to3(st) {
   const report = { from: st.schema, to: 3, buildings: st.buildings.length, statusSplit: {}, futureCompletions: [], parcels: (st.parcels || []).length, parcelLinksAdded: 0, parcelsArchived: 0, regionsAdded: [], districtsPlaced: [], districtsUnplaced: [], polygons: 0 };
@@ -162,10 +176,12 @@ function migrate2to3(st) {
 function ensureV3(st) {
   const E = emptyState();
   st.meta.hseq ??= {}; st.meta.pseq ??= {}; st.meta.gseq = { ...E.meta.gseq, ...(st.meta.gseq || {}) }; st.meta.migrations ??= [];
-  for (const k of ['regions', 'districts', 'neighborhoods', 'buildings', 'archive', 'roads', 'tracks', 'lines', 'stations', 'businesses', 'tenancies']) if (!Array.isArray(st[k])) st[k] = [];
-  st.news = { ...E.news, ...(st.news || {}) }; st.news.items ??= []; st.news.decisions ??= {}; st.news.log ??= []; st.news.rules = { ...E.news.rules, ...(st.news.rules || {}) };
+  for (const k of ['regions', 'districts', 'neighborhoods', 'buildings', 'archive', 'roads', 'tracks', 'lines', 'stations', 'businesses', 'tenancies', 'officials', 'projects']) if (!Array.isArray(st[k])) st[k] = [];
+  st.sandbox = { ...E.sandbox, ...(st.sandbox || {}) }; st.sandbox.stations ??= []; st.sandbox.roads ??= [];
+  st.world = { ...E.world, ...(st.world || {}) }; st.world.snapshots ??= []; st.world.scans ??= []; st.world.proposals ??= []; st.world.backups = { ...E.world.backups, ...(st.world.backups || {}) }; st.world.backups.history ??= []; st.world.backups.schedule = { ...E.world.backups.schedule, ...(st.world.backups.schedule || {}) };
+  st.news = { ...E.news, ...(st.news || {}) }; st.news.items ??= []; st.news.decisions ??= {}; st.news.log ??= []; st.news.drafts ??= []; st.news.rules = { ...E.news.rules, ...(st.news.rules || {}) };
   st.legacy = { ...E.legacy, ...(st.legacy || {}) }; st.legacy.parcels ??= []; st.legacy.parcelLinks ??= []; st.legacy.notes ??= [];
-  st.settings = { ...E.settings, ...(st.settings || {}) }; st.settings.ai = { ...E.settings.ai, ...(st.settings.ai || {}) }; if (!Array.isArray(st.settings.basemaps)) st.settings.basemaps = [];
+  st.settings = { ...E.settings, ...(st.settings || {}) }; st.settings.ai = { ...E.settings.ai, ...(st.settings.ai || {}) }; if (!Array.isArray(st.settings.basemaps)) st.settings.basemaps = []; st.settings.valuation = { ...VALUATION_DEFAULTS, ...(st.settings.valuation || {}) }; st.settings.publishing = { ...E.settings.publishing, ...(st.settings.publishing || {}) };
   // geography
   for (const r of SEED_REGIONS) if (!st.regions.some(x => x.id === r.id)) st.regions.push({ ...newRegion(r.name, r.type, r.parentId, r.code), ...r, polygons: [] });
   for (const r of st.regions) { r.polygons = Array.isArray(r.polygons) ? r.polygons : []; r.placement ??= 'verified'; r.typeNote ??= ''; r.source ??= ''; r.sourceUrl ??= ''; r.tagline ??= ''; r.founded ??= ''; r.notes ??= ''; r.effectiveYear ??= null; r.effectiveHalf ??= ''; r.created ??= now(); r.updated ??= r.created; if (r.parentId && !st.regions.some(x => x.id === r.parentId)) r.parentId = 'union'; }
@@ -192,19 +208,24 @@ function ensureV3(st) {
     b.roadId ??= null; if (b.roadId && !b.roadIdSource) b.roadIdSource = 'manual'; if (!b.roadId) b.roadIdSource = null; b.entrance ??= null; b.footprint = Array.isArray(b.footprint) && b.footprint.length >= 3 ? b.footprint : null; b.floorArea ??= null; b.assessBuilding ??= null; b.assessYear ??= null; b.valuationBasis ??= '';
     if (!Array.isArray(b.listings)) b.listings = []; if (!Array.isArray(b.transactions)) b.transactions = []; if (!Array.isArray(b.migrationNotes)) b.migrationNotes = [];
     if (b.parcelIds) { for (const pid of b.parcelIds) st.legacy.parcelLinks.push({ buildingId: b.id, buildingReg: b.reg, parcelId: pid }); delete b.parcelIds; } delete b.parcelRegs;
+    // v3 · civic / condition / public / valuation
+    if (b.civic && typeof b.civic === 'object') { const c = b.civic; c.type = CIVIC_BY_ID[c.type] ? c.type : (c.type ? 'other' : null); if (!c.type) b.civic = null; else { c.status ??= ''; c.jurisdictionId ??= null; c.capacity ??= null; c.capacityUnit ??= CIVIC_BY_ID[c.type]?.unit || ''; c.openedYear ??= null; c.openedHalf ??= ''; c.closedYear ??= null; c.closedHalf ??= ''; c.replacedById ??= null; c.notes ??= ''; } } else b.civic = null;
+    b.condition = CONDITIONS.some(c => c[0] === b.condition) ? b.condition : ''; b.public = b.public !== false; b.valuation ??= null; if (!Array.isArray(b.valuations)) b.valuations = []; b.valuationOverride ??= null;
     b.status = summaryStatus(b);
   }
   if (Array.isArray(st.parcels)) { for (const p of st.parcels) if (!st.legacy.parcels.some(x => x.id === p.id)) st.legacy.parcels.push(p); delete st.parcels; }
   for (const a of st.archive) { a.districtId ??= null; a.neighborhoodId ??= null; a.month ??= null; a.title ??= ''; a.description ??= ''; a.source ??= ''; a.sourceType ??= ''; a.confidence ??= ''; if (!Array.isArray(a.tags)) a.tags = []; a.image = !!a.image; a.created ??= now(); a.updated ??= a.created; }
   for (const r of st.roads) { const d = newRoad({ meta: { gseq: {} } }); for (const k of Object.keys(d)) if (r[k] === undefined) r[k] = k === 'reg' ? '' : d[k]; if (!Array.isArray(r.geometry)) r.geometry = []; }
   for (const t of st.tracks) { const d = newTrack({ meta: { gseq: {} } }); for (const k of Object.keys(d)) if (t[k] === undefined) t[k] = k === 'reg' ? '' : d[k]; }
-  for (const l of st.lines) { const d = newLine({ meta: { gseq: {} }, lines: [] }); for (const k of Object.keys(d)) if (l[k] === undefined) l[k] = k === 'reg' ? '' : d[k]; for (const k of ['trackIds', 'roadIds', 'stopIds']) if (!Array.isArray(l[k])) l[k] = []; }
+  for (const l of st.lines) { const d = newLine({ meta: { gseq: {} }, lines: [] }); for (const k of Object.keys(d)) if (l[k] === undefined) l[k] = k === 'reg' ? '' : d[k]; for (const k of ['trackIds', 'roadIds', 'stopIds', 'segments']) if (!Array.isArray(l[k])) l[k] = []; if (l.service && typeof l.service !== 'object') l.service = null; }
+  for (const o of st.officials) { const d = newOfficial({ meta: { gseq: {} } }); for (const k of Object.keys(d)) if (o[k] === undefined) o[k] = k === 'reg' ? '' : d[k]; }
+  for (const pj of st.projects) { const d = newProject({ meta: { gseq: {} } }); for (const k of Object.keys(d)) if (pj[k] === undefined) pj[k] = k === 'reg' ? '' : d[k]; for (const k of ['buildingIds', 'roadIds', 'lineIds', 'log', 'archiveIds']) if (!Array.isArray(pj[k])) pj[k] = []; }
   for (const s of st.stations) { const d = newStation({ meta: { gseq: {} } }); for (const k of Object.keys(d)) if (s[k] === undefined) s[k] = k === 'reg' ? '' : d[k]; }
   for (const z of st.businesses) { const d = newBusiness({ meta: { gseq: {} } }); for (const k of Object.keys(d)) if (z[k] === undefined) z[k] = k === 'reg' ? '' : d[k]; for (const k of ['aliases', 'locations', 'revenue', 'listings', 'tags', 'marketQuotes']) if (!Array.isArray(z[k])) z[k] = []; }
   for (const t of st.tenancies) { t.role ??= 'tenant'; t.unit ??= ''; t.yearFrom ??= null; t.halfFrom ??= ''; t.yearTo ??= null; t.halfTo ??= ''; t.current = t.current ?? (t.yearTo == null); t.notes ??= ''; }
   syncSequences(st);
   // missing global numbers (records created by older imports)
-  for (const [coll, pre] of [['roads', 'RD'], ['lines', 'TL'], ['stations', 'ST'], ['businesses', 'BZ'], ['tracks', 'TR']]) for (const r of st[coll]) if (!r.reg) r.reg = nextGlobal(st, pre);
+  for (const [coll, pre] of [['roads', 'RD'], ['lines', 'TL'], ['stations', 'ST'], ['businesses', 'BZ'], ['tracks', 'TR'], ['officials', 'GV'], ['projects', 'PJ']]) for (const r of st[coll]) if (!r.reg) r.reg = nextGlobal(st, pre);
 }
 function isUnderRegion(st, d, regionId) { let pid = d.parentId; const seen = new Set(); while (pid && !seen.has(pid)) { if (pid === regionId) return true; seen.add(pid); pid = st.regions.find(r => r.id === pid)?.parentId; } return false; }
 function nextFreeSlotIn(st) { const used = new Set(st.districts.map(d => d.slot).filter(s => s != null)); for (let i = 0; i < 40; i++) if (!used.has(i)) return i; return st.districts.length; }
@@ -212,7 +233,7 @@ function nextFreeSlotIn(st) { const used = new Set(st.districts.map(d => d.slot)
 function syncSequences(st) {
   st.meta.seq ??= {}; st.meta.hseq ??= {}; st.meta.gseq ??= {};
   for (const b of st.buildings) { const r = parseReg(b.reg); if (!r || r.parcel) continue; if (r.series === 'current' || r.series === 'hist') { const k = r.hist ? 'hseq' : 'seq'; st.meta[k][b.districtId] = Math.max(st.meta[k][b.districtId] || 0, r.n); } }
-  for (const [coll, pre] of [['roads', 'RD'], ['lines', 'TL'], ['stations', 'ST'], ['businesses', 'BZ'], ['tracks', 'TR']]) for (const r of st[coll] || []) { const p = parseReg(r.reg); if (p && p.code === pre) st.meta.gseq[pre] = Math.max(st.meta.gseq[pre] || 0, p.n); }
+  for (const [coll, pre] of [['roads', 'RD'], ['lines', 'TL'], ['stations', 'ST'], ['businesses', 'BZ'], ['tracks', 'TR'], ['officials', 'GV'], ['projects', 'PJ']]) for (const r of st[coll] || []) { const p = parseReg(r.reg); if (p && p.code === pre) st.meta.gseq[pre] = Math.max(st.meta.gseq[pre] || 0, p.n); }
 }
 
 /* ---- lookups ---- */
@@ -225,6 +246,8 @@ const trackById = id => S.tracks.find(t => t.id === id);
 const lineById = id => S.lines.find(l => l.id === id);
 const stationById = id => S.stations.find(s => s.id === id);
 const bizById = id => S.businesses.find(z => z.id === id);
+const officialById = id => S.officials.find(o => o.id === id);
+const projectById = id => S.projects.find(p => p.id === id);
 const archiveById = id => S.archive.find(a => a.id === id);
 const nodeById = id => regionById(id) || districtById(id) || hoodById(id) || null;
 const childRegions = pid => S.regions.filter(r => (r.parentId || null) === (pid || null) && r.id !== pid);
@@ -335,7 +358,7 @@ const undatedOf = rows => ({ built: rows.filter(b => isActive(b) && !isUnderWay(
    One master file is the lossless record. Export-only conveniences (names, linked
    numbers, photo paths) ride along and are stripped on import.                      */
 const cityWide = a => !a.districtId;
-const EXPORT_README = 'Registry 2.5 master file. ids are authoritative; every field named *Name, *Reg(s), district, neighborhood, region, imageFile, generations and relations[].reg/name is a read-only convenience derived on export and ignored on import. regions[] (union › state / federal district › city › region) hold districts[] (boroughs) which hold neighborhoods[]; borders are polygons[] of [x,z] Minecraft coordinates. buildings[]: physical (planned · construction · standing · closed · vacant-lot · demolished), market (for-sale · for-lease · sold · leased), landmark; status is the legacy single-value summary kept in sync; dates are year + half (E = Jan–Jun, L = Jul–Dec, empty = half unknown) with *Approx flags; yearStarted / yearExpected / yearBuilt / yearDemolished are distinct; relations[] link what replaced what; roadId is the serving road (roadIdSource says whether it was set by hand, by a street-name match or from a proximity suggestion). roads[], tracks[] (physical rails), lines[] (services over tracks, with stopIds), stations[], businesses[] + tenancies[] (owner · tenant · developer · operator per building and period; marketQuotes[] are simulated prices from the site market, never revenue), archive[] (chronicle: dated screenshots with descriptions), news (fetched articles, decisions, change log), legacy (archived parcels from 2.0). imageFile is the photo path inside the vault folder.';
+const EXPORT_README = 'Registry 2.5 master file. ids are authoritative; every field named *Name, *Reg(s), district, neighborhood, region, imageFile, generations and relations[].reg/name is a read-only convenience derived on export and ignored on import. regions[] (union › state / federal district › city › region) hold districts[] (boroughs) which hold neighborhoods[]; borders are polygons[] of [x,z] Minecraft coordinates. buildings[]: physical (planned · construction · standing · closed · vacant-lot · demolished), market (for-sale · for-lease · sold · leased), landmark; status is the legacy single-value summary kept in sync; dates are year + half (E = Jan–Jun, L = Jul–Dec, empty = half unknown) with *Approx flags; yearStarted / yearExpected / yearBuilt / yearDemolished are distinct; relations[] link what replaced what; roadId is the serving road (roadIdSource says whether it was set by hand, by a street-name match or from a proximity suggestion). roads[], tracks[] (physical rails), lines[] (services over tracks, with stopIds), stations[], businesses[] + tenancies[] (owner · tenant · developer · operator per building and period; marketQuotes[] are simulated prices from the site market, never revenue), archive[] (chronicle: dated screenshots with descriptions), news (fetched articles, market snapshots, decisions, change log), legacy (archived parcels from 2.0). V3: buildings[].civic (type · status · jurisdictionId · capacity · opened/closed) marks civic facilities; condition, public (false = keep out of the public guide), valuation (explainable estimate with factors) and valuations[] (history) are derived and can be overridden (valuationOverride). lines[].service (speed · headwayMin · dwellSec · basis) and segments[] (measured or scheduled times between stops). officials[] (GV-): name, office, jurisdictionId, term, officeBuildingId, residenceBuildingId. projects[] (PJ-): stage, linked records, dates, log. sandbox: hypothetical stations and roads for planning, never part of the record. world: snapshots, scans, proposals and backup history written by New A OS. imageFile is the photo path inside the vault folder.';
 function exportBuilding(b) {
   const d = districtById(b.districtId), h = hoodById(b.neighborhoodId), r = b.roadId ? roadById(b.roadId) : null;
   return { ...b, status: summaryStatus(b), district: d?.name || null, neighborhood: h?.name || null, region: d?.parentId ? regionById(d.parentId)?.name || null : null, imageFile: b.image ? `images/${b.id}.jpg` : null, roadName: r?.name || null,
@@ -360,18 +383,22 @@ function stripDerived(st) {
   for (const s of st.stations || []) drop(s, ['lineNames', 'buildingReg', 'district']);
   for (const z of st.businesses || []) drop(z, ['parentName', 'imageFile', 'buildingRegs']);
   for (const t of st.tenancies || []) drop(t, ['businessName', 'buildingReg']);
+  for (const o of st.officials || []) drop(o, ['jurisdiction', 'officeBuildingReg', 'residenceBuildingReg']);
+  for (const pj of st.projects || []) drop(pj, ['district', 'buildingRegs']);
   for (const p of st.parcels || []) drop(p, ['district', 'neighborhood', 'buildingRegs', 'generations']);
 }
 function serializeMaster() {
   return {
     app: APP.name, version: APP.version, schema: S.schema, kind: 'master', exported: now(), readme: EXPORT_README,
-    counts: { buildings: S.buildings.length, historical: histBuildings().length, regions: S.regions.length, districts: S.districts.length, neighborhoods: S.neighborhoods.length, roads: S.roads.length, lines: S.lines.length, stations: S.stations.length, businesses: S.businesses.length, archive: S.archive.length },
+    counts: { buildings: S.buildings.length, historical: histBuildings().length, regions: S.regions.length, districts: S.districts.length, neighborhoods: S.neighborhoods.length, roads: S.roads.length, lines: S.lines.length, stations: S.stations.length, businesses: S.businesses.length, officials: S.officials.length, projects: S.projects.length, archive: S.archive.length },
     meta: S.meta, settings: { ...S.settings, ai: { ...S.settings.ai } },
     regions: S.regions.map(exportRegion), districts: S.districts.map(exportDistrict), neighborhoods: S.neighborhoods,
     buildings: S.buildings.map(exportBuilding), roads: S.roads.map(exportRoad), tracks: S.tracks, lines: S.lines.map(exportLine), stations: S.stations.map(exportStation),
-    businesses: S.businesses.map(exportBusiness), tenancies: S.tenancies.map(exportTenancy), archive: S.archive.map(exportArchive), news: S.news, legacy: S.legacy,
+    businesses: S.businesses.map(exportBusiness), tenancies: S.tenancies.map(exportTenancy), officials: S.officials.map(exportOfficial), projects: S.projects.map(exportProject), archive: S.archive.map(exportArchive), news: S.news, legacy: S.legacy, sandbox: S.sandbox, world: S.world,
   };
 }
+const exportOfficial = o => ({ ...o, jurisdiction: (regionById(o.jurisdictionId) || districtById(o.jurisdictionId))?.name || null, officeBuildingReg: o.officeBuildingId ? byId(o.officeBuildingId)?.reg || null : null, residenceBuildingReg: o.residenceBuildingId ? byId(o.residenceBuildingId)?.reg || null : null });
+const exportProject = pj => ({ ...pj, district: districtById(pj.districtId)?.name || null, buildingRegs: pj.buildingIds.map(id => byId(id)?.reg).filter(Boolean) });
 /* a scoped slice (kind 'scope'): buildings, geography and chronicle of one jurisdiction; shared layers ride along in full */
 function serializeScope(sc) {
   const ids = scopeDistrictIds(sc); const rows = scopeBuildings(sc);
@@ -417,7 +444,7 @@ function describePayload(payload) {
 /* what a merge would do, before it does it */
 function analyzeImport(payload) {
   const res = { newRecords: 0, updated: 0, unchanged: 0, olderIncoming: [], regClash: [], blanks: 0 };
-  const colls = [['buildings', S.buildings], ['districts', S.districts], ['neighborhoods', S.neighborhoods], ['regions', S.regions], ['roads', S.roads], ['tracks', S.tracks], ['lines', S.lines], ['stations', S.stations], ['businesses', S.businesses], ['tenancies', S.tenancies], ['archive', S.archive]];
+  const colls = [['buildings', S.buildings], ['districts', S.districts], ['neighborhoods', S.neighborhoods], ['regions', S.regions], ['roads', S.roads], ['tracks', S.tracks], ['lines', S.lines], ['stations', S.stations], ['businesses', S.businesses], ['tenancies', S.tenancies], ['officials', S.officials], ['projects', S.projects], ['archive', S.archive]];
   for (const [k, ours] of colls) for (const it of payload[k] || []) {
     const cur = ours.find(x => x.id === it.id);
     if (!cur) { res.newRecords++; if (k === 'buildings' && it.reg && ours.some(x => x.reg === it.reg)) res.regClash.push(it.reg); continue; }
@@ -428,12 +455,12 @@ function analyzeImport(payload) {
   }
   return res;
 }
-const cleanForCompare = o => { const c = { ...o }; for (const k of ['updated', 'imageFile', 'district', 'neighborhood', 'region', 'roadName', 'parcelRegs', 'areaBlocks', 'parentName', 'lengthBlocks', 'buildingRegs', 'trackRegs', 'stopNames', 'lineNames', 'buildingReg', 'businessName']) delete c[k]; return c; };
+const cleanForCompare = o => { const c = { ...o }; for (const k of ['updated', 'imageFile', 'district', 'neighborhood', 'region', 'roadName', 'parcelRegs', 'areaBlocks', 'parentName', 'lengthBlocks', 'buildingRegs', 'trackRegs', 'stopNames', 'lineNames', 'buildingReg', 'businessName', 'jurisdiction', 'officeBuildingReg', 'residenceBuildingReg']) delete c[k]; return c; };
 /* mode 'merge' (update matching ids, add new; blanks never overwrite values unless opts.blanks) | 'replace' (within the file's scope) */
 function mergePayload(payload, mode, opts = {}) {
   if (!payload || typeof payload !== 'object') throw new Error('Not a registry file');
   if (payload.filter && mode === 'replace') mode = 'merge';          // a filtered extract can only add or update — never wipe what it left out
-  const incoming = {}; for (const k of ['regions', 'districts', 'neighborhoods', 'buildings', 'roads', 'tracks', 'lines', 'stations', 'businesses', 'tenancies', 'archive', 'parcels']) incoming[k] = Array.isArray(payload[k]) ? payload[k].map(x => ({ ...x })) : [];
+  const incoming = {}; for (const k of ['regions', 'districts', 'neighborhoods', 'buildings', 'roads', 'tracks', 'lines', 'stations', 'businesses', 'tenancies', 'officials', 'projects', 'archive', 'parcels']) incoming[k] = Array.isArray(payload[k]) ? payload[k].map(x => ({ ...x })) : [];
   stripDerived(incoming);
   // an older file is upgraded exactly like an older store: statuses split, future completion years moved to
   // "expected", parcels folded into same-site links and archived — so import and in-place upgrade agree
@@ -454,12 +481,12 @@ function mergePayload(payload, mode, opts = {}) {
     S.neighborhoods = S.neighborhoods.filter(h => !inScope(h.districtId)).concat(incoming.neighborhoods);
     S.buildings = S.buildings.filter(b => !inScope(b.districtId)).concat(incoming.buildings);
     S.archive = S.archive.filter(a => !inScopeArchive(a)).concat(incoming.archive);
-    if (whole) { for (const k of ['regions', 'roads', 'tracks', 'lines', 'stations', 'businesses', 'tenancies']) S[k] = incoming[k]; if (payload.news) S.news = payload.news; if (payload.legacy) S.legacy = payload.legacy; if (payload.meta) S.meta = { ...S.meta, ...payload.meta }; if (payload.settings) S.settings = { ...S.settings, ...payload.settings }; }
-    else { for (const k of ['regions', 'roads', 'tracks', 'lines', 'stations', 'businesses', 'tenancies']) upsert(S[k], incoming[k], true); }
+    if (whole) { for (const k of ['regions', 'roads', 'tracks', 'lines', 'stations', 'businesses', 'tenancies', 'officials', 'projects']) S[k] = incoming[k]; if (payload.news) S.news = payload.news; if (payload.legacy) S.legacy = payload.legacy; if (payload.sandbox) S.sandbox = payload.sandbox; if (payload.world) S.world = payload.world; if (payload.meta) S.meta = { ...S.meta, ...payload.meta }; if (payload.settings) S.settings = { ...S.settings, ...payload.settings }; }
+    else { for (const k of ['regions', 'roads', 'tracks', 'lines', 'stations', 'businesses', 'tenancies', 'officials', 'projects']) upsert(S[k], incoming[k], true); }
     if (incoming.parcels.length) { S.legacy.parcels = S.legacy.parcels.filter(p => !incoming.parcels.some(q => q.id === p.id)).concat(incoming.parcels); }
   } else {
     const keepBlanks = !opts.blanks;
-    for (const k of ['regions', 'districts', 'neighborhoods', 'buildings', 'roads', 'tracks', 'lines', 'stations', 'businesses', 'tenancies', 'archive']) upsert(S[k], incoming[k], keepBlanks);
+    for (const k of ['regions', 'districts', 'neighborhoods', 'buildings', 'roads', 'tracks', 'lines', 'stations', 'businesses', 'tenancies', 'officials', 'projects', 'archive']) upsert(S[k], incoming[k], keepBlanks);
     if (incoming.parcels.length) upsert(S.legacy.parcels, incoming.parcels, true);
     if (payload.news?.items && whole) { for (const it of payload.news.items) if (!S.news.items.some(x => x.guid === it.guid)) S.news.items.push(it); Object.assign(S.news.decisions, payload.news.decisions || {}); }
   }

@@ -40,7 +40,7 @@ const FEED = (extra = '') => `<?xml version="1.0"?><rss version="2.0"><channel><
     const halvesEmpty = S.buildings.every(b => b.halfBuilt === '' && b.halfDemolished === '');
     return { schema: S.schema, idsSame, regsSame, valuesSame, statusRoundTrip, splitOk, yearBuiltSame, halvesEmpty, cpt: { yearBuilt: cpt.yearBuilt, yearExpected: cpt.yearExpected, physical: cpt.physical, notes: cpt.migrationNotes }, parcelsGone: S.parcels === undefined && !S.buildings.some(b => 'parcelIds' in b), legacy: { parcels: S.legacy.parcels.length, links: S.legacy.parcelLinks.length, notes: S.legacy.notes.length }, parcelLinks: S.buildings.reduce((a, b) => a + b.relations.filter(r => /^from parcel/.test(r.note || '')).length, 0), seq: S.meta.seq, hseq: S.meta.hseq, gseq: S.meta.gseq, hist: histBuildings().length, active: activeBuildings().length, modal: document.querySelector('#modal-root .mhd h3')?.textContent || '', pre: !!MIGRATION.pre, regions: S.regions.map(r => r.id), parents: Object.fromEntries(S.districts.map(d => [d.id, d.parentId])), core: S.districts.filter(d => d.core).map(d => d.id), polys: S.districts.filter(d => d.polygons.length).map(d => [d.id, d.polygons[0].length]), hoodPolys: S.neighborhoods.filter(h => h.polygons.length).length, conflict: S.regions.filter(r => r.placement === 'conflict').map(r => r.id), migrations: S.meta.migrations.map(m => `${m.from}→${m.to}`), archive: S.archive.length, imagesFlag: S.buildings.filter(b => b.image).length, scope: UI.scope, nav: UI.nav };
   }, v2);
-  ok(mig.schema === 3, 'schema is 3 after upgrade');
+  ok(mig.schema === 4, 'schema is 4 after upgrade');
   ok(mig.idsSame && mig.regsSame, 'all 153 ids and registration numbers preserved'); ok(mig.valuesSame, 'existing field values unchanged (incl. relations, former numbers, notes)');
   ok(mig.statusRoundTrip, 'legacy status round-trips: summaryStatus(b) === old status for all 153 (public site keeps working)');
   ok(mig.splitOk, 'status split into physical / market / landmark correctly'); ok(mig.yearBuiltSame && mig.halvesEmpty, 'year-only dates stayed year-only, no half assigned');
@@ -53,7 +53,7 @@ const FEED = (extra = '') => `<?xml version="1.0"?><rss version="2.0"><channel><
   ok(['man-a', 'new-bk', 'new-s', 'new-b', 'long-island'].every(id => mig.parents[id] === 'new-a-city') && mig.parents['new-j'] === 'new-j-state' && mig.parents['north-c'] === 'north-c-region', 'districts placed under their regions');
   ok(mig.core.length === 5, 'five boroughs are core (derived from the hierarchy)');
   ok(mig.polys.length === 3 && mig.polys.every(p => p[1] === 4) && mig.hoodPolys === 4, 'rectangles converted to 4-vertex polygons (3 districts, 4 hoods)');
-  ok(mig.modal.startsWith('Registry upgraded'), 'upgrade report shown'); ok(mig.pre, 'pre-upgrade copy held'); ok(mig.migrations.join() === '1→2,2→3', 'migrations logged: ' + mig.migrations.join(', '));
+  ok(mig.modal.startsWith('Registry upgraded'), 'upgrade report shown'); ok(mig.pre, 'pre-upgrade copy held'); ok(mig.migrations.join() === '1→2,2→3,3→4', 'migrations logged: ' + mig.migrations.join(', '));
   ok(mig.archive === 18, '18 chronicle entries kept');
   const snaps = await page.evaluate(async () => (await listSnapshots()).map(s => s.label));
   ok(snaps.includes('pre-upgrade · schema 2'), 'labelled pre-upgrade snapshot: ' + JSON.stringify(snaps));
@@ -81,13 +81,13 @@ const FEED = (extra = '') => `<?xml version="1.0"?><rss version="2.0"><channel><
   ok(filtered.n === 153 && filtered.active === 119, 'a filtered (historical) file can never replace the whole world');
   await page.reload(); await booted(page);
   const persisted = await page.evaluate(() => ({ n: S.buildings.length, schema: S.schema }));
-  ok(persisted.n === 153 && persisted.schema === 3, 'restored data survives reload');
+  ok(persisted.n === 153 && persisted.schema === 4, 'restored data survives reload');
   noErrors('restore');
   // the old two-file workflow still imports, and is upgraded exactly like an in-place upgrade
   console.log('\nB2 · legacy NewA.json + OtherDistricts.json import into a fresh profile');
   await ctx.close(); ctx = await browser.newContext(); page = await newPage(ctx); await page.goto(FILE); await booted(page);
   const legacy = await page.evaluate(([core, other]) => { mergePayload(core, 'replace'); mergePayload(other, 'replace'); const cpt = S.buildings.find(b => b.reg === 'MA-0013'); return { n: S.buildings.length, schema: S.schema, cpt: { yearBuilt: cpt.yearBuilt, yearExpected: cpt.yearExpected }, legacy: S.legacy.parcels.length, links: S.legacy.parcelLinks.length, split: S.buildings.every(b => b.physical && b.legacyStatus && summaryStatus(b) === b.legacyStatus), parents: S.districts.map(d => d.parentId), hist: histBuildings().length, polys: S.districts.filter(d => d.polygons.length).length, noParcelIds: !S.buildings.some(b => 'parcelIds' in b), districts: S.districts.length }; }, [JSON.parse(fs.readFileSync(path.join(DIR, 'real-NewA.json'), 'utf8')), JSON.parse(fs.readFileSync(path.join(DIR, 'real-OtherDistricts.json'), 'utf8'))]);
-  ok(legacy.n === 153 && legacy.schema === 3 && legacy.districts === 7 && legacy.hist === 34, 'both 2.0 files import into one store (153 buildings, 7 districts)');
+  ok(legacy.n === 153 && legacy.schema === 4 && legacy.districts === 7 && legacy.hist === 34, 'both 2.0 files import into one store (153 buildings, 7 districts)');
   ok(legacy.cpt.yearBuilt === null && legacy.cpt.yearExpected === 2027 && legacy.split && legacy.noParcelIds, 'imported records are upgraded like an in-place upgrade (statuses split, future year → expected, parcel ids removed)');
   ok(legacy.legacy === 13 && legacy.links === 14 && legacy.polys === 3 && legacy.parents.every(Boolean), 'parcels archived, borders converted, districts placed');
   noErrors('legacy import');
@@ -435,7 +435,7 @@ const FEED = (extra = '') => `<?xml version="1.0"?><rss version="2.0"><channel><
   await page.evaluate(() => setNav('overview')); await page.waitForTimeout(300);
   const fonts = await page.evaluate(() => ({ title: document.title, brand: getComputedStyle($('.brand h1 .px')).fontFamily, h2: getComputedStyle($('.hero .title h2')).fontFamily, tile: getComputedStyle($('.tile .val')).fontFamily, nav: $$('#side .tab.nav .lbl').map(l => l.textContent), navCol: getComputedStyle($('#side')).gridColumn || '' }));
   ok(fonts.title === 'NEW A OS' && /Silkscreen/i.test(fonts.brand) && /Bricolage/i.test(fonts.h2) && /Silkscreen/i.test(fonts.tile), `V3 typography: Silkscreen brand + tiles, Bricolage Grotesque display (title “${fonts.title}”)`);
-  ok(fonts.nav.join() === 'Home,Map,Registry,Transit,Business,History', 'left navigation: ' + fonts.nav.join(' · '));
+  ok(fonts.nav.join() === 'Home,Map,Registry,Transit,Civic,Business,History', 'left navigation: ' + fonts.nav.join(' · '));
   noErrors('explore');
 
   // ---------- O · playback V3: speeds, change stepping, filters, compare, inferred marking, dated basemaps ----------
@@ -465,6 +465,95 @@ const FEED = (extra = '') => `<?xml version="1.0"?><rss version="2.0"><channel><
   ok(loop.playing && loop.to < 3, `Loop restarts from the founding when the end is reached (at index ${loop.to} after 0.4 s)`);
   await page.evaluate(() => closeHistoryViewer());
   noErrors('playback');
+
+  // ---------- P · civic database · service · valuations · city health · digest · quality assistant · projects ----------
+  console.log('\nP · civic, service, valuations, health, digest, quality, projects');
+  await page.evaluate(() => { UI.mapColor = 'district'; setScope({ kind: 'region', id: 'new-a-city' }); setNav('overview'); }); await page.waitForTimeout(250);
+  const p0 = await page.evaluate(() => ({ schema: S.schema, nav: $$('#tabs .tab .lbl').map(x => x.textContent), health: $$('.health .hcard').length, overall: $('.health .hcard.overall .count')?.dataset.to, profile: $('.profile .ptext p')?.textContent || '', projects: !!$('.panel.projects'), tiles: $$('.tiles .tile .lbl').map(x => x.textContent), quality: $$('.qrows .qr').length }));
+  ok(p0.schema === 4 && p0.nav.join() === 'Home,Map,Registry,Transit,Civic,Business,History', 'schema 4 · Civic in the navigation: ' + p0.nav.join(' · '));
+  ok(p0.health === 8 && +p0.overall >= 0 && +p0.overall <= 100, `city health: 7 measures + overall ${p0.overall}/100`);
+  ok(/standing building/.test(p0.profile) && p0.projects && p0.tiles.includes('ESTIMATED VALUE'), `profile written from the records (“${p0.profile.slice(0, 80)}…”), project tracker and estimated-value tile on Home`);
+  await page.screenshot({ path: path.join(SHOTS, 'P-home.png'), fullPage: false });
+  // civic: three essential facilities and the Mayor with office + home (on real Man A buildings)
+  const civ = await page.evaluate(() => {
+    const placed = S.buildings.filter(b => isActive(b) && isCompleted(b) && b.x != null && b.districtId === 'man-a'); const [h, p, f, home] = placed;
+    h.civic = { type: 'hospital', status: 'operating', capacity: 120, jurisdictionId: 'new-a-city', notes: '' }; p.civic = { type: 'police', status: 'operating', capacity: 40, jurisdictionId: 'man-a', notes: '' }; f.civic = { type: 'fire', status: 'operating', capacity: 3, jurisdictionId: 'man-a', notes: '' };
+    const o = newOfficial(S); o.name = 'Test Mayor'; o.office = 'Mayor'; o.jurisdictionId = 'new-a-city'; o.officeBuildingId = p.id; o.residenceBuildingId = home.id; S.officials.push(o); commit({ now: true });
+    setNav('civic');
+    return { reg: o.reg, n: civicRows().length, offs: officialsIn().length, cov: coverageReport().score, groups: $$('.civlist .cg').length, rows: $$('.civlist .cr').length, homeReg: home.reg, hospReg: h.reg, hospId: h.id, count: $('#tabs .tab.civic .cnt')?.textContent };
+  });
+  await page.waitForTimeout(250);
+  ok(civ.reg === 'GV-0001' && civ.n === 3 && civ.offs === 1 && civ.groups === 3 && civ.rows === 3 && civ.count === '3', `hospital, police and fire marked on real buildings; ${civ.reg} the Mayor lives at ${civ.homeReg}; facilities grouped by type (nav count 3)`);
+  ok(civ.cov > 0 && civ.cov <= 100, `essential coverage measured: ${civ.cov}% of placed New A City buildings within reach of all three`);
+  await page.screenshot({ path: path.join(SHOTS, 'P-civic.png') });
+  const offs = await page.evaluate(() => { UI.cseg = 'officials'; renderView(false); const card = $('.offcard'); return { cards: $$('.offcard').length, office: card?.querySelector('.pl:nth-child(1)')?.textContent || '', home: card?.querySelector('.pl:nth-child(2)')?.textContent || '' }; });
+  ok(offs.cards === 1 && /OFFICE/.test(offs.office) && /HOME/.test(offs.home) && !/not recorded/.test(offs.home), 'the official card shows the office and the home, both linked to buildings');
+  const cover = await page.evaluate(() => { UI.cseg = 'coverage'; renderView(false); return { rows: $$('.covrow').length, places: $$('.hbar[data-scope-kind]').length, issues: civicIssues().length, inAll: allIssues().some(i => i.kind === 'official') }; });
+  ok(cover.rows === 3 && cover.places >= 3, `coverage tab compares ${cover.places} boroughs across the 3 essential types`);
+  // building record: CIVIC section, officials here, explainable estimate
+  const rec = await page.evaluate(id => { openBuilding(id, 'view'); const t = $('#drawer').textContent; const b = byId(id); return { civic: /CIVIC/.test(t) && /Hospital/.test(t), factors: $$('#drawer .valfactors .vf').length, est: valuationOf(b).value, hasBase: /BASE/.test(t) }; }, civ.hospId);
+  ok(rec.civic && rec.hasBase && rec.factors >= 2 && rec.est > 0, `record shows CIVIC · Hospital and an explainable estimate (${rec.factors} factor rows, ${rec.est})`);
+  await page.screenshot({ path: path.join(SHOTS, 'P-record.png') });
+  // the editor round-trips civic fields, condition, public flag and the override
+  const edit4 = await page.evaluate(async id => { openBuilding(id, 'edit'); $('#f-civicCapacity').value = '150'; $('#f-condition').value = 'excellent'; $('#f-public').checked = false; $('#f-valOverride').value = '1234567'; $('#f-valReason').value = 'appraisal'; saveDrawer(); await new Promise(r => setTimeout(r, 300)); const b = byId(id); return { cap: b.civic?.capacity, cond: b.condition, pub: b.public, ov: b.valuationOverride?.value, reason: b.valuationOverride?.reason, shown: valuationOf(b).value, type: b.civic?.type }; }, civ.hospId);
+  ok(edit4.cap === 150 && edit4.cond === 'excellent' && edit4.pub === false && edit4.ov === 1234567 && edit4.reason === 'appraisal' && edit4.shown === 1234567 && edit4.type === 'hospital', 'editor round-trips capacity, condition, public flag and a manual valuation override');
+  await page.evaluate(async id => { openBuilding(id, 'edit'); $('#f-valOverride').value = ''; $('#f-public').checked = true; saveDrawer(); await new Promise(r => setTimeout(r, 200)); closeDrawer(); }, civ.hospId);
+  // valuation maths on a real assessed building: factors sum to the adjustment
+  const val = await page.evaluate(() => { const b = S.buildings.find(x => isActive(x) && isCompleted(x) && x.x != null && num(x.assessTotal) && !x.civic); const e = valueEstimate(b); const sumPct = e.factors.reduce((a, f) => a + f.pct, 0); return { reg: b.reg, value: e.value, assessed: num(b.assessTotal), base: e.base, sumPct, totalPct: e.totalPct, expected: Math.round(e.base * (1 + sumPct / 100)), why: e.factors.map(f => `${f.label} ${f.pct > 0 ? '+' : ''}${f.pct}% (${f.why})`), conf: e.confidence, hist: (b.valuations || []).length }; });
+  ok(val.base === val.assessed && val.sumPct === val.totalPct && val.value === val.expected && val.conf === 'assessment-based', `${val.reg}: base = assessed ${val.assessed} · ${val.why.join(' · ')} → ${val.value}`);
+  const recd = await page.evaluate(reg => { const b = S.buildings.find(x => x.reg === reg); const n = recordValuations([b], 'test'); return { n, hist: b.valuations.length, latest: b.valuation?.value, v: b.valuations[0].version }; }, val.reg);
+  ok(recd.n === 1 && recd.hist === 1 && recd.latest === val.value && recd.v === 1, 'recording stores a dated valuation with its model version');
+  // transit service: deterministic timetable on a test line, measured override, scores, sandbox
+  const tl = await page.evaluate(() => {
+    const t = newTrack(S); t.name = 'Test track'; t.geometry = [[2000, 2000], [2000, 2200], [2000, 2400]]; S.tracks.push(t);
+    const mk = (n, x, z) => { const s = newStation(S); s.name = n; s.x = x; s.z = z; S.stations.push(s); return s; };
+    const a = mk('Alpha', 2000, 2000), b = mk('Beta', 2000, 2200), c = mk('Gamma', 2000, 2400);
+    const l = newLine(S); l.name = 'Test Line'; l.shortName = 'TL'; l.mode = 'subway'; l.status = 'open'; l.trackIds = [t.id]; l.stopIds = [a.id, b.id, c.id]; S.lines.push(l); commit({ now: true });
+    const tt = lineTimetable(l); const e2e = lineEndToEnd(l); const j = lineJourneyTime(l, a.id, c.id);
+    l.segments = [{ fromId: a.id, toId: b.id, seconds: 50, basis: 'measured' }]; const tt2 = lineTimetable(l); const e2e2 = lineEndToEnd(l);
+    l.service = { speed: null, headwayMin: 3, dwellSec: null, basis: 'scheduled' }; const svc = lineService(l);
+    return { id: l.id, aId: a.id, times: tt.map(r => r.t), e2e, j: j && j.sec, basis: j && j.basis, e2e2, seg2: tt2[1].seg.basis, tph: tphOf(l), headway: svc.headwayMin, speed: svc.speed, svcBasis: svc.basis, bx: 2000, bz: 2050 };
+  });
+  ok(tl.times.join() === '0,35,70' && tl.e2e === 70 && tl.j === 70 && tl.basis === 'estimated', `estimated timetable: 200 blk at 8 blk/s + 10 s dwell = 35 s per hop (${tl.times.join(' · ')} s)`);
+  ok(tl.e2e2 === 85 && tl.seg2 === 'measured' && tl.tph === 20 && tl.headway === 3 && tl.speed === 8 && tl.svcBasis === 'scheduled', `a measured 50 s segment overrides the estimate (end to end ${tl.e2e2} s); 3-min headway → ${tl.tph} tph, speed still the mode default`);
+  await page.evaluate(() => { UI.tseg = 'times'; UI.tline = S.lines.find(l => l.name === 'Test Line').id; setNav('transit'); }); await page.waitForTimeout(250);
+  const times = await page.evaluate(() => ({ rows: $$('table.reg tbody tr').length, cum: $$('table.reg tbody tr td.hi').map(x => x.textContent), basis: $$('table.reg tbody .mk').map(x => x.textContent) }));
+  ok(times.rows === 3 && times.cum.join() === '0 s,50 s,1 min' && times.basis.includes('MEASURED') && times.basis.includes('ESTIMATED'), `Times tab: ${times.cum.join(' → ')}, bases ${[...new Set(times.basis)].join('/')}`);
+  await page.screenshot({ path: path.join(SHOTS, 'P-times.png') });
+  const svc = await page.evaluate(() => { UI.tseg = 'service'; renderView(false); const places = serviceByPlace(); const far = { x: 9000, z: 9000 }; const near = { x: 2000, z: 2050 }; return { rows: $$('.svcrows .svc').length, places: places.length, far: buildingService(far).score, near: buildingService(near), color: dotColor({ x: 2000, z: 2050, districtId: 'man-a' }) }; });
+  ok(svc.rows === svc.places && svc.places >= 3 && svc.far === 0 && svc.near.score >= 50 && svc.near.near.s.name === 'Alpha' && svc.near.tph === 20, `service scores: a building 50 blk from Alpha scores ${svc.near.score} (20 tph), one 9000 blk away scores 0; ${svc.places} boroughs ranked`);
+  await page.screenshot({ path: path.join(SHOTS, 'P-service.png') });
+  const sb = await page.evaluate(async () => { const b = { x: 2400, z: 2000 }; const before = buildingService(b).score; S.sandbox.stations = [{ id: 'sbx1', name: 'Try', x: 2400, z: 2000, lineId: null, headwayMin: 4 }]; const after = buildingService(b, { sandbox: true }).score; window.confirmDialog = async () => 'ok'; const n0 = S.stations.length; await sandboxPromote('sbx1'); return { before, after, promoted: S.stations.length === n0 + 1, planned: S.stations[S.stations.length - 1].status, left: S.sandbox.stations.length }; });
+  ok(sb.after > sb.before && sb.promoted && sb.planned === 'planned' && sb.left === 0, `sandbox station lifts a nearby score ${sb.before} → ${sb.after}; promoting creates a planned station and clears the sandbox entry`);
+  // service colour on the map + civic glyph layer draw without errors
+  await page.evaluate(() => { UI.mapColor = 'service'; setNav('map'); }); await page.waitForTimeout(400);
+  const mapc = await page.evaluate(() => { MAPW.cam = { x: 2000, z: 2100, k: 3 }; mapDraw(); const b = S.buildings.find(x => x.civic?.type === 'hospital'); MAPW.cam = { x: b.x, z: b.z, k: 3 }; mapDraw(); return { legend: /Best served/.test(mapLegendHTML()), color: dotColor(b), civicLayer: UI.layers.civic }; });
+  ok(mapc.legend && /^#[0-9a-f]{6}$/i.test(mapc.color) && mapc.civicLayer, 'map colours buildings by service score with its own legend; civic glyph layer on');
+  await page.screenshot({ path: path.join(SHOTS, 'P-map-service.png') });
+  await page.evaluate(() => { UI.mapColor = 'district'; });
+  // health cards navigate; keyboard C opens Civic
+  const nav = await page.evaluate(() => { setNav('overview'); healthOpen('civic'); return { nav: UI.nav, seg: UI.cseg }; });
+  ok(nav.nav === 'civic' && nav.seg === 'coverage', 'the ESSENTIAL SERVICES health card opens Civic → Coverage');
+  await page.evaluate(() => setNav('overview')); await page.keyboard.press('c'); await page.waitForTimeout(150);
+  ok(await page.evaluate(() => UI.nav === 'civic'), 'C opens the Civic section');
+  // change digest → newsletter draft, saved locally only
+  const dg = await page.evaluate(() => { const d = changeDigest({ sinceDays: 365 }); const md = digestMarkdown(d); openDigestModal(365); $('#dg-save').click(); return { total: d.total, md: md.slice(0, 60), hasNew: /New in the registry|Transit|Government/.test(md), lines: d.lines.length, offs: d.officials.length, drafts: S.news.drafts.length, status: S.news.drafts[0]?.status, modal: !!$('#modal-root .modal') }; });
+  ok(dg.total >= 2 && dg.hasNew && dg.lines >= 1 && dg.offs === 1 && dg.drafts === 1 && dg.status === 'draft' && !dg.modal, `digest lists ${dg.total} changes (incl. the test line and the Mayor) and saves a newsletter draft locally — nothing posted`);
+  // data-quality assistant: neighborhood from the drawn border, with a snapshot and a migration note
+  const q = await page.evaluate(async () => { const hood = S.neighborhoods.find(h => (h.polygons || []).length); const b = S.buildings.find(x => isActive(x) && x.x != null && x.districtId === hood.districtId && pointInPolys([x.x, x.z], hood.polygons) === 'in' && x.neighborhoodId === hood.id); if (!b) return { skip: true }; b.neighborhoodId = null; const sug = qualitySuggestions().find(s => s.id === 'hood'); const listed = !!sug && sug.items.some(x => x.b.id === b.id); const snaps0 = (await listSnapshots()).length; await qualityFix('hood'); const snaps1 = (await listSnapshots()).length; return { listed, restored: b.neighborhoodId === hood.id, note: (b.migrationNotes || []).some(n => /neighborhood set/.test(n)), snap: snaps1 === snaps0 + 1, kinds: qualitySuggestions().map(s => s.id) }; });
+  ok(q.skip || (q.listed && q.restored && q.note && q.snap), q.skip ? 'no hood with a building inside its border — assistant hood fix not exercised' : `assistant proposes the neighborhood from the border, fixes it after confirmation with a snapshot and a note (also offers: ${q.kinds.join(', ')})`);
+  // projects: reg, links, log, evidence; shown on Home; export round-trip keeps civic, officials and projects
+  const pj = await page.evaluate(() => { const b = S.buildings.find(x => x.civic?.type === 'hospital'); saveProject({ name: 'Hospital extension', stage: 'planning', districtId: 'man-a', buildingIds: [b.id], lineIds: [], roadIds: [], archiveIds: [S.archive[0]?.id].filter(Boolean), startedYear: 2026, startedHalf: 'L', targetYear: null, targetHalf: '', notes: '', log: [{ at: now(), text: 'Site survey done' }] }, null); const p = S.projects[0]; setNav('overview'); return { reg: p.reg, linked: projectsOf(b).length, rows: $$('.projrows .pr').length, stage: $('.projrows .pr .status')?.textContent, evidence: p.archiveIds.length }; });
+  ok(pj.reg === 'PJ-0001' && pj.linked === 1 && pj.rows === 1 && /Planning/.test(pj.stage), `project ${pj.reg} tracked with a linked building, a log entry and ${pj.evidence} chronicle evidence; listed on Home`);
+  const guide = await page.evaluate(() => { const b = S.buildings.find(x => isActive(x) && x.owner); const hidden = S.buildings.find(x => isActive(x) && x.id !== b?.id); hidden.public = false; const html = publicGuideHTML({ kind: 'region', id: 'new-a-city' }); hidden.public = true; return { doc: html.startsWith('<!doctype html>'), guide: /PUBLIC GUIDE/.test(html), owner: b ? html.includes(b.owner) : false, hiddenOut: !html.includes(hidden.reg + '</td>'), hospital: /Hospital/.test(html), mayor: /Test Mayor/.test(html) }; });
+  ok(guide.doc && guide.guide && !guide.owner && guide.hiddenOut && guide.hospital && guide.mayor, 'public guide: standalone page with civic facilities and officials, no owners, and buildings marked private left out');
+  const rt = await page.evaluate(() => { const m = serializeMaster(); mergePayload(m, 'replace'); return { offs: S.officials.length, projects: S.projects.length, civic: S.buildings.filter(isCivic).length, segs: S.lines.find(l => l.name === 'Test Line')?.segments.length, drafts: S.news.drafts.length }; });
+  ok(rt.offs === 1 && rt.projects === 1 && rt.civic === 3 && rt.segs === 1 && rt.drafts === 1, 'master export → replace keeps officials, projects, civic blocks, measured segments and drafts');
+  await page.evaluate(async () => { commit({ now: true }); await new Promise(r => setTimeout(r, 700)); });
+  await page.reload(); await booted(page);
+  const persisted4 = await page.evaluate(() => ({ schema: S.schema, offs: S.officials.length, projects: S.projects.length, civic: S.buildings.filter(isCivic).length }));
+  ok(persisted4.schema === 4 && persisted4.offs === 1 && persisted4.projects === 1 && persisted4.civic === 3, 'everything survives a reload');
+  noErrors('city');
 
   await ctx.close(); await browser.close();
   console.log(`\n${checks - failures}/${checks} checks passed${failures ? ` · ${failures} FAILED` : ''}`);
