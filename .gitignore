@@ -1,0 +1,7 @@
+node_modules/
+app/shots/
+app/script.js
+os/node_modules/
+os/.cache/
+*.log
+.DS_Store
