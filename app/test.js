@@ -5,6 +5,8 @@ const DIR = __dirname; const FILE = 'file://' + path.join(DIR, 'NewA-Land-Regist
 const SHOTS = path.join(DIR, 'shots'); fs.mkdirSync(SHOTS, { recursive: true });
 const v2 = JSON.parse(fs.readFileSync(path.join(DIR, 'v2-state.json'), 'utf8'));
 let failures = 0, checks = 0;
+const hyIndexJS = (y, h) => (y - 2013) * 2 + (h === 'L' ? 1 : 0);
+const S_v2_newbk = v2.buildings.filter(b => b.districtId === 'new-bk').length;
 const ok = (cond, msg) => { checks++; if (!cond) { failures++; console.log('  ✗ FAIL:', msg); } else console.log('  ✓', msg); };
 const FEED = (extra = '') => `<?xml version="1.0"?><rss version="2.0"><channel><title>New A</title>
 <item><title>Empire State Building declared a landmark</title><link>https://newa-site.vercel.app/news/esb-landmark</link><guid>esb-landmark</guid><pubDate>Tue, 06 Jan 2026 10:00:00 GMT</pubDate><description>In January 2026 the Empire State Building was designated a landmark by the City of New A. ${extra}</description></item>
@@ -435,6 +437,34 @@ const FEED = (extra = '') => `<?xml version="1.0"?><rss version="2.0"><channel><
   ok(fonts.title === 'NEW A OS' && /Silkscreen/i.test(fonts.brand) && /Bricolage/i.test(fonts.h2) && /Silkscreen/i.test(fonts.tile), `V3 typography: Silkscreen brand + tiles, Bricolage Grotesque display (title “${fonts.title}”)`);
   ok(fonts.nav.join() === 'Home,Map,Registry,Transit,Business,History', 'left navigation: ' + fonts.nav.join(' · '));
   noErrors('explore');
+
+  // ---------- O · playback V3: speeds, change stepping, filters, compare, inferred marking, dated basemaps ----------
+  console.log('\nO · playback V3');
+  await page.evaluate(() => { setNav('history'); openHistoryViewer({ year: 2018, half: 'E' }); }); await page.waitForTimeout(250);
+  const pb = await page.evaluate(() => ({ speeds: $$('#hv-speed option').map(o => +o.value), ctl: $$('.hv-ft .tl-ctl button').length, evidence: $$('#hv-evidence .evd').length, filters: $$('[data-hvkind]').length, hasDistrict: !!$('#hv-district'), layers: $$('[data-hvlayer]').map(b => b.dataset.hvlayer) }));
+  ok(pb.speeds.join() === '0.25,0.5,1,2,4,8' && pb.ctl === 5, `six speeds (${pb.speeds.join('× · ')}×) and prev/next-change buttons`);
+  ok(pb.evidence >= 5 && pb.filters === 4 && pb.hasDistrict && pb.layers.includes('evidence') && pb.layers.includes('basemap'), `${pb.evidence} evidence dots on the timeline (chronicle images), kind filters, place filter, Inferred + Maps toggles`);
+  const stepping = await page.evaluate(() => { const i0 = HV.to; hvStepChange(1); const i1 = HV.to; const n1 = hvEventsAt(i1).length; hvStepChange(-1); const back = HV.to; return { i0, i1, n1, back, skipped: i1 - i0 }; });
+  ok(stepping.i1 > stepping.i0 && stepping.n1 >= 1 && stepping.back <= stepping.i0, `next change jumps from ${stepping.i0} to ${stepping.i1} (${stepping.n1} events), previous change returns`);
+  const filt = await page.evaluate(() => { const all = hvRows().length; HV.filter.district = 'new-bk'; const nb = hvRows().length; const evAll = hvEventsAt(hyIndex(2018, 'E')).length; HV.filter.kinds.buildings = false; const evNoB = hvEventsAt(hyIndex(2018, 'E')).length; HV.filter.kinds.buildings = true; HV.filter.district = ''; hvUpdateChrome(); return { all, nb, evAll, evNoB }; });
+  ok(filt.nb < filt.all && filt.nb >= S_v2_newbk && filt.evNoB === 0 && filt.evAll >= 1, `place filter narrows to New BK (${filt.nb} of ${filt.all}); kind filter hides building events (${filt.evAll} → ${filt.evNoB})`);
+  const inferred = await page.evaluate(() => { const b = hvRows().find(x => x.yearBuilt != null && !x.halfBuilt && isActive(x) && !isUnderWay(x)); const i = hyIndex(b.yearBuilt, 'E'); const st = stateAtHY(b, i); hvSet(i, { instant: true }); return { reg: b.reg, inf: inferredAt(b, i, st), counts: $('#hv-counts').textContent, rec: $('#hv-events').textContent }; });
+  ok(inferred.inf && /inferred/.test(inferred.counts) && /inferred|recorded/.test(inferred.rec), `${inferred.reg} dated by year only is marked inferred (counts: …${inferred.counts.replace(/\s+/g, ' ').slice(-40)})`);
+  // compare mode: two panes, a B date, and the changes between them
+  await page.evaluate(() => { hvSet(hyIndex(2016, 'E'), { instant: true }); hvToggleCompare(); hvSetB(hyIndex(2020, 'E')); }); await page.waitForTimeout(250);
+  const cmp = await page.evaluate(() => ({ compare: HV.compare, panes: $$('#hv-stage canvas').length, dateB: $('#hv-date-b')?.textContent.replace(/\s+/g, ' ').trim(), title: $('#hv-ev-title')?.textContent, n: $$('#hv-events .ev').length, rangeB: $('#hv-range-b')?.value, whens: $$('#hv-events .ev .nm > .r').length }));
+  ok(cmp.compare && cmp.panes === 2 && /2020/.test(cmp.dateB) && /CHANGED/.test(cmp.title) && cmp.n >= 5 && +cmp.rangeB === hyIndexJS(2020, 'E'), `compare mode: two panes (A Early 2016 · B Early 2020), "${cmp.title}" lists ${cmp.n} events with their dates`);
+  await page.screenshot({ path: path.join(SHOTS, 'O-compare.png') });
+  const swapped = await page.evaluate(() => { const a = HV.to, b = HV.b; hvSet(HV.b, { instant: true }); hvSetB(a); return { to: HV.to, b: HV.b, a, bb: b }; }); ok(swapped.to === swapped.bb && swapped.b === swapped.a, 'A and B swap');
+  await page.evaluate(() => hvToggleCompare()); await page.waitForTimeout(150);
+  const single = await page.evaluate(() => ({ compare: HV.compare, panes: $$('#hv-stage canvas').length })); ok(!single.compare && single.panes === 1, 'back to one pane');
+  // dated basemaps: only the latest render at or before the date is shown, never a newer one
+  const bms = await page.evaluate(() => { S.settings.basemaps = [{ id: 'bm2015', name: '2015 render', x: 0, z: 0, scale: 1, opacity: 1, year: 2015, half: 'E' }, { id: 'bm2019', name: '2019 render', x: 0, z: 0, scale: 1, opacity: 1, year: 2019, half: 'L' }, { id: 'bmnow', name: 'present render', x: 0, z: 0, scale: 1, opacity: 1 }]; const at = hy => basemapsAt(hy).map(b => b.id); const r = { e2014: at(hyIndex(2014, 'E')), e2016: at(hyIndex(2016, 'E')), e2019: at(hyIndex(2019, 'E')), l2019: at(hyIndex(2019, 'L')), e2024: at(hyIndex(2024, 'E')), present: at(null), evd: $$('#hv-evidence .evd.maps').length }; S.settings.basemaps = []; return r; });
+  ok(bms.e2014.length === 0 && bms.e2016.join() === 'bm2015' && bms.e2019.join() === 'bm2015' && bms.l2019.join() === 'bm2019' && bms.e2024.join() === 'bm2019' && bms.present.includes('bmnow') && bms.present.includes('bm2019') && !bms.present.includes('bm2015'), `dated renders: none before 2015, the 2015 render until Late 2019, then the 2019 one — never a newer render behind an older one (${JSON.stringify(bms).slice(0, 120)}…)`);
+  const loop = await page.evaluate(() => { HV.loop = true; hvSet(HV.i1, { instant: true }); hvPlay(); return new Promise(r => setTimeout(() => { const v = { to: HV.to, playing: HV.playing }; hvPause(); HV.loop = false; r(v); }, 400)); });
+  ok(loop.playing && loop.to < 3, `Loop restarts from the founding when the end is reached (at index ${loop.to} after 0.4 s)`);
+  await page.evaluate(() => closeHistoryViewer());
+  noErrors('playback');
 
   await ctx.close(); await browser.close();
   console.log(`\n${checks - failures}/${checks} checks passed${failures ? ` · ${failures} FAILED` : ''}`);

@@ -121,7 +121,11 @@ document.addEventListener('click', async e => {
     case 'hv-full': HV.full = !HV.full; $('#hv-root').classList.toggle('full', HV.full); requestAnimationFrame(() => { hvResize(); hvDraw(); }); break;
     case 'hv-list': HV.list = !HV.list; $('#hv-root .hv')?.classList.toggle('nolist', !HV.list); t.setAttribute('aria-pressed', HV.list); requestAnimationFrame(() => { hvResize(); hvDraw(); }); break;
     case 'hv-play': hvToggle(); break;
-    case 'hv-step': hvPause(); hvSet(HV.to + (+t.dataset.dir)); break;
+    case 'hv-step': hvPause(); hvSet(HV.to + (+t.dataset.dir) * (e.shiftKey ? 2 : 1)); break;
+    case 'hv-change': hvStepChange(+t.dataset.dir); break;
+    case 'hv-compare': hvToggleCompare(); break;
+    case 'hv-swap': { const a = HV.to; hvSet(HV.b, { instant: true }); hvSetB(a); break; }
+    case 'hv-loop': HV.loop = !HV.loop; hvUpdateChrome(); break;
     case 'hv-jump': { hvPause(); const y = num($('#hv-jump-y')?.value); const h = $('#hv-jump-h')?.value || 'E'; if (y != null) hvSet(hyIndex(y, h)); break; }
     case 'hv-projection': hvToggleProjection(); break;
     case 'hv-ref': HV.refOverlay = !HV.refOverlay; hvUpdateChrome(); hvDraw(); break;
@@ -255,7 +259,7 @@ document.addEventListener('keydown', e => {
   if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'z' && onMap && !inField) { e.preventDefault(); if (e.shiftKey) mapRedo(); else mapUndo(); return; }
   if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'y' && onMap && !inField) { e.preventDefault(); mapRedo(); return; }
   if (HV.open && !inField) {
-    if (e.key === ' ') { e.preventDefault(); hvToggle(); return; } if (e.key === 'ArrowLeft' || e.key === 'ArrowRight') { e.preventDefault(); hvPause(); hvSet(HV.to + (e.key === 'ArrowRight' ? 1 : -1)); return; } if (e.key === 'Home' || e.key === 'End') { e.preventDefault(); hvPause(); hvSet(e.key === 'Home' ? 0 : HV.i1); return; } if (e.key === 'f' || e.key === 'F') { HV.full = !HV.full; $('#hv-root').classList.toggle('full', HV.full); requestAnimationFrame(() => { hvResize(); hvDraw(); }); return; }
+    if (e.key === ' ') { e.preventDefault(); hvToggle(); return; } if (e.key === 'ArrowLeft' || e.key === 'ArrowRight') { e.preventDefault(); hvPause(); hvSet(HV.to + (e.key === 'ArrowRight' ? 1 : -1) * (e.shiftKey ? 2 : 1)); return; } if (e.key === '[' || e.key === ']') { e.preventDefault(); hvStepChange(e.key === ']' ? 1 : -1); return; } if (e.key === 'v' || e.key === 'V') { hvToggleCompare(); return; } if (e.key === 'Home' || e.key === 'End') { e.preventDefault(); hvPause(); hvSet(e.key === 'Home' ? 0 : HV.i1); return; } if (e.key === 'f' || e.key === 'F') { HV.full = !HV.full; $('#hv-root').classList.toggle('full', HV.full); requestAnimationFrame(() => { hvResize(); hvDraw(); }); return; }
     return;
   }
   if (inField || isModal || e.metaKey || e.ctrlKey || e.altKey) return;

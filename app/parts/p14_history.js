@@ -74,14 +74,28 @@ function renderPlaybackSection(rows) {
 }
 
 /* ============ the animated viewer ============ */
-const HV = { open: false, i: 0, from: 0, to: 0, t: 1, playing: false, speed: 1, lastTick: 0, raf: null, cam: { x: 0, z: 0, k: 1 }, w: 0, h: 0, canvas: null, ctx: null, projection: false, refOverlay: false, follow: false, full: false, list: true, layers: null, rows: [], i1: 0, drag: null, dockFit: true, lastEventsKey: '' };
+const HV = { open: false, i: 0, from: 0, to: 0, t: 1, playing: false, speed: 1, lastTick: 0, raf: null, cam: { x: 0, z: 0, k: 1 }, w: 0, h: 0, canvas: null, ctx: null, canvasB: null, ctxB: null, projection: false, refOverlay: false, follow: false, full: false, list: true, layers: null, rows: [], i1: 0, drag: null, dockFit: true, lastEventsKey: '', compare: false, b: 0, loop: false, filter: { district: '', kinds: { buildings: true, roads: true, transit: true, biz: true } } };
+const HV_SPEEDS = [0.25, 0.5, 1, 2, 4, 8];
+/* the records the viewer shows after the Place filter */
+const hvRows = () => HV.filter.district ? HV.rows.filter(b => b.districtId === HV.filter.district) : HV.rows;
+/* layers with the kind filters applied */
+const hvLayers = () => { const K = HV.filter.kinds; return { ...HV.layers, stations: HV.layers.transit && K.transit, transit: HV.layers.transit && K.transit, roads: HV.layers.roads && K.roads, buildings: HV.layers.buildings !== false && K.buildings, businesses: !!K.biz && !!HV.layers.businesses }; };
+/* events at a half-year, after the filters */
+function hvEventsAt(i) { const K = HV.filter.kinds; return hyEvents(hvRows(), i, { projection: HV.projection }).filter(e => e.b ? K.buildings : /^road/.test(e.kind) ? K.roads : /^(line|station)/.test(e.kind) ? K.transit : /^biz/.test(e.kind) ? K.biz : true); }
+/* a building's state at i is inferred when the date that puts it there is approximate or has no half */
+function inferredAt(b, i, st) { if (st === 'standing') return !!(b.yearBuiltApprox || !b.halfBuilt); if (st === 'gone') return !!(b.yearDemolishedApprox || !b.halfDemolished); if (st === 'construction') return !!((b.yearStarted != null ? (b.yearStartedApprox || !b.halfStarted) : (b.yearBuiltApprox || !b.halfBuilt))); return false; }
+const hyIndexOfArchive = a => hyIndex(a.year, a.month ? (a.month <= 6 ? 'E' : 'L') : '');
+/* half-years that carry evidence: chronicle images, dated basemaps, world snapshots */
+function hvEvidence() { const out = new Map(); const add = (i, kind) => { if (i == null || i < 0 || i > HV.i1) return; const e = out.get(i) || out.set(i, { chron: 0, maps: 0, world: 0 }).get(i); e[kind]++; }; for (const a of scopeArchive()) add(hyIndexOfArchive(a), 'chron'); for (const bm of S.settings.basemaps || []) if (bm.year != null) add(hyIndex(bm.year, bm.half || ''), 'maps'); for (const w of (S.world?.snapshots || [])) if (w.year != null) add(hyIndex(w.year, w.half || ''), 'world'); return out; }
+function hvNextChange(dir) { let i = HV.to + dir; while (i >= 0 && i <= HV.i1) { if (hvEventsAt(i).length) return i; i += dir; } return null; }
 function openHistoryViewer({ index = 0, year = null, half = null } = {}) {
-  HV.rows = scopeBuildings(); HV.layers = HV.layers || { regions: true, districts: true, hoods: false, roads: true, transit: true, stations: true, buildings: true, footprints: true, businesses: false, labels: false, grid: false, historical: true, ghostsAll: false };
+  HV.rows = scopeBuildings(); HV.layers = HV.layers || { regions: true, districts: true, hoods: false, roads: true, transit: true, stations: true, buildings: true, footprints: true, businesses: false, labels: false, grid: false, historical: true, ghostsAll: false, evidence: true, basemap: true };
+  if (HV.filter.district && !scopeDistricts().some(d => d.id === HV.filter.district)) HV.filter.district = '';
   const { i1 } = hyRange(HV.rows, { projection: HV.projection }); HV.i1 = i1;
   let i = year != null ? clamp(hyIndex(year, half || 'E'), 0, i1) : clamp(index, 0, i1);
-  HV.i = HV.from = HV.to = i; HV.t = 1; HV.playing = false; HV.open = true; document.body.classList.add('hv-open');
+  HV.i = HV.from = HV.to = i; HV.b = clamp(HV.b || i1, 0, i1); HV.t = 1; HV.playing = false; HV.open = true; document.body.classList.add('hv-open');
   const root = $('#hv-root'); root.hidden = false; root.classList.toggle('full', HV.full);
-  root.innerHTML = hvHTML(); HV.canvas = $('#hv-canvas'); HV.ctx = HV.canvas.getContext('2d');
+  root.innerHTML = hvHTML(); HV.canvas = $('#hv-canvas'); HV.ctx = HV.canvas.getContext('2d'); HV.canvasB = $('#hv-canvas-b'); HV.ctxB = HV.canvasB ? HV.canvasB.getContext('2d') : null;
   hvResize(); const ext = scopeExtent(); if (ext) { const pad = 50; HV.cam.k = clamp(Math.min((HV.w - pad * 2) / Math.max(120, ext.x2 - ext.x1), (HV.h - pad * 2) / Math.max(120, ext.z2 - ext.z1)), 0.02, 10); HV.cam.x = (ext.x1 + ext.x2) / 2; HV.cam.z = (ext.z1 + ext.z2) / 2; }
   if (HV.camHint) { HV.cam.x = HV.camHint.x; HV.cam.z = HV.camHint.z; HV.cam.k = Math.max(HV.cam.k, 3); HV.camHint = null; }
   hvWire(); hvUpdateChrome(); hvDraw();
@@ -91,54 +105,61 @@ function closeHistoryViewer() { hvPause(); hideHover(); HV.open = false; documen
 function hvHTML() {
   const i1 = HV.i1; const eras = ERAS.filter(e => hyIndex(e.from, 'E') <= i1).map(e => { const a = hyIndex(e.from, 'E'), b = Math.min(i1 + 1, hyIndex(e.to, 'E')); return `<span data-era="${a}" style="flex:${Math.max(1, b - a)} 0 0">${esc(e.name.toUpperCase())}</span>`; }).join('');
   const ticks = []; for (let y = FOUNDED_YEAR; y <= hyFromIndex(i1).year; y++) ticks.push(`<span data-i="${hyIndex(y, 'E')}">${(hyFromIndex(i1).year - FOUNDED_YEAR) > 14 && (y - FOUNDED_YEAR) % 2 ? '' : y}</span>`);
-  const L = HV.layers;
-  return `<div class="hv ${HV.list ? '' : 'nolist'}" role="dialog" aria-modal="true" aria-label="Historical playback">
-    <div class="hv-hd"><span class="k">PLAYBACK</span><h3>${esc(scopeName())}</h3><span class="sc">${hyLabel(FOUNDED_YEAR, 'E')} → ${esc(hyLabel(...Object.values(hyFromIndex(i1))))} · ${HV.rows.length} records</span>
-      <div class="acts"><button class="btn sm ghost" data-act="hv-list" aria-pressed="${HV.list}" title="What changed list">${icon('rows')}</button><button class="btn sm ghost" data-act="hv-full" title="Full screen (F)">${icon('expand')}</button><button class="btn ghost icon sm" data-act="hv-close" title="Close (Esc)">${icon('x')}</button></div></div>
+  const L = HV.layers; const K = HV.filter.kinds; const dists = scopeDistricts(); const ev = hvEvidence();
+  const evid = [...ev.entries()].map(([i, e]) => `<span class="evd ${e.maps ? 'maps' : ''} ${e.world ? 'world' : ''}" style="left:${(i / Math.max(1, i1) * 100).toFixed(2)}%" title="${esc(hyLabel(...Object.values(hyFromIndex(i))))}: ${[e.chron ? `${e.chron} chronicle image${e.chron === 1 ? '' : 's'}` : '', e.maps ? `${e.maps} dated map${e.maps === 1 ? '' : 's'}` : '', e.world ? `${e.world} world snapshot${e.world === 1 ? '' : 's'}` : ''].filter(Boolean).join(' · ')}" data-i="${i}"></span>`).join('');
+  return `<div class="hv ${HV.list ? '' : 'nolist'} ${HV.compare ? 'compare' : ''}" role="dialog" aria-modal="true" aria-label="Historical playback">
+    <div class="hv-hd"><span class="k">PLAYBACK</span><h3>${esc(scopeName())}</h3><span class="sc">${hyLabel(FOUNDED_YEAR, 'E')} → ${esc(hyLabel(...Object.values(hyFromIndex(i1))))} · <span id="hv-nrec">${hvRows().length}</span> records</span>
+      <div class="hv-filters">${dists.length > 1 ? `<label class="field" style="height:28px"><span>Place</span><select id="hv-district"><option value="">All</option>${dists.map(d => `<option value="${d.id}" ${HV.filter.district === d.id ? 'selected' : ''}>${esc(d.name)}</option>`).join('')}</select></label>` : ''}${[['buildings', 'Buildings'], ['roads', 'Roads'], ['transit', 'Transit'], ['biz', 'Businesses']].map(([k, l]) => `<button class="crumb sm" data-hvkind="${k}" aria-pressed="${!!K[k]}">${l}</button>`).join('')}</div>
+      <div class="acts"><button class="btn sm ghost" data-act="hv-compare" aria-pressed="${HV.compare}" title="Compare two dates side by side (V)">${icon('grid')} Compare</button><button class="btn sm ghost" data-act="hv-list" aria-pressed="${HV.list}" title="What changed list">${icon('rows')}</button><button class="btn sm ghost" data-act="hv-full" title="Full screen (F)">${icon('expand')}</button><button class="btn ghost icon sm" data-act="hv-close" title="Close (Esc)">${icon('x')}</button></div></div>
     <div class="hv-main">
-      <div class="hv-stage" id="hv-stage"><canvas id="hv-canvas"></canvas>
-        <div class="hv-date" id="hv-date"></div>
-        <div class="hv-counts" id="hv-counts"></div>
-        <div class="hv-layers">${[['districts', 'Borders'], ['hoods', 'Neighborhoods'], ['roads', 'Roads'], ['transit', 'Transit'], ['historical', 'Ghosts', 'A demolished building lingers as a ghost for about a year, then fades out'], ['ghostsAll', 'All ghosts', 'Keep every ghost on the map after its demolition'], ['labels', 'Labels'], ['grid', 'Grid']].map(([k, l, tip]) => `<button class="crumb" data-hvlayer="${k}" aria-pressed="${!!L[k]}" ${tip ? `title="${esc(tip)}"` : ''}>${l}</button>`).join('')}</div>
+      <div class="hv-stage ${HV.compare ? 'compare' : ''}" id="hv-stage"><div class="hv-pane"><canvas id="hv-canvas"></canvas><div class="hv-date" id="hv-date"></div><div class="hv-counts" id="hv-counts"></div></div>${HV.compare ? `<div class="hv-pane b"><canvas id="hv-canvas-b"></canvas><div class="hv-date" id="hv-date-b"></div><div class="hv-counts" id="hv-counts-b"></div></div>` : ''}
+        <div class="hv-layers">${[['districts', 'Borders'], ['hoods', 'Neighborhoods'], ['roads', 'Roads'], ['transit', 'Transit'], ['historical', 'Ghosts', 'A demolished building lingers as a ghost for about a year, then fades out'], ['ghostsAll', 'All ghosts', 'Keep every ghost on the map after its demolition'], ['evidence', 'Inferred', 'Dashed ring = the date that puts the building here is approximate or has no half — inferred, not recorded'], ['basemap', 'Maps', 'Dated basemap renders: only the latest render at or before the date is shown, never a newer one behind an older one'], ['labels', 'Labels'], ['grid', 'Grid']].map(([k, l, tip]) => `<button class="crumb" data-hvlayer="${k}" aria-pressed="${!!L[k]}" ${tip ? `title="${esc(tip)}"` : ''}>${l}</button>`).join('')}</div>
         <div class="hv-note" id="hv-note"></div>
       </div>
-      <aside class="hv-side"><div class="sh"><span>WHAT CHANGED</span><span class="note" id="hv-ev-note"></span></div><div class="evlist" id="hv-events"></div><div class="chron" id="hv-chron"></div></aside>
+      <aside class="hv-side"><div class="sh"><span id="hv-ev-title">WHAT CHANGED</span><span class="note" id="hv-ev-note"></span></div><div class="evlist" id="hv-events"></div><div class="chron" id="hv-chron"></div></aside>
     </div>
     <div class="hv-ft">
-      <div class="tl-ctl"><button class="btn icon" data-act="hv-step" data-dir="-1" title="Previous half-year (←)">${icon('back')}</button><button class="btn primary play" id="hv-play" data-act="hv-play" title="Play / pause (Space)">${icon('play')}</button><button class="btn icon" data-act="hv-step" data-dir="1" title="Next half-year (→)" style="transform:scaleX(-1)">${icon('back')}</button></div>
-      <div class="hv-track"><div class="tl-eras" id="hv-eras">${eras}</div><input type="range" class="tl-range" id="hv-range" min="0" max="${i1}" step="1" value="${HV.to}" aria-label="Half-year"><div class="tl-ticks" id="hv-ticks">${ticks.join('')}</div></div>
+      <div class="tl-ctl"><button class="btn icon" data-act="hv-change" data-dir="-1" title="Previous change ([)">${icon('step')}</button><button class="btn icon" data-act="hv-step" data-dir="-1" title="Previous half-year (←) · Shift for a year">${icon('back')}</button><button class="btn primary play" id="hv-play" data-act="hv-play" title="Play / pause (Space)">${icon('play')}</button><button class="btn icon" data-act="hv-step" data-dir="1" title="Next half-year (→) · Shift for a year" style="transform:scaleX(-1)">${icon('back')}</button><button class="btn icon" data-act="hv-change" data-dir="1" title="Next change (])" style="transform:scaleX(-1)">${icon('step')}</button></div>
+      <div class="hv-track"><div class="tl-eras" id="hv-eras">${eras}</div><input type="range" class="tl-range" id="hv-range" min="0" max="${i1}" step="1" value="${HV.to}" aria-label="Half-year"><div class="tl-evidence" id="hv-evidence">${evid}</div><div class="tl-ticks" id="hv-ticks">${ticks.join('')}</div>${HV.compare ? `<div class="tl-b"><span class="k">B</span><input type="range" class="tl-range b" id="hv-range-b" min="0" max="${i1}" step="1" value="${HV.b}" aria-label="Compare date"><span class="v" id="hv-b-label"></span><button class="btn sm ghost" data-act="hv-swap" title="Swap A and B">${icon('swap')}</button></div>` : ''}</div>
       <div class="hv-opts">
-        <label class="field"><span>Speed</span><select id="hv-speed">${[0.5, 1, 2, 4].map(s => `<option value="${s}" ${HV.speed === s ? 'selected' : ''}>${s}× · ${s * 2} half-yrs/s</option>`).join('')}</select></label>
+        <label class="field"><span>Speed</span><select id="hv-speed">${HV_SPEEDS.map(sp => `<option value="${sp}" ${HV.speed === sp ? 'selected' : ''}>${sp}× · ${sp * 2 < 1 ? (sp * 2).toFixed(1) : sp * 2} half-yrs/s</option>`).join('')}</select></label>
         <label class="field"><span>Jump</span><select id="hv-jump-h"><option value="E">Early</option><option value="L">Late</option></select><input type="number" id="hv-jump-y" min="${FOUNDED_YEAR}" max="${hyFromIndex(i1).year}" value="${hyFromIndex(HV.to).year}" style="width:64px"><button class="btn sm ghost" data-act="hv-jump">Go</button></label>
+        <button class="crumb" data-act="hv-loop" aria-pressed="${HV.loop}" title="Start again from the founding when the end is reached">Loop</button>
         <button class="crumb proj" data-act="hv-projection" aria-pressed="${HV.projection}" title="Show expected completions beyond today as a projection — never mixed into the historical record">Projection</button>
-        <button class="crumb" data-act="hv-ref" aria-pressed="${HV.refOverlay}" title="Also draw undated roads and lines faintly, as a present-day reference">Reference overlay</button>
+        <button class="crumb" data-act="hv-ref" aria-pressed="${HV.refOverlay}" title="Also draw undated roads and lines faintly, as a present-day reference">Reference</button>
         <button class="crumb" data-act="hv-follow" aria-pressed="${HV.follow}" title="Pan the camera to each interval's events">Follow</button>
       </div>
     </div>
   </div>`;
 }
-function hvResize() { const c = HV.canvas; if (!c) return; const r = c.parentElement.getBoundingClientRect(), dpr = Math.min(2, devicePixelRatio || 1); HV.w = Math.max(10, r.width); HV.h = Math.max(10, r.height); c.width = HV.w * dpr; c.height = HV.h * dpr; HV.ctx.setTransform(dpr, 0, 0, dpr, 0, 0); }
+function hvResize() { const c = HV.canvas; if (!c) return; const r = c.parentElement.getBoundingClientRect(), dpr = Math.min(2, devicePixelRatio || 1); HV.w = Math.max(10, r.width); HV.h = Math.max(10, r.height); c.width = HV.w * dpr; c.height = HV.h * dpr; HV.ctx.setTransform(dpr, 0, 0, dpr, 0, 0); if (HV.canvasB) { HV.canvasB.width = HV.w * dpr; HV.canvasB.height = HV.h * dpr; HV.ctxB.setTransform(dpr, 0, 0, dpr, 0, 0); } }
 function hvWire() {
-  const c = HV.canvas;
-  c.addEventListener('pointerdown', e => { c.setPointerCapture(e.pointerId); HV.drag = { sx: e.offsetX, sy: e.offsetY, cx: HV.cam.x, cz: HV.cam.z, moved: false }; $('#hv-stage').classList.add('panning'); });
-  c.addEventListener('pointermove', e => {
-    if (!HV.drag) { const hit = hvHit(e.offsetX, e.offsetY); c.style.cursor = hit ? 'pointer' : ''; if (hit) { if (HOVER.id !== hit.id || HOVER.hy !== HV.to) showHover(hit.id, e.clientX, e.clientY, { hy: HV.to, projection: HV.projection }); else positionHover(e.clientX, e.clientY); } else hideHover(); return; }
-    hideHover(); const dx = e.offsetX - HV.drag.sx, dy = e.offsetY - HV.drag.sy; if (Math.abs(dx) + Math.abs(dy) > 3) HV.drag.moved = true; HV.cam.x = HV.drag.cx - dx / HV.cam.k; HV.cam.z = HV.drag.cz - dy / HV.cam.k; hvDraw();
-  });
-  c.addEventListener('pointerleave', hideHover);
-  c.addEventListener('pointerup', e => { const d = HV.drag; HV.drag = null; $('#hv-stage').classList.remove('panning'); if (d && !d.moved) { const hit = hvHit(e.offsetX, e.offsetY); if (hit) { hvPause(); openBuilding(hit.id); } } });
-  c.addEventListener('wheel', e => { e.preventDefault(); const f = Math.exp(-e.deltaY * 0.0015); const P = projFor(HV.cam, HV.w, HV.h); const [wx, wz] = P.w(e.offsetX, e.offsetY); HV.cam.k = clamp(HV.cam.k * f, 0.02, 40); const P2 = projFor(HV.cam, HV.w, HV.h); const [nx, nz] = P2.w(e.offsetX, e.offsetY); HV.cam.x += wx - nx; HV.cam.z += wz - nz; hvDraw(); }, { passive: false });
+  for (const [c, which] of [[HV.canvas, 'a'], [HV.canvasB, 'b']]) {
+    if (!c) continue; const at = () => which === 'b' ? HV.b : HV.to;
+    c.addEventListener('pointerdown', e => { c.setPointerCapture(e.pointerId); HV.drag = { sx: e.offsetX, sy: e.offsetY, cx: HV.cam.x, cz: HV.cam.z, moved: false }; $('#hv-stage').classList.add('panning'); });
+    c.addEventListener('pointermove', e => {
+      if (!HV.drag) { const hit = hvHit(e.offsetX, e.offsetY, at()); c.style.cursor = hit ? 'pointer' : ''; if (hit) { if (HOVER.id !== hit.id || HOVER.hy !== at()) showHover(hit.id, e.clientX, e.clientY, { hy: at(), projection: HV.projection }); else positionHover(e.clientX, e.clientY); } else hideHover(); return; }
+      hideHover(); const dx = e.offsetX - HV.drag.sx, dy = e.offsetY - HV.drag.sy; if (Math.abs(dx) + Math.abs(dy) > 3) HV.drag.moved = true; HV.cam.x = HV.drag.cx - dx / HV.cam.k; HV.cam.z = HV.drag.cz - dy / HV.cam.k; hvDraw();
+    });
+    c.addEventListener('pointerleave', hideHover);
+    c.addEventListener('pointerup', e => { const d = HV.drag; HV.drag = null; $('#hv-stage').classList.remove('panning'); if (d && !d.moved) { const hit = hvHit(e.offsetX, e.offsetY, at()); if (hit) { hvPause(); openBuilding(hit.id); } } });
+    c.addEventListener('wheel', e => { e.preventDefault(); const f = Math.exp(-e.deltaY * 0.0015); const P = projFor(HV.cam, HV.w, HV.h); const [wx, wz] = P.w(e.offsetX, e.offsetY); HV.cam.k = clamp(HV.cam.k * f, 0.02, 40); const P2 = projFor(HV.cam, HV.w, HV.h); const [nx, nz] = P2.w(e.offsetX, e.offsetY); HV.cam.x += wx - nx; HV.cam.z += wz - nz; hvDraw(); }, { passive: false });
+  }
   $('#hv-range').addEventListener('input', e => { hvPause(); hvSet(+e.target.value, { instant: true }); });
+  $('#hv-range-b')?.addEventListener('input', e => { hvPause(); hvSetB(+e.target.value); });
   $('#hv-speed').addEventListener('change', e => { HV.speed = +e.target.value; });
+  $('#hv-district')?.addEventListener('change', e => { HV.filter.district = e.target.value; hvPause(); const n = $('#hv-nrec'); if (n) n.textContent = hvRows().length; hvUpdateChrome(); hvDraw(); });
+  $$('[data-hvkind]').forEach(b => b.addEventListener('click', () => { HV.filter.kinds[b.dataset.hvkind] = !HV.filter.kinds[b.dataset.hvkind]; b.setAttribute('aria-pressed', HV.filter.kinds[b.dataset.hvkind]); hvUpdateChrome(); hvDraw(); }));
+  $('#hv-evidence')?.addEventListener('click', e => { const t = e.target.closest('[data-i]'); if (t) { hvPause(); hvSet(+t.dataset.i); } });
   $('#hv-ticks').addEventListener('click', e => { const t = e.target.closest('[data-i]'); if (t) { hvPause(); hvSet(+t.dataset.i); } });
   $('#hv-eras').addEventListener('click', e => { const t = e.target.closest('[data-era]'); if (t) { hvPause(); hvSet(+t.dataset.era); } });
   $$('[data-hvlayer]').forEach(b => b.addEventListener('click', () => { HV.layers[b.dataset.hvlayer] = !HV.layers[b.dataset.hvlayer]; b.setAttribute('aria-pressed', HV.layers[b.dataset.hvlayer]); hvDraw(); }));
 }
-function hvHit(sx, sy) { const P = projFor(HV.cam, HV.w, HV.h); let best = null, bd = 10; for (const b of HV.rows) { if (b.x == null) continue; const st = stateAtHY(b, HV.to, { projection: HV.projection }); if (st === 'future' || st === 'undated') continue; const [x, y] = P.s(b.x, b.z); const d = Math.hypot(x - sx, y - sy); if (d < bd) { bd = d; best = b; } } return best; }
+function hvHit(sx, sy, at = HV.to) { const P = projFor(HV.cam, HV.w, HV.h); let best = null, bd = 10; for (const b of hvRows()) { if (b.x == null) continue; const st = stateAtHY(b, at, { projection: HV.projection }); if (st === 'future' || st === 'undated') continue; const [x, y] = P.s(b.x, b.z); const d = Math.hypot(x - sx, y - sy); if (d < bd) { bd = d; best = b; } } return best; }
 function hvSet(target, { instant = false } = {}) {
   target = clamp(Math.round(target), 0, HV.i1); if (target === HV.to && HV.t >= 1) return;
   HV.from = HV.to; HV.to = target; HV.t = instant || !motionOn() ? 1 : 0; HV.tStart = performance.now();
-  if (HV.follow && HV.t < 1) { const ev = hyEvents(HV.rows, target, { projection: HV.projection }).filter(e => e.b && e.b.x != null); if (ev.length) { const c = centroidOf(ev.map(e => [e.b.x, e.b.z])); HV.camTarget = c; } }
+  if (HV.follow && HV.t < 1) { const ev = hvEventsAt(target).filter(e => e.b && e.b.x != null); if (ev.length) { const c = centroidOf(ev.map(e => [e.b.x, e.b.z])); HV.camTarget = c; } }
   hvUpdateChrome(); if (HV.t < 1 || HV.camTarget) hvLoop(); else hvDraw();
 }
 function hvLoop() {
@@ -148,38 +169,53 @@ function hvLoop() {
     let busy = false;
     if (HV.t < 1) { HV.t = Math.min(1, (now_ - HV.tStart) / 520); busy = HV.t < 1; }
     if (HV.camTarget) { const dx = HV.camTarget[0] - HV.cam.x, dz = HV.camTarget[1] - HV.cam.z; HV.cam.x += dx * 0.12; HV.cam.z += dz * 0.12; if (Math.abs(dx) + Math.abs(dz) < 0.5) HV.camTarget = null; else busy = true; }
-    if (HV.playing && HV.t >= 1) { if (HV.to >= HV.i1) { hvPause(); } else if (now_ - HV.lastTick >= 1000 / (HV.speed * 2)) { HV.lastTick = now_; hvSet(HV.to + 1); return; } else busy = true; }
+    if (HV.playing && HV.t >= 1) { if (HV.to >= HV.i1) { if (HV.loop) { hvSet(0, { instant: true }); HV.lastTick = now_; busy = true; } else hvPause(); } else if (now_ - HV.lastTick >= 1000 / (HV.speed * 2)) { HV.lastTick = now_; hvSet(HV.to + 1); return; } else busy = true; }
     hvDraw();
     if (busy) HV.raf = requestAnimationFrame(step); else HV.raf = null;
   };
   HV.raf = requestAnimationFrame(step);
 }
 function hvPlay() { if (HV.to >= HV.i1) hvSet(0, { instant: true }); HV.playing = true; HV.lastTick = performance.now(); const pb = $('#hv-play'); if (pb) pb.innerHTML = icon('pause'); hvLoop(); }
+function hvSetB(i) { HV.b = clamp(Math.round(i), 0, HV.i1); hvUpdateChrome(); hvDraw(); }
+function hvToggleCompare() { HV.compare = !HV.compare; if (HV.compare && HV.b === HV.to) HV.b = HV.to >= HV.i1 ? 0 : HV.i1; const cam = { ...HV.cam }; const i = HV.to; openHistoryViewer({ index: i }); HV.cam = cam; hvResize(); hvDraw(); }
+/* step to the next / previous half-year that has a dated event (after the filters) */
+function hvStepChange(dir) { const i = hvNextChange(dir); if (i == null) { toast(dir > 0 ? 'No later dated change' : 'No earlier dated change', ''); return; } hvPause(); hvSet(i); }
 function hvPause() { HV.playing = false; const pb = $('#hv-play'); if (pb) pb.innerHTML = icon('play'); }
 function hvToggle() { HV.playing ? hvPause() : hvPlay(); }
 function hvDraw() {
   if (!HV.ctx) return;
-  const anim = HV.t < 1 ? { from: HV.from, to: HV.to, t: HV.t } : null;
-  drawScene({ ctx: HV.ctx, W: HV.w, H: HV.h, cam: HV.cam, layers: { ...HV.layers, stations: HV.layers.transit, businesses: false }, hy: HV.to, anim, projection: HV.projection, refOverlay: HV.refOverlay, buildings: HV.rows.filter(b => b.x != null), districts: visibleDistricts(), hoods: visibleHoods(), handles: false, showJunctions: false, sel: null, hover: null });
+  const anim = HV.t < 1 ? { from: HV.from, to: HV.to, t: HV.t } : null; const rows = hvRows().filter(b => b.x != null); const layers = hvLayers();
+  drawScene({ ctx: HV.ctx, W: HV.w, H: HV.h, cam: HV.cam, layers, hy: HV.to, anim, projection: HV.projection, refOverlay: HV.refOverlay, buildings: rows, districts: visibleDistricts(), hoods: visibleHoods(), handles: false, showJunctions: false, sel: null, hover: null, evidence: HV.layers.evidence !== false });
+  if (HV.compare && HV.ctxB) drawScene({ ctx: HV.ctxB, W: HV.w, H: HV.h, cam: HV.cam, layers, hy: HV.b, anim: null, projection: HV.projection, refOverlay: HV.refOverlay, buildings: rows, districts: visibleDistricts(), hoods: visibleHoods(), handles: false, showJunctions: false, sel: null, hover: null, evidence: HV.layers.evidence !== false });
+}
+/* the counts and the date for one pane */
+function hvPaneChrome(i, dateEl, countsEl) {
+  const { year, half } = hyFromIndex(i); const present = hyIndex(CURRENT_YEAR, CURRENT_HALF); const isProj = i > present; const rows = hvRows();
+  const c = hyCounts(rows, i, { projection: HV.projection }); let inferred = 0; for (const b of rows) { const st = stateAtHY(b, i, { projection: HV.projection }); if ((st === 'standing' || st === 'construction') && inferredAt(b, i, st)) inferred++; }
+  const roadsOpen = S.roads.filter(r => serviceStateAt(r, i) === 'open').length, linesOpen = S.lines.filter(l => serviceStateAt(l, i) === 'open').length;
+  const d = $(dateEl); if (d) d.innerHTML = `<div class="y">${year}<small class="${isProj ? 'proj' : ''}">${isProj ? 'PROJECTION · ' : ''}${halfLabel(half).toUpperCase()} · ${half === 'E' ? 'JAN–JUN' : 'JUL–DEC'}${i === present ? ' · PRESENT' : ''}</small></div><div class="era">${esc(eraOf(year)?.name.toUpperCase() || '')}</div>`;
+  const cc = $(countsEl); if (cc) cc.innerHTML = `<div class="c standing"><b>${c.standing}</b>completed</div><div class="c construction"><b>${c.construction + c.planned}</b>under way</div>${c.vacant ? `<div class="c vacant"><b>${c.vacant}</b>vacant lots</div>` : ''}<div class="c gone"><b>${c.gone}</b>demolished so far</div>${inferred ? `<div class="c inferred" title="Dated approximately or without a half — shown with a dashed ring"><b>≈${inferred}</b>inferred</div>` : ''}${c.undated ? `<div class="c undated"><b>${c.undated}</b>undated · not shown</div>` : ''}${(roadsOpen || linesOpen) && (HV.filter.kinds.roads || HV.filter.kinds.transit) ? `<div class="c infra"><b>${roadsOpen}</b>roads · <b>${linesOpen}</b>lines</div>` : ''}`;
+  return { year, half, isProj, c, inferred };
 }
 function hvUpdateChrome() {
-  const i = HV.to; const { year, half } = hyFromIndex(i); const present = hyIndex(CURRENT_YEAR, CURRENT_HALF); const isProj = i > present;
-  const c = hyCounts(HV.rows, i, { projection: HV.projection });
-  const roadsOpen = S.roads.filter(r => serviceStateAt(r, i) === 'open').length, linesOpen = S.lines.filter(l => serviceStateAt(l, i) === 'open').length;
-  const d = $('#hv-date'); if (d) d.innerHTML = `<div class="y">${year}<small class="${isProj ? 'proj' : ''}">${isProj ? 'PROJECTION · ' : ''}${halfLabel(half).toUpperCase()} · ${half === 'E' ? 'JAN–JUN' : 'JUL–DEC'}${i === present ? ' · PRESENT' : ''}</small></div><div class="era">${esc(eraOf(year)?.name.toUpperCase() || '')}</div>`;
-  const cc = $('#hv-counts'); if (cc) cc.innerHTML = `<div class="c standing"><b>${c.standing}</b>completed</div><div class="c construction"><b>${c.construction + c.planned}</b>under way</div>${c.vacant ? `<div class="c vacant"><b>${c.vacant}</b>vacant lots</div>` : ''}<div class="c gone"><b>${c.gone}</b>demolished so far</div>${c.undated ? `<div class="c undated"><b>${c.undated}</b>undated · not shown</div>` : ''}${roadsOpen || linesOpen ? `<div class="c infra"><b>${roadsOpen}</b>roads · <b>${linesOpen}</b>lines</div>` : ''}`;
+  const i = HV.to; const { year, half, isProj } = hvPaneChrome(i, '#hv-date', '#hv-counts');
+  if (HV.compare) { hvPaneChrome(HV.b, '#hv-date-b', '#hv-counts-b'); const rb = $('#hv-range-b'); if (rb) { rb.value = HV.b; rb.style.setProperty('--p', (HV.b / Math.max(1, HV.i1) * 100).toFixed(1) + '%'); } const bl = $('#hv-b-label'); if (bl) bl.textContent = hyLabel(...Object.values(hyFromIndex(HV.b))); }
   const r = $('#hv-range'); if (r) { r.value = i; r.style.setProperty('--p', (i / Math.max(1, HV.i1) * 100).toFixed(1) + '%'); }
   $$('#hv-eras span').forEach(s => { const a = +s.dataset.era; const e = ERAS.find(x => hyIndex(x.from, 'E') === a); s.classList.toggle('on', !!e && year >= e.from && year < e.to); });
   $$('#hv-ticks span').forEach(s => s.classList.toggle('on', +s.dataset.i === hyIndex(year, 'E')));
   const jy = $('#hv-jump-y'); if (jy) jy.value = year; const jh = $('#hv-jump-h'); if (jh) jh.value = half;
-  const note = $('#hv-note'); if (note) note.textContent = isProj ? 'Projection: expected completions are shown dashed; nothing here is a recorded fact.' : HV.refOverlay ? 'Reference overlay: undated roads and lines drawn faintly — present-day data, not history.' : 'Half-years with no dated event show no change. Undated records never appear.';
-  // what changed
-  const ev = hyEvents(HV.rows, i, { projection: HV.projection }); const en = $('#hv-ev-note'); if (en) en.textContent = ev.length ? `${ev.length} event${ev.length === 1 ? '' : 's'}` : 'nothing dated';
-  const el = $('#hv-events'); if (el) el.innerHTML = ev.length ? ev.map(e => { const [label, glyph] = HY_EVENT_LABEL[e.kind] || [e.kind, '·']; if (e.b) { const b = e.b; const dd = districtById(b.districtId); return `<div class="ev ${e.kind === 'demolished' ? 'demo' : e.kind}" data-open="${b.id}" data-hover="${b.id}"><i class="${glyph === 's' ? 's' : ''}">${glyph === 's' ? '◧' : glyph === '?' ? '◌' : glyph}</i><span class="nm">${esc(b.name || titleOf(b))} <span class="r">${esc(b.reg)} · ${label}${b.yearBuiltApprox && e.kind === 'built' ? ' · approx.' : ''}</span></span><span class="r" style="color:${distColor(dd)}">${esc(dd?.code || '')}</span></div>`; } const o = e.o; const kind = e.kind.startsWith('road') ? 'road' : e.kind.startsWith('line') ? 'line' : e.kind.startsWith('station') ? 'station' : e.kind.startsWith('biz') ? 'business' : null; return `<div class="ev" ${kind ? `data-open="${kind}:${o.id}"` : ''}><i class="${kind === 'business' ? 'b' : 'i'}">${kind === 'business' ? '◆' : '▬'}</i><span class="nm">${esc(o.name || o.reg || '')} <span class="r">${label}</span></span><span class="r"></span></div>`; }).join('') : `<div class="chart-empty" style="padding:16px 8px">No dated event in ${esc(hyLabel(year, half))}.</div>`;
-  const ch = $('#hv-chron'); if (ch) { const items = scopeArchive().filter(a => a.year <= year).sort((a, b) => (b.year - a.year) || ((b.month || 0) - (a.month || 0))); const a = items.find(x => x.year === year) || items[0]; ch.innerHTML = a ? `<div class="img" data-arch="${a.id}">${imgUrl(a.id, 'full') ? `<img src="${imgUrl(a.id, 'full')}" alt="">` : ''}</div><div data-arch="${a.id}"><div class="y">${esc(a.year)}${a.month ? ' · ' + MONTHS[a.month - 1] : ''} · ${a.year === year ? 'this year' : 'latest before'}</div><div class="t">${esc(a.title || 'Untitled')}</div><div class="s">${esc(a.description || '')}</div></div>` : `<div class="desc-line">No chronicle image for ${year} or earlier.</div>`; }
-  $$('[data-act="hv-projection"]').forEach(b => b.setAttribute('aria-pressed', HV.projection)); $$('[data-act="hv-ref"]').forEach(b => b.setAttribute('aria-pressed', HV.refOverlay)); $$('[data-act="hv-follow"]').forEach(b => b.setAttribute('aria-pressed', HV.follow));
+  const note = $('#hv-note'); if (note) note.textContent = isProj ? 'Projection: expected completions are shown dashed; nothing here is a recorded fact.' : HV.refOverlay ? 'Reference overlay: undated roads and lines drawn faintly — present-day data, not history.' : HV.layers.evidence !== false ? 'Dashed ring = inferred (approximate date or no half). Half-years with no dated event show no change; undated records never appear.' : 'Half-years with no dated event show no change. Undated records never appear.';
+  // what changed — at this half-year, or between A and B in compare mode
+  const evRows = []; const title = $('#hv-ev-title');
+  if (HV.compare) { const lo = Math.min(HV.to, HV.b), hi = Math.max(HV.to, HV.b); for (let j = lo + 1; j <= hi; j++) for (const e of hvEventsAt(j)) evRows.push({ ...e, at: j }); if (title) title.textContent = `CHANGED ${esc(hyShort(...Object.values(hyFromIndex(lo))))} → ${esc(hyShort(...Object.values(hyFromIndex(hi))))}`; }
+  else { for (const e of hvEventsAt(i)) evRows.push({ ...e, at: i }); if (title) title.textContent = 'WHAT CHANGED'; }
+  const ev = evRows; const en = $('#hv-ev-note'); if (en) en.textContent = ev.length ? `${ev.length} event${ev.length === 1 ? '' : 's'}` : 'nothing dated';
+  const el = $('#hv-events'); if (el) el.innerHTML = ev.length ? ev.map(e => { const [label, glyph] = HY_EVENT_LABEL[e.kind] || [e.kind, '·']; const when = HV.compare ? `<span class="r">${esc(hyShort(...Object.values(hyFromIndex(e.at))))} · </span>` : ''; if (e.b) { const b = e.b; const dd = districtById(b.districtId); const inferred = e.kind === 'built' ? (b.yearBuiltApprox || !b.halfBuilt) : e.kind === 'demolished' ? (b.yearDemolishedApprox || !b.halfDemolished) : e.kind === 'started' ? (b.yearStartedApprox || !b.halfStarted) : false; return `<div class="ev ${e.kind === 'demolished' ? 'demo' : e.kind}" data-open="${b.id}" data-hover="${b.id}"><i class="${glyph === 's' ? 's' : ''}">${glyph === 's' ? '◧' : glyph === '?' ? '◌' : glyph}</i><span class="nm">${when}${esc(b.name || titleOf(b))} <span class="r">${esc(b.reg)} · ${label}${inferred ? ' · <span class="inf" title="approximate date or no half — inferred">≈ inferred</span>' : ' · recorded'}</span></span><span class="r" style="color:${distColor(dd)}">${esc(dd?.code || '')}</span></div>`; } const o = e.o; const kind = e.kind.startsWith('road') ? 'road' : e.kind.startsWith('line') ? 'line' : e.kind.startsWith('station') ? 'station' : e.kind.startsWith('biz') ? 'business' : null; return `<div class="ev" ${kind ? `data-open="${kind}:${o.id}"` : ''}><i class="${kind === 'business' ? 'b' : 'i'}">${kind === 'business' ? '◆' : '▬'}</i><span class="nm">${when}${esc(o.name || o.reg || '')} <span class="r">${label}</span></span><span class="r"></span></div>`; }).join('') : `<div class="chart-empty" style="padding:16px 8px">${HV.compare ? 'No dated event between the two dates.' : `No dated event in ${esc(hyLabel(year, half))}.`}</div>`;
+  // the chronicle card: the latest image at or before this half-year — never a newer one
+  const ch = $('#hv-chron'); if (ch) { const items = scopeArchive().map(a => ({ a, i: hyIndexOfArchive(a) })).filter(x => x.i <= i).sort((p, q) => (q.i - p.i) || ((q.a.created || '').localeCompare(p.a.created || ''))); const pick = items[0]?.a; const same = pick && items[0].i === i; ch.innerHTML = pick ? `<div class="img" data-arch="${pick.id}">${imgUrl(pick.id, 'full') ? `<img src="${imgUrl(pick.id, 'full')}" alt="">` : ''}</div><div data-arch="${pick.id}"><div class="y">${esc(pick.year)}${pick.month ? ' · ' + MONTHS[pick.month - 1] : ''} · ${same ? 'this half-year' : 'latest before'}${pick.confidence ? ' · ' + esc(confOf(pick.confidence)?.label || '') : ''}</div><div class="t">${esc(pick.title || 'Untitled')}</div><div class="s">${esc(pick.description || '')}</div></div>` : `<div class="desc-line">No chronicle image for ${hyLabel(year, half)} or earlier.</div>`; }
+  $$('[data-act="hv-projection"]').forEach(b => b.setAttribute('aria-pressed', HV.projection)); $$('[data-act="hv-ref"]').forEach(b => b.setAttribute('aria-pressed', HV.refOverlay)); $$('[data-act="hv-follow"]').forEach(b => b.setAttribute('aria-pressed', HV.follow)); $$('[data-act="hv-loop"]').forEach(b => b.setAttribute('aria-pressed', HV.loop)); $$('[data-act="hv-compare"]').forEach(b => b.setAttribute('aria-pressed', HV.compare));
 }
-function hvToggleProjection() { HV.projection = !HV.projection; const { i1 } = hyRange(HV.rows, { projection: HV.projection }); HV.i1 = i1; const r = $('#hv-range'); if (r) r.max = i1; HV.to = Math.min(HV.to, i1); hvUpdateChrome(); hvDraw(); }
+function hvToggleProjection() { HV.projection = !HV.projection; const { i1 } = hyRange(HV.rows, { projection: HV.projection }); HV.i1 = i1; const r = $('#hv-range'); if (r) r.max = i1; const rb = $('#hv-range-b'); if (rb) rb.max = i1; HV.to = Math.min(HV.to, i1); HV.b = Math.min(HV.b, i1); hvUpdateChrome(); hvDraw(); }
 
 /* ============ demolished records ============ */
 const HCOLS = [
