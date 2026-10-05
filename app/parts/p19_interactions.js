@@ -148,7 +148,7 @@ document.addEventListener('click', async e => {
     case 'news-apply': { const c = S.news.items.flatMap(it => it.candidates || []).find(x => x.id === t.dataset.cand); if (c) { if (applyCandidate(c)) { toast('Applied — logged with its source; undo from the log', 'good'); renderView(false); } openNewsInbox(); } break; }
     case 'news-reject': S.news.decisions[t.dataset.cand] = { status: 'rejected', at: now() }; commit(); openNewsInbox(); break;
     case 'news-reopen': delete S.news.decisions[t.dataset.cand]; commit(); openNewsInbox(); break;
-    case 'news-undo': undoLog(t.dataset.log); renderView(false); openNewsInbox(); break;
+    case 'news-undo': undoLog(t.dataset.log); renderView(false); if (t.closest('#clawson')) clawRender(); else openNewsInbox(); break;
     // drawer: shared
     case 'dr-back': drawerBack(); break;
     case 'dr-close': closeDrawer(); break;
@@ -204,6 +204,20 @@ document.addEventListener('click', async e => {
     case 'markets-import': $('#file-markets').click(); break;
     case 'markets-refresh': marketsRefresh({ source: 'live' }); break;
     case 'markets-vault': marketsRefresh({ source: 'vault' }); break;
+    // clawson · drafts
+    case 'clawson-toggle': clawToggle(); break;
+    case 'claw-send': { const inp = $('#claw-q'); const q = inp?.value; if (inp) inp.value = ''; clawRun(q); break; }
+    case 'claw-run': clawRun(t.dataset.q); break;
+    case 'claw-apply': clawApply(); break;
+    case 'claw-cancel': clawCancel(); break;
+    case 'claw-view': CLAW.view = t.dataset.view || 'chat'; clawRender(); break;
+    case 'claw-clear': CLAW.log = []; CLAW.pending = null; clawRender(); break;
+    case 'claw-locate': clawLocate(t.dataset.kind, t.dataset.id); break;
+    case 'claw-inbox': openNewsInbox(); break;
+    case 'draft-open': closeModal(); openDraftModal(t.dataset.id); break;
+    case 'draft-download': { const d = (S.news.drafts || []).find(x => x.id === t.dataset.id); if (d) downloadText(`new-a-newsletter-${slug(d.title || 'draft')}.md`, d.body, 'text/markdown'); break; }
+    case 'draft-published': { const d = (S.news.drafts || []).find(x => x.id === t.dataset.id); if (d) { d.status = 'published'; d.publishedAt = now(); commit({ silentRender: true }); toast('Recorded as published by you', 'good'); if ($('#modal-root .modal')) { closeModal(); if (NEWS.filter === 'drafts') openNewsInbox(); } clawRender(); } break; }
+    case 'draft-delete': { const d = (S.news.drafts || []).find(x => x.id === t.dataset.id); if (!d) break; const r = await confirmDialog({ title: 'Delete this draft?', body: '<p>The text is removed from the registry. Nothing on the site is affected.</p>', ok: 'Delete', danger: true }); if (r !== 'ok') break; S.news.drafts = S.news.drafts.filter(x => x.id !== d.id); commit({ silentRender: true }); closeModal(); clawRender(); toast('Draft deleted', 'warn'); break; }
     // civic · service · city
     case 'civic-map': UI.layers.civic = true; UI.layers.buildings = true; setNav('map'); break;
     case 'civic-new': { const bid = await buildingPickDialog([], 'Which building is the civic facility?', 'Open to edit'); if (bid) openBuilding(bid, 'edit'); break; }
@@ -258,7 +272,7 @@ $('#scope-btn').addEventListener('click', toggleScopePop);
 $('#st-keys').addEventListener('click', openShortcuts);
 $('#st-issues').addEventListener('click', openIssuesModal);
 $('#file-json').addEventListener('change', e => { const f = e.target.files?.[0]; if (f) importFile(f); e.target.value = ''; });
-document.addEventListener('keydown', e => { if (e.target.id === 'asst-q' && e.key === 'Enter') { e.preventDefault(); const q = e.target.value; e.target.value = ''; asstRun(q); } });
+document.addEventListener('keydown', e => { if (e.target.id === 'asst-q' && e.key === 'Enter') { e.preventDefault(); const q = e.target.value; e.target.value = ''; asstRun(q); } if (e.target.id === 'claw-q' && e.key === 'Enter') { e.preventDefault(); const q = e.target.value; e.target.value = ''; clawRun(q); } });
 /* global search: live filter underneath + grouped palette on top */
 $('#q').addEventListener('input', debounce(e => { UI.q = e.target.value; if (UI.q.trim()) openPalette(); else closePalette(); if (UI.nav === 'registry') refreshRegistry(); else if (UI.nav === 'history' && UI.hseg === 'records') renderView(false); }, 110));
 $('#q').addEventListener('focus', () => { if ($('#q').value.trim()) openPalette(); });
@@ -277,6 +291,7 @@ document.addEventListener('keydown', e => {
     if (UI.palette.open) { closePalette(); return; }
     if (SCOPE_POP.open) { closeScopePop(); return; }
     if (!$('#addmenu').hidden) { $('#addmenu').hidden = true; return; }
+    if (CLAW.open && !isModal && !DR.id && !HV.open) { clawToggle(false); return; }
     if (isModal) { if (ARCH.editing) { archiveCancel(); return; } ARCH.viewing = null; closeModal(); return; }
     if (DR.id && HV.open) { closeDrawer(); return; }
     if (HV.open) { closeHistoryViewer(); return; }
@@ -317,6 +332,7 @@ document.addEventListener('keydown', e => {
   else if (k === 't' || k === 'T') setNav('transit');
   else if ((k === 'b' || k === 'B') && !onMap) setNav('businesses');
   else if ((k === 'c' || k === 'C') && !onMap) setNav('civic');
+  else if (k === 'k' || k === 'K') clawToggle();
   else if (k === 'h' || k === 'H') setNav('history');
   else if (k === 'e' || k === 'E') { if (DR.id && DR.mode === 'view') openRecord(DR.kind, DR.id, 'edit', { keepStack: true }); }
   else if (k === 'Backspace' && DR.id && DR.mode === 'view' && DR.stack.length) { e.preventDefault(); drawerBack(); }

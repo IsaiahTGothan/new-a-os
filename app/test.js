@@ -555,6 +555,54 @@ const FEED = (extra = '') => `<?xml version="1.0"?><rss version="2.0"><channel><
   ok(persisted4.schema === 4 && persisted4.offs === 1 && persisted4.projects === 1 && persisted4.civic === 3, 'everything survives a reload');
   noErrors('city');
 
+  // ---------- Q · Clawson ----------
+  console.log('\nQ · Clawson — answers from the records, proposals via the inbox, drafts, activity, provider off');
+  await page.evaluate(() => { setNav('overview'); clawToggle(true); }); await page.waitForTimeout(200);
+  const c0 = await page.evaluate(() => ({ open: CLAW.open, panel: $('#clawson').classList.contains('on'), chips: $$('#clawson .chips button').length, pressed: $('#side-end .clawson').getAttribute('aria-pressed') }));
+  ok(c0.open && c0.panel && c0.chips >= 8 && c0.pressed === 'true', 'Clawson opens from the rail with example chips');
+  const ask = async q => { await page.evaluate(q => clawRun(q), q); await page.waitForFunction(() => !CLAW.busy); return page.evaluate(() => { const m = CLAW.log[CLAW.log.length - 1]; return { kind: m.kind, text: m.html.replace(/<[^>]+>/g, ''), hits: (m.hits || []).length, action: m.action?.type || null, pending: CLAW.pending?.type || null }; }); };
+  const mayor = await ask('Who is the mayor?');
+  ok(mayor.kind === 'fact' && /Test Mayor/.test(mayor.text) && /Home:/.test(mayor.text) && mayor.hits >= 1, `“Who is the mayor?” → ${mayor.text.slice(0, 100)}…`);
+  const home = await ask('Where does the mayor live?');
+  ok(home.kind === 'fact' && /lives at/.test(home.text) && home.hits === 1, `“Where does the mayor live?” → ${home.text.slice(0, 90)}…`);
+  const hosp = await ask('Hospitals in Man A');
+  ok(hosp.kind === 'fact' && /^1 hospital/.test(hosp.text) && /Coverage/.test(hosp.text), `hospitals → ${hosp.text.slice(0, 90)}…`);
+  const best = await ask('Which borough is best served?');
+  ok(best.kind === 'fact' && /Best served/.test(best.text), `best served → ${best.text.slice(0, 90)}…`);
+  const trip = await ask('How long from Alpha to Gamma?');
+  ok(trip.kind === 'fact' && /1 min/.test(trip.text) && /mixed/.test(trip.text), `journey → ${trip.text.slice(0, 110)}…`);
+  const health = await ask('How is the city doing?');
+  ok(health.kind === 'fact' && /\/100/.test(health.text), `health → ${health.text.slice(0, 80)}…`);
+  const worth = await ask('Why is MA-0004 worth that?');
+  ok(worth.kind === 'fact' && /estimated at/.test(worth.text) && /Adjustments/.test(worth.text), `valuation explanation → ${worth.text.slice(0, 100)}…`);
+  // a change request becomes an inbox proposal; applied there, listed and undone from the activity view
+  const target = await page.evaluate(() => S.buildings.find(b => isActive(b) && isCompleted(b) && !b.civic && !b.verified && b.districtId === 'man-a' && !S.officials.some(o => o.residenceBuildingId === b.id)).reg);
+  const prop = await ask(`Mark ${target} as a fire station`);
+  ok(prop.kind === 'sugg' && prop.pending === 'propose', `“Mark ${target} as a fire station” becomes a pending proposal — nothing applied`);
+  const inbox = await page.evaluate(reg => { const b = S.buildings.find(x => x.reg === reg); const before = JSON.stringify(b.civic); const n0 = newsPendingCount(); clawApply(); const n1 = newsPendingCount(); const c = S.news.items.find(it => it.source === 'clawson').candidates[0]; return { before, after: JSON.stringify(b.civic), n0, n1, label: c.label, decided: !!S.news.decisions[c.id], badge: $('#news-badge').textContent }; }, target);
+  ok(inbox.before === inbox.after && inbox.n1 === inbox.n0 + 1 && !inbox.decided && inbox.label.includes(target) && +inbox.badge === inbox.n1, `proposal sits in the inbox (pending ${inbox.n0} → ${inbox.n1}, badge ${inbox.badge}); the record is untouched`);
+  const applied = await page.evaluate(reg => { const c = S.news.items.find(it => it.source === 'clawson').candidates[0]; const okk = applyCandidate(c); const b = S.buildings.find(x => x.reg === reg); CLAW.view = 'activity'; clawRender(); return { okk, type: b.civic?.type, guid: S.news.log[0]?.source?.guid, act: $$('#claw-log .msg .k.act').length, undo: !!$('#claw-log [data-act="news-undo"]') }; }, target);
+  ok(applied.okk && applied.type === 'fire' && /^clawson:/.test(applied.guid) && applied.act >= 1 && applied.undo, `applied from the inbox → ${target} is a fire station; Activity lists it with Undo`);
+  const undone = await page.evaluate(reg => { undoLog(S.news.log[0].id); const b = S.buildings.find(x => x.reg === reg); return { civic: b.civic, undone: !!S.news.log[0].undone }; }, target);
+  ok(undone.civic === null && undone.undone, 'undo restores the record and marks the log entry');
+  // newsletter drafts: written, saved locally, never posted
+  const draft = await ask('Draft the newsletter');
+  const dr = await page.evaluate(() => ({ n: S.news.drafts.length, last: S.news.drafts[S.news.drafts.length - 1] }));
+  ok(draft.kind === 'act' && dr.n === 2 && dr.last.by === 'clawson' && dr.last.status === 'draft' && /^#/.test(dr.last.body), `a draft is written and saved locally (${dr.n} drafts), status draft`);
+  const pub = await ask('Publish it');
+  ok(pub.kind === 'note' && /never writes to the website/.test(pub.text), 'asked to publish, Clawson says it cannot post and explains the manual path');
+  await page.evaluate(id => openDraftModal(id), dr.last.id); const dm = await page.evaluate(() => ({ modal: !!$('#modal-root .modal'), text: $('#draft-text')?.value.length || 0 })); ok(dm.modal && dm.text > 100, 'the draft opens in an editor'); await page.evaluate(() => closeModal());
+  const tab = await page.evaluate(() => { NEWS.filter = 'drafts'; openNewsInbox(); const n = $$('#news-inbox [data-act="draft-open"]').length; const btn = !!$('#news-inbox [data-newsf="drafts"]'); closeModal(); NEWS.filter = 'pending'; return { n, btn }; });
+  ok(tab.n === 2 && tab.btn, 'the Inbox has a Drafts tab listing both drafts');
+  const unk = await ask('What is the meaning of life?');
+  ok(unk.kind === 'note' && /did not understand/.test(unk.text), 'an unknown question gets an honest note — nothing invented');
+  const nokey = await page.evaluate(async () => { S.settings.ai.enabled = true; await clawRun('What is the meaning of life?'); const m = CLAW.log[CLAW.log.length - 1]; S.settings.ai.enabled = false; return m.html; });
+  ok(/no key is stored/.test(nokey), 'provider on without a key → says so, nothing is sent');
+  await page.evaluate(() => { CLAW.view = 'chat'; clawRender(); }); await page.screenshot({ path: path.join(SHOTS, 'Q-clawson.png') });
+  await page.keyboard.press('Escape'); await page.waitForTimeout(100); ok(await page.evaluate(() => !CLAW.open), 'Escape closes Clawson');
+  await page.keyboard.press('k'); await page.waitForTimeout(100); ok(await page.evaluate(() => CLAW.open), 'K reopens it'); await page.evaluate(() => clawToggle(false));
+  noErrors('clawson');
+
   await ctx.close(); await browser.close();
   console.log(`\n${checks - failures}/${checks} checks passed${failures ? ` · ${failures} FAILED` : ''}`);
   process.exit(failures ? 1 : 0);

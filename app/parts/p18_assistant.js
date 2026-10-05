@@ -103,20 +103,5 @@ function asstExecute(action) {
 }
 function asstApply() { const a = ASST.pending; if (!a) return; ASST.pending = null; MAPW.preview = null; asstExecute(a); renderDock(); mapDraw(); }
 function asstCancel() { ASST.pending = null; MAPW.preview = null; renderDock(); mapDraw(); }
-/* optional provider: OpenAI-compatible chat completion returning strict JSON; the key never leaves this browser's storage */
-async function asstAI(q) {
-  let key = null; try { key = await idbGet('handles', 'aiKey'); } catch { }
-  if (!key) return { kind: 'note', html: 'The AI provider is switched on but no key is stored — add one under Vault & settings. Deterministic answers still work.' };
-  const sc = UI.scope; const hits = flatItems(searchAll(q, { limit: 6 })).slice(0, 12).map(h => ({ kind: h.kind, id: h.id, title: h.title, sub: h.sub }));
-  const context = { scope: scopeName(sc), counts: { buildings: scopeBuildings(sc).length, roads: S.roads.length, lines: S.lines.length, stations: S.stations.length, businesses: S.businesses.length }, selected: MAPW.sel ? { kind: MAPW.sel.kind, id: MAPW.sel.id, label: MAPW.sel.kind === 'building' ? byId(MAPW.sel.id)?.reg : MAPW.sel.kind === 'road' ? roadLabel(roadById(MAPW.sel.id) || {}) : MAPW.sel.id } : null, matches: hits, allowedActions: [{ type: 'select', fields: ['kind', 'id'] }, { type: 'mode', fields: ['mode (select|pan|border|road|transit|station|place)'] }, { type: 'open-playback', fields: ['year', 'half (E|L)'] }, { type: 'set-road', fields: ['buildingId', 'roadId'] }, { type: 'add-stop', fields: ['lineId', 'stationId'] }] };
-  const body = { model: S.settings.ai.model || 'gpt-4o-mini', temperature: 0, response_format: { type: 'json_object' }, messages: [{ role: 'system', content: 'You help a user read a Minecraft land registry map. Answer ONLY from the provided context; never invent streets, borders, dates, revenues or records. Reply as JSON: {"answer": string, "highlights": [ids from matches], "action": null | {type, ...fields}} using only allowedActions and ids that appear in the context.' }, { role: 'user', content: `Question: ${q}\n\nContext: ${JSON.stringify(context)}` }] };
-  try {
-    const res = await fetch(S.settings.ai.endpoint, { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${key}` }, body: JSON.stringify(body) });
-    if (!res.ok) return { kind: 'note', html: `The provider answered HTTP ${res.status}. Deterministic answers still work.` };
-    const data = await res.json(); const text = data.choices?.[0]?.message?.content || ''; let out; try { out = JSON.parse(text); } catch { return { kind: 'ai', html: esc(text || 'Empty answer.') }; }
-    const ids = new Set(hits.map(h => h.id)); const hl = (out.highlights || []).filter(id => ids.has(id)); const hitObjs = hits.filter(h => hl.includes(h.id)).map(h => ({ kind: h.kind === 'historical' ? 'building' : h.kind, id: h.id, label: h.title }));
-    let action = null; const a = out.action;
-    if (a && typeof a === 'object') { if (a.type === 'select' && hits.some(h => h.id === a.id)) action = { type: 'select', kind: hits.find(h => h.id === a.id).kind === 'historical' ? 'building' : hits.find(h => h.id === a.id).kind, id: a.id }; else if (a.type === 'mode' && MODES.some(mm => mm.id === a.mode)) action = { type: 'mode', mode: a.mode }; else if (a.type === 'open-playback' && num(a.year) != null) action = { type: 'open-playback', year: clamp(num(a.year), FOUNDED_YEAR, 2100), half: a.half === 'L' ? 'L' : 'E' }; else if (a.type === 'set-road' && byId(a.buildingId) && roadById(a.roadId)) action = { type: 'set-road', buildingId: a.buildingId, roadId: a.roadId }; else if (a.type === 'add-stop' && lineById(a.lineId) && stationById(a.stationId)) action = { type: 'add-stop', lineId: a.lineId, stationId: a.stationId }; }
-    return { kind: 'ai', html: esc(String(out.answer || '')) + (a && !action ? ' <span class="muted">(The provider proposed an action that is not allowed or refers to unknown records — ignored.)</span>' : ''), hits: hitObjs, highlight: hl, action };
-  } catch (e) { return { kind: 'note', html: `Could not reach the provider: ${esc(e.message)}. Deterministic answers still work.` }; }
-}
+/* optional provider: shared with Clawson (Anthropic or OpenAI-compatible); the key never leaves this browser */
+async function asstAI(q) { return clawAI(q); }

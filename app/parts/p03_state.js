@@ -23,7 +23,7 @@ function emptyState() {
     sandbox: { stations: [], roads: [] }, world: { snapshots: [], scans: [], proposals: [], backups: { history: [], schedule: { afterSession: true, monthlyFull: true, mirror: '', retain: 30 }, lastVerified: null, lastRestoreTest: null } },
     news: { items: [], decisions: {}, log: [], drafts: [], lastSync: null, lastError: null, rules: { landmark: false, listing: false, groundbreaking: false } },
     legacy: { parcels: [], parcelLinks: [], notes: [] },
-    settings: { scanlines: true, boot: true, motion: true, density: 'comfortable', basemaps: [], lastNav: 'overview', lastScope: { kind: 'region', id: 'new-a-city' }, view: 'table', columns: {}, fabricYear: 2016, tlSpeed: 1, compatFile: true, ai: { enabled: false, provider: 'anthropic', endpoint: 'https://api.anthropic.com/v1/messages', model: 'claude-sonnet-4-5' }, newsAuto: false, newsRefreshMin: 0, valuation: { ...VALUATION_DEFAULTS }, publishing: { autoDraftDigest: false, publicNotes: false } },
+    settings: { scanlines: true, boot: true, motion: true, density: 'comfortable', basemaps: [], lastNav: 'overview', lastScope: { kind: 'region', id: 'new-a-city' }, view: 'table', columns: {}, fabricYear: 2016, tlSpeed: 1, compatFile: true, ai: { enabled: false, provider: 'anthropic', endpoint: 'https://api.anthropic.com/v1/messages', model: 'claude-sonnet-5-5' }, newsAuto: false, newsRefreshMin: 0, valuation: { ...VALUATION_DEFAULTS }, publishing: { autoDraftDigest: false, publicNotes: false } },
   };
 }
 
