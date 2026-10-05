@@ -463,3 +463,11 @@ table.reg td .mkt.info{ color:var(--info); border-color:rgba(127,178,255,.35); }
   #rail .tab.nav .cnt{ display:none; }
   .seg.lg{ max-width:100%; overflow-x:auto; scrollbar-width:none; } .seg.lg button{ white-space:nowrap; padding:0 10px; flex:none; }
 }
+
+/* ---------- fixes (Oct 2026) ---------- */
+/* while the playback viewer is open, records and chronicle images open above it, not behind it; toasts (120) and hover cards (110) stay on top */
+body.hv-open #backdrop{ z-index:103; } body.hv-open #drawer{ z-index:104; } body.hv-open #modal-root{ z-index:106; }
+/* the play icon inside a text link is a 12px glyph, not a default 300×150 svg box */
+.rowlink svg{ width:12px; height:12px; vertical-align:-2px; }
+#hover .at{ font-family:var(--font-mono); font-size:10px; letter-spacing:.14em; color:var(--cyan); margin-bottom:4px; }
+#hover .at.gone{ color:var(--hist); } #hover .at.construction{ color:var(--warn); } #hover .at.future,#hover .at.undated{ color:var(--ink-3); }

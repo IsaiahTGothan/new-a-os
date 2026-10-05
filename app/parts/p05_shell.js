@@ -231,9 +231,9 @@ function openSearchHit(hit, { map = UI.nav === 'map' } = {}) {
 }
 
 /* ---- hovercards for anything with data-hover="<buildingId>" or data-hover="kind:id" ---- */
-const HOVER = { id: null, timer: null };
-function showHover(key, x, y) {
-  const el = $('#hover'); let html = null;
+const HOVER = { id: null, timer: null, hy: null };
+function showHover(key, x, y, opts = {}) {
+  const el = $('#hover'); let html = null; HOVER.hy = opts.hy ?? null;
   if (key.includes(':')) {
     const [kind, id] = key.split(':');
     if (kind === 'road') { const r = roadById(id); if (!r) return; html = `<div class="b"><div class="reg" style="color:var(--road)">${esc(r.reg)} · ${esc(ROAD_TYPE_LABEL[r.type] || r.type).toUpperCase()}</div><div class="addr">${esc(r.name || 'Unnamed road')}</div>${r.aliases?.length ? `<div class="nm">also ${esc(r.aliases.join(', '))}</div>` : ''}<div class="meta"><span>Length <b>${fmtInt(polyLength(r.geometry))} blk</b></span><span>Width <b>${esc(r.width ?? '—')}</b></span><span>Grade <b>${esc(GRADE_LABEL[r.grade] || r.grade)}</b></span><span>Buildings <b>${buildingsOnRoad(r).length}</b></span></div></div>`; }
@@ -243,7 +243,8 @@ function showHover(key, x, y) {
     if (!html) return;
   } else {
     const b = byId(key); if (!b) return; const d = districtById(b.districtId); const url = imgUrl(key, 'full'); const h = isHist(b); const ph = physicalOf(b.physical);
-    html = `<div class="img">${url ? `<img src="${url}" alt="">` : icon(h ? 'hist' : 'img')}</div><div class="b">
+    const at = opts.hy != null ? (() => { const st = stateAtHY(b, opts.hy, { projection: !!opts.projection }); const { year, half } = hyFromIndex(opts.hy); const lbl = { standing: b.physical === 'vacant-lot' && isActive(b) ? 'vacant lot' : 'standing', construction: b.physical === 'planned' && isActive(b) ? 'planned' : 'under construction', gone: 'demolished' + (b.yearDemolished != null ? ' ' + hyLabel(b.yearDemolished, b.halfDemolished) : ''), future: 'not yet built', undated: 'undated' }[st] || st; return `<div class="at ${st}">AT ${esc(hyLabel(year, half).toUpperCase())} · ${esc(lbl.toUpperCase())}</div>`; })() : '';
+    html = `<div class="img">${url ? `<img src="${url}" alt="">` : icon(h ? 'hist' : 'img')}</div><div class="b">${at}
       <div class="reg ${h ? 'reg-h' : ''}">${esc(b.reg)} · <span style="color:${distColor(d)}">${esc(d?.name || '')}</span>${h ? ' · <span class="reg-h">DEMOLISHED</span>' : ''}</div>
       <div class="addr">${esc(titleOf(b))}</div>${b.name && addressOf(b) ? `<div class="nm">${esc(b.name)}</div>` : ''}
       <div class="meta">
@@ -260,7 +261,7 @@ function positionHover(x, y) {
   if (left + w > innerWidth - 12) left = x - w - 18; if (top + h > innerHeight - 12) top = innerHeight - h - 12;
   el.style.left = left + 'px'; el.style.top = Math.max(8, top) + 'px';
 }
-function hideHover() { clearTimeout(HOVER.timer); HOVER.id = null; $('#hover')?.classList.remove('on'); }
+function hideHover() { clearTimeout(HOVER.timer); HOVER.id = null; HOVER.hy = null; $('#hover')?.classList.remove('on'); }
 document.addEventListener('pointerover', e => {
   const t = e.target.closest?.('[data-hover]'); if (!t) return;
   const id = t.dataset.hover; if (HOVER.id === id) return;

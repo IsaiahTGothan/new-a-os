@@ -189,6 +189,7 @@ async function openDataModal() {
         <div class="dcard" style="grid-column:span 2">
           <h4>MAP ASSISTANT — OPTIONAL AI PROVIDER</h4>
           <p>Search, deterministic suggestions and every map action work without this. Turning it on lets the assistant send your question (and a compact summary of matching records) to an OpenAI-compatible chat endpoint; its answer can only trigger the same validated actions you can click yourself. The key is kept in this browser's storage only — it is <b>never</b> written to Registry.json, backups or exports.</p>
+          <div class="f" style="margin:0 0 10px"><label>Markets endpoint <span class="hint">the site's markets JSON (companies, tickers, simulated prices) — read only</span></label><input id="markets-url" value="${esc(S.settings.marketsUrl || APP.marketsUrl)}" placeholder="${esc(APP.marketsUrl)}"></div>
           <div class="settings-row"><div><div>Use an AI provider</div><div class="d">${AI_KEY_PRESENT ? 'A key is stored in this browser.' : 'No key stored.'}</div></div><label class="switch"><input type="checkbox" data-set="aiEnabled" ${S.settings.ai?.enabled ? 'checked' : ''}></label></div>
           <div class="frow c3" style="margin-top:8px">
             <div class="f"><label>Endpoint</label><input id="ai-endpoint" value="${esc(S.settings.ai?.endpoint || '')}" placeholder="https://api.openai.com/v1/chat/completions"></div>
@@ -206,6 +207,7 @@ async function openDataModal() {
         if (k === 'compact') S.settings.density = cb.checked ? 'compact' : 'comfortable'; else if (k === 'fabricYear') S.settings.fabricYear = +cb.value; else if (k === 'aiEnabled') S.settings.ai.enabled = cb.checked; else S.settings[k] = cb.checked;
         applySettings(); commit({ silentRender: true }); if (k === 'fabricYear') renderView(false); if (k === 'compatFile') toast(cb.checked ? 'NewA.json will be written alongside Registry.json' : 'Only Registry.json will be written from now on', '');
       }));
+      m.querySelector('#markets-url')?.addEventListener('change', e => { S.settings.marketsUrl = e.target.value.trim(); commit({ silentRender: true }); });
       m.querySelector('#ai-endpoint').addEventListener('change', e => { S.settings.ai.endpoint = e.target.value.trim(); commit({ silentRender: true }); });
       m.querySelector('#ai-model').addEventListener('change', e => { S.settings.ai.model = e.target.value.trim(); commit({ silentRender: true }); });
       m.querySelector('#ai-key-save').onclick = async () => { const v = m.querySelector('#ai-key').value.trim(); if (!v) { toast('Paste a key first', 'warn'); return; } await idbPut('handles', 'aiKey', v); m.querySelector('#ai-key').value = ''; AI_KEY_PRESENT = true; toast('Key stored in this browser only — never exported', 'good'); };

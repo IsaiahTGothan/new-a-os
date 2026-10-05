@@ -89,31 +89,61 @@ function roadJunctions(roads = S.roads) {
   return out;
 }
 const roadConnections = (r, js = roadJunctions()) => js.filter(j => (j.a === r.id || j.b === r.id) && j.kind !== 'separated');
-/* nearest roads to a building, with the reasons — never equates proximity with an entrance */
+/* ---- street names: a building whose street text names a road is served by that road (name beats proximity) ---- */
+const STREET_ABBR = { st: 'street', str: 'street', ave: 'avenue', av: 'avenue', blvd: 'boulevard', bld: 'boulevard', pkwy: 'parkway', pky: 'parkway', rd: 'road', dr: 'drive', ln: 'lane', pl: 'place', sq: 'square', ter: 'terrace', terr: 'terrace', ct: 'court', hwy: 'highway', expy: 'expressway', brg: 'bridge', w: 'west', e: 'east', n: 'north', s: 'south', mt: 'mount', ft: 'fort', '1st': 'first', '2nd': 'second', '3rd': 'third', '4th': 'fourth', '5th': 'fifth', '6th': 'sixth', '7th': 'seventh', '8th': 'eighth', '9th': 'ninth', '10th': 'tenth' };
+function normStreet(s) { return norm(String(s || '').replace(/\./g, ' ')).split(' ').filter(Boolean).map(w => STREET_ABBR[w] || w).join(' '); }
+const roadNamesOf = r => [r.name, ...(r.aliases || []), ...(r.formerNames || [])].map(normStreet).filter(Boolean);
+/* the street a building says it is on: the street field, or the street part of an address-shaped name ("1493 Mill Street") */
+function buildingStreetText(b) { if (b.street && b.street.trim()) return b.street.trim(); const m = /^\s*\d+[a-z]?\s+(.+)$/i.exec(b.name || ''); return m ? m[1].trim() : ''; }
+function roadMatchesStreet(r, streetText) { const q = normStreet(streetText); if (!q) return false; return roadNamesOf(r).includes(q); }
+const roadsNamedLike = streetText => S.roads.filter(r => roadMatchesStreet(r, streetText));
+/* buildings that name this road and could be linked to it: unlinked ones, and ones whose current link was itself automatic (never a link set by hand) */
+function nameLinkCandidates(r) {
+  const out = { link: [], manualElsewhere: [], already: [] };
+  for (const b of S.buildings) { if (!isActive(b)) continue; const st = buildingStreetText(b); if (!st || !roadMatchesStreet(r, st)) continue; if (b.roadId === r.id) { out.already.push(b); continue; } if (b.roadId && roadById(b.roadId) && (b.roadIdSource || 'manual') === 'manual') { out.manualElsewhere.push(b); continue; } out.link.push(b); }
+  return out;
+}
+/* link every candidate of a road by name; returns an undo function and what changed */
+function linkByName(r, buildings = nameLinkCandidates(r).link) {
+  const prev = buildings.map(b => ({ id: b.id, roadId: b.roadId ?? null, src: b.roadIdSource ?? null }));
+  for (const b of buildings) { b.roadId = r.id; b.roadIdSource = 'name'; b.updated = now(); }
+  const undo = () => { for (const p of prev) { const b = byId(p.id); if (!b) continue; b.roadId = p.roadId; b.roadIdSource = p.src; b.updated = now(); } };
+  return { linked: buildings.length, undo };
+}
+/* every road at once: the bulk action in the Streets panel */
+function linkAllByName() {
+  const changes = []; const undos = []; let total = 0;
+  for (const r of S.roads) { const c = nameLinkCandidates(r); if (!c.link.length) continue; const res = linkByName(r, c.link); undos.push(res.undo); total += res.linked; changes.push({ road: r, n: res.linked }); }
+  return { total, changes, undo: () => { for (const u of undos.reverse()) u(); } };
+}
+/* nearest roads to a building, with the reasons — never equates proximity with an entrance; a street-name match outranks distance */
 function roadSuggest(b, { limit = 4 } = {}) {
   const ent = b.entrance && b.entrance.x != null && b.entrance.z != null ? [b.entrance.x, b.entrance.z] : null;
   const pt = ent || (b.x != null && b.z != null ? [b.x, b.z] : null);
-  if (!pt) return { pt: null, basis: 'none', items: [], checked: S.roads.length };
+  const streetText = buildingStreetText(b); const named = streetText ? roadsNamedLike(streetText) : [];
+  if (!pt) { const items = named.filter(r => r.geometry?.length >= 2).slice(0, limit).map((r, i) => ({ road: r, d: Infinity, edgeD: Infinity, q: null, flags: [], penalty: 0, current: b.roadId === r.id, nameMatch: true, kind: i === 0 ? 'best' : 'alt', corner: false })); return { pt: null, basis: 'name', items, checked: S.roads.length, streetText }; }
   const basis = ent ? 'entrance' : 'center'; const items = [];
   for (const r of S.roads) {
     if (!r.geometry || r.geometry.length < 2) continue; const c = polylineClosest(pt, r.geometry); if (!c) continue;
-    const flags = []; let penalty = 0; const g = r.grade || 'surface';
+    const flags = []; let penalty = 0; const g = r.grade || 'surface'; const nameMatch = named.includes(r); if (nameMatch) flags.push(`named on the record (“${streetText}”)`);
     if (g === 'tunnel') { flags.push('tunnel — not reachable from the surface here'); penalty += 10000; }
     if (g === 'elevated' || g === 'bridge') { flags.push(`${(GRADE_LABEL[g] || g).toLowerCase()} — grade-separated, reachable only at its ramps or ends`); penalty += 250; }
     if (r.direction === 'restricted') { flags.push('restricted access'); penalty += 120; }
     if (r.direction === 'pedestrian') flags.push('pedestrian only');
     if (r.yearClosed != null) { flags.push(`closed ${hyLabel(r.yearClosed, r.halfClosed)}`); penalty += 600; }
     const edgeD = Math.max(0, c.d - (num(r.width) || 5) / 2);
-    items.push({ road: r, d: c.d, edgeD, q: c.q, flags, penalty, current: b.roadId === r.id });
+    items.push({ road: r, d: c.d, edgeD, q: c.q, flags, penalty, current: b.roadId === r.id, nameMatch });
   }
-  items.sort((a, b) => (a.d + a.penalty) - (b.d + b.penalty));
+  items.sort((a, b) => (b.nameMatch - a.nameMatch) || ((a.d + a.penalty) - (b.d + b.penalty)));
   const best = items[0]; const out = items.slice(0, limit);
-  for (const it of out) { it.kind = it === best ? 'best' : 'alt'; it.corner = !!best && it !== best && it.d < best.d * 1.6 + 6 && !it.penalty; }
-  return { pt, basis, items: out, checked: S.roads.length };
+  for (const it of out) { it.kind = it === best ? 'best' : 'alt'; it.corner = !!best && it !== best && it.d < best.d * 1.6 + 6 && !it.penalty && !best.nameMatch; }
+  return { pt, basis: best?.nameMatch ? 'name' : basis, items: out, checked: S.roads.length, streetText };
 }
 function roadSuggestReason(it, basis) {
+  if (it.d === Infinity) return `The record names this street (“${it.flags[0] || 'name match'}”); the building has no coordinates, so distance is unknown.`;
   const parts = [`${Math.round(it.d)} block${Math.round(it.d) === 1 ? '' : 's'} from the building ${basis === 'entrance' ? 'entrance' : 'centre'} to the centreline (${Math.round(it.edgeD)} to its edge)`];
-  if (basis === 'center') parts.push('proximity only — no entrance is recorded, so the closest point is not necessarily a usable entrance');
+  if (it.nameMatch) parts.unshift('the street name on the record matches this road — a name match outranks distance');
+  if (basis === 'center' && !it.nameMatch) parts.push('proximity only — no entrance is recorded, so the closest point is not necessarily a usable entrance');
   if (it.corner) parts.push('corner building — this road is almost as close as the first');
   if (it.flags.length) parts.push(it.flags.join(' · '));
   return parts.join('. ') + '.';

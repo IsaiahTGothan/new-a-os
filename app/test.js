@@ -298,6 +298,78 @@ const FEED = (extra = '') => `<?xml version="1.0"?><rss version="2.0"><channel><
   await page.evaluate(() => setNav('map')); await page.waitForTimeout(400); await page.screenshot({ path: path.join(SHOTS, 'L-mobile-map.png') });
   noErrors('visual');
 
+  // ---------- M · the six fixes reported Oct 4 2026 ----------
+  console.log('\nM · fixes: viewer hover card · ghosts fade · stacking · play icon · markets importer · street-name links');
+  await page.setViewportSize({ width: 1440, height: 900 }); await page.evaluate(() => setNav('history')); await page.waitForTimeout(300);
+  // 1 · hover card in the playback viewer, with the state at that half-year
+  await page.evaluate(() => openHistoryViewer({ year: 2019, half: 'L' })); await page.waitForTimeout(250);
+  const hvHover = await page.evaluate(() => { const b = HV.rows.find(x => x.x != null && stateAtHY(x, HV.to) === 'standing'); const [sx, sy] = projFor(HV.cam, HV.w, HV.h).s(b.x, b.z); const r = HV.canvas.getBoundingClientRect(); return { reg: b.reg, x: r.left + sx, y: r.top + sy }; });
+  await page.mouse.move(hvHover.x, hvHover.y); await page.waitForTimeout(80);
+  const hvCard = await page.evaluate(() => ({ on: $('#hover').classList.contains('on'), txt: $('#hover').textContent, z: +getComputedStyle($('#hover')).zIndex }));
+  ok(hvCard.on && hvCard.txt.includes(hvHover.reg) && /AT LATE 2019/.test(hvCard.txt), `hovering a building in the viewer shows its card with the state at that date (${hvHover.reg} · z ${hvCard.z})`);
+  await page.mouse.move(hvHover.x + 400, hvHover.y + 300); await page.waitForTimeout(60);
+  const hvOff = await page.evaluate(() => $('#hover').classList.contains('on')); ok(!hvOff, 'moving off every building hides the card again');
+  // 2 · ghosts fade out about a year after demolition and obey the Ghosts toggle in the viewer
+  const ghosts = await page.evaluate(() => {
+    const alpha = { a0: ghostAlpha(0), a1: ghostAlpha(1), a2: ghostAlpha(2), a3: ghostAlpha(3), all: ghostAlpha(9, true) };
+    const b = HV.rows.find(x => isHist(x) && x.x != null && demolishedIndex(x) != null); const di = demolishedIndex(b);
+    const count = (hy, layers) => { const c = document.createElement('canvas'); c.width = 800; c.height = 600; const ctx = c.getContext('2d'); let n = 0; const orig = ctx.setLineDash.bind(ctx); ctx.setLineDash = seg => { if (seg.length === 2 && seg[0] === 2 && seg[1] === 2) n++; return orig(seg); }; drawScene({ ctx, W: 800, H: 600, cam: { x: b.x, z: b.z, k: 2 }, layers: { ...HV.layers, ...layers, stations: false, transit: false, roads: false, districts: false, regions: false, hoods: false, footprints: false, labels: false, grid: false }, hy, buildings: [b], districts: [], hoods: [], handles: false, showJunctions: false }); return n; };
+    return { reg: b.reg, di, alpha, at0: count(di, {}), at2: count(di + 2, {}), at4: count(di + 4, {}), at4all: count(di + 4, { ghostsAll: true }), off: count(di, { historical: false }) };
+  });
+  ok(ghosts.alpha.a0 === 1 && ghosts.alpha.a1 > ghosts.alpha.a2 && ghosts.alpha.a2 > 0 && ghosts.alpha.a3 === 0 && ghosts.alpha.all > 0, `ghost opacity fades over a year: ${JSON.stringify(ghosts.alpha)}`);
+  ok(ghosts.at0 === 1 && ghosts.at2 === 1 && ghosts.at4 === 0 && ghosts.at4all === 1 && ghosts.off === 0, `${ghosts.reg}: ghost drawn at demolition and a year later, gone after; "All ghosts" keeps it; Ghosts off hides it (${ghosts.at0}/${ghosts.at2}/${ghosts.at4}/${ghosts.at4all}/${ghosts.off})`);
+  const toggles = await page.evaluate(() => $$('#hv-root [data-hvlayer]').map(b => b.dataset.hvlayer)); ok(toggles.includes('historical') && toggles.includes('ghostsAll'), 'viewer has Ghosts and All ghosts toggles: ' + toggles.join(', '));
+  // 3 · the record drawer and the chronicle image open above the viewer
+  const stack = await page.evaluate(() => { const b = HV.rows.find(x => x.x != null); openBuilding(b.id); const zd = +getComputedStyle($('#drawer')).zIndex, zv = +getComputedStyle($('#hv-root')).zIndex; return { zd, zv, body: document.body.classList.contains('hv-open') }; });
+  ok(stack.body && stack.zd > stack.zv, `record drawer (z ${stack.zd}) opens above the viewer (z ${stack.zv})`);
+  await page.keyboard.press('Escape'); await page.waitForTimeout(80);
+  const escOrder = await page.evaluate(() => ({ drawer: $('#drawer').classList.contains('on'), hv: HV.open })); ok(!escOrder.drawer && escOrder.hv, 'Esc closes the drawer first and keeps the viewer open');
+  const modalStack = await page.evaluate(() => { openArchiveViewer(S.archive[0].id); const zm = +getComputedStyle($('#modal-root')).zIndex, zv = +getComputedStyle($('#hv-root')).zIndex; const svg = $('#modal-root .rowlink svg'); const r = svg?.getBoundingClientRect(); return { zm, zv, svgH: r?.height, svgW: r?.width }; });
+  ok(modalStack.zm > modalStack.zv, `chronicle image modal (z ${modalStack.zm}) opens above the viewer`);
+  // 4 · the play icon in "Open playback in YYYY" is a 12px glyph
+  ok(modalStack.svgH != null && modalStack.svgH <= 14 && modalStack.svgW <= 14, `play icon in the chronicle viewer is ${modalStack.svgW}×${modalStack.svgH}px, not a 300×150 box`);
+  await page.evaluate(() => { closeModal(); closeHistoryViewer(); });
+  const unstacked = await page.evaluate(() => ({ body: document.body.classList.contains('hv-open'), zd: +getComputedStyle($('#drawer')).zIndex })); ok(!unstacked.body && unstacked.zd === 80, 'z-order returns to normal when the viewer closes');
+  // 5 · businesses importer from the site's markets section: proposals only, simulated basis
+  const marketsPayload = { companies: [{ name: 'Silvernine Properties', ticker: 'SNP', sector: 'Real Estate', price: 142.5, change: 1.2 }, { name: 'ZAYS Bank', ticker: 'ZBK', sector: 'Finance', price: 88 }, { company: 'Cray Industries', symbol: 'CRAY', industry: 'Technology', lastPrice: 12.25 }] };
+  const mk = await page.evaluate(async payload => { const nBefore = S.businesses.length; const r = await marketsRefresh({ source: 'file', text: JSON.stringify(payload), label: 'markets.json' }); const item = r.item; const cands = item.candidates; return { nAfter: S.businesses.length - nBefore, kinds: cands.map(c => c.kind).sort(), newNames: cands.filter(c => c.kind === 'biz-new').map(c => c.create.name), snp: cands.find(c => c.entityId && bizById(c.entityId)?.ticker === 'SNP'), pending: newsPendingCount(), src: item.source, basis: cands.map(c => c.basis) }; }, marketsPayload);
+  ok(mk.nAfter === 0 && mk.kinds.join() === 'biz-market,biz-new,biz-new' && mk.newNames.join() === 'ZAYS Bank,Cray Industries', `markets read → proposals, nothing created: ${mk.kinds.join(', ')} (${mk.newNames.join(', ')})`);
+  ok(mk.snp && mk.snp.after.marketQuotes?.[0]?.basis === 'simulated' && mk.basis.every(b => b === 'simulated') && !('revenue' in (mk.snp.after || {})), 'the existing SNP company gets a simulated quote proposal — never revenue');
+  const mkApply = await page.evaluate(() => { const c = S.news.items.find(i => i.source === 'markets').candidates.find(x => x.kind === 'biz-new' && x.create.ticker === 'ZBK'); const okA = applyCandidate(c); const z = S.businesses.find(x => x.ticker === 'ZBK'); const log = S.news.log[0]; return { okA, reg: z?.reg, listed: z?.exchangeListed, cat: z?.category, basis: z?.marketQuotes?.[0]?.basis, rev: (z?.revenue || []).length, logCreated: log?.created === z?.id, dec: S.news.decisions[c.id]?.status }; });
+  ok(mkApply.okA && /^BZ-\d{4}$/.test(mkApply.reg) && mkApply.listed && mkApply.cat === 'Finance' && mkApply.basis === 'simulated' && mkApply.rev === 0 && mkApply.logCreated && mkApply.dec === 'applied', `creating from a market proposal makes ${mkApply.reg} (listed, Finance, simulated quote, no revenue) with a log entry`);
+  const mkUndo = await page.evaluate(() => { const log = S.news.log[0]; undoLog(log.id); return { gone: !S.businesses.some(x => x.ticker === 'ZBK'), dec: S.news.decisions[log.candId]?.status }; });
+  ok(mkUndo.gone && mkUndo.dec === 'undone', 'undoing the creation removes the business again');
+  const mkTwice = await page.evaluate(async payload => { const n = S.news.items.length; const r = await marketsRefresh({ source: 'file', text: JSON.stringify(payload), label: 'markets.json' }); return { unchanged: r.unchanged, items: S.news.items.length - n }; }, marketsPayload);
+  ok(mkTwice.unchanged === 1 && mkTwice.items === 0, 'the same market snapshot imported twice adds nothing');
+  const mkVerified = await page.evaluate(async payload => { const z = S.businesses.find(x => x.ticker === 'SNP'); z.verified = true; const r = await marketsRefresh({ source: 'file', text: JSON.stringify(payload), label: 'markets.json' }); const c = r.item.candidates.find(x => x.entityId === z.id); z.verified = false; return { conflict: c?.conflict || '' }; }, { companies: [{ name: 'Silvernine Properties', ticker: 'SNP', price: 150 }] });
+  ok(/verified/.test(mkVerified.conflict), 'a market update against a verified business is flagged, not applied');
+  const mkCSV = await page.evaluate(() => normalizeMarketPayload('name,ticker,sector,price\nKey Food,KEYF,Retail,10.5\n').map(m => `${m.name}:${m.ticker}:${m.sector}:${m.price}`).join());
+  ok(mkCSV === 'Key Food:KEYF:Retail:10.5', 'a CSV markets export is understood too');
+  // 6 · buildings link to roads by street name: bulk action, hand-set links respected, undo, name beats proximity
+  const streets = await page.evaluate(() => {
+    const mill = S.buildings.filter(b => isActive(b) && buildingStreetText(b) === 'Mill Street');
+    const r = newRoad(S); r.name = 'Mill Street'; r.geometry = [[-10, 330], [90, 330]]; S.roads.push(r);                 // 28 blocks south of the Mill Street houses
+    const decoy = newRoad(S); decoy.name = 'Decoy Lane'; decoy.geometry = [[-10, 304], [90, 304]]; S.roads.push(decoy); // 2 blocks away
+    const other = S.roads.find(x => x.name === 'Harbor Way'); const manual = mill[0]; manual.roadId = other.id; manual.roadIdSource = 'manual';
+    const named = newBuilding(S, 'new-bk'); named.name = '1493 Mill Street'; named.street = ''; named.x = 50; named.z = 310; named.status = summaryStatus(named); S.buildings.push(named);
+    JUNCTION_CACHE.key = ''; commit();
+    const c = nameLinkCandidates(r); const sug = roadSuggest(mill[1]);
+    return { millN: mill.length, link: c.link.length, manual: c.manualElsewhere.length, manualReg: manual.reg, namedIn: c.link.some(b => b.id === named.id), suggTop: sug.items[0]?.road.name, suggNameMatch: !!sug.items[0]?.nameMatch, suggBasis: sug.basis, reason: sug.items[0] ? roadSuggestReason(sug.items[0], sug.basis) : '', normA: normStreet('Mill St.'), normB: roadMatchesStreet({ name: 'W 11th St' }, 'West 11th Street'), roadId: r.id };
+  });
+  ok(streets.link === streets.millN && streets.namedIn && streets.manual === 1, `${streets.link} buildings name Mill Street and can be linked (incl. the address-shaped name); ${streets.manualReg} was linked by hand to another road and is left alone`);
+  ok(streets.suggTop === 'Mill Street' && streets.suggNameMatch && streets.suggBasis === 'name' && /name/.test(streets.reason), `the street-name match outranks the closer Decoy Lane in the suggestion: ${streets.reason.slice(0, 70)}…`);
+  ok(streets.normA === 'mill street' && streets.normB, 'abbreviations normalise (St. → street, W → west)');
+  const linked = await page.evaluate(id => { const r = roadById(id); const res = linkByName(r); commit(); const on = buildingsOnRoad(r); const srcs = new Set(on.map(b => b.roadIdSource)); const manualKept = S.buildings.find(b => b.roadIdSource === 'manual' && buildingStreetText(b) === 'Mill Street'); res.undo(); const after = buildingsOnRoad(r).length; return { linked: res.linked, on: on.length, srcs: [...srcs], manualKept: !!manualKept && manualKept.roadId !== id, after }; }, streets.roadId);
+  ok(linked.linked === streets.link && linked.on === streets.link && linked.srcs.join() === 'name' && linked.manualKept && linked.after === 0, `bulk link attaches ${linked.linked} buildings (source: name), keeps the hand-set link, and undo detaches them again`);
+  const bulk = await page.evaluate(() => { const r = linkAllByName(); const n = S.buildings.filter(b => b.roadIdSource === 'name').length; r.undo(); return { total: r.total, n, roads: r.changes.length, after: S.buildings.filter(b => b.roadIdSource === 'name').length }; });
+  ok(bulk.total >= streets.link && bulk.n === bulk.total && bulk.after === 0, `"Link all by street name" links ${bulk.total} across ${bulk.roads} road(s) and undoes cleanly`);
+  await page.evaluate(() => { setNav('map'); MAPW.dock = 'streets'; renderDock(); }); await page.waitForTimeout(300);
+  const panel = await page.evaluate(() => ({ bulk: !!$('[data-act="link-all-by-name"]'), per: $$('[data-act="link-by-name"]').length })); ok(panel.bulk && panel.per >= 1, `Streets panel offers the bulk action and ${panel.per} per-road "by name" link(s)`);
+  await page.screenshot({ path: path.join(SHOTS, 'M-streets-by-name.png') });
+  await page.evaluate(() => { const r = S.roads.find(x => x.name === 'Mill Street'); MAPW.sel = { kind: 'road', id: r.id }; MAPW.dock = 'inspector'; renderDock(); });
+  const insp = await page.evaluate(() => !!$('#dock-body [data-act="link-by-name"]')); ok(insp, 'the road inspector shows "Link N buildings on Mill Street"');
+  noErrors('fixes');
+
   await ctx.close(); await browser.close();
   console.log(`\n${checks - failures}/${checks} checks passed${failures ? ` · ${failures} FAILED` : ''}`);
   process.exit(failures ? 1 : 0);

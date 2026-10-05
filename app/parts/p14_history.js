@@ -76,17 +76,17 @@ function renderPlaybackSection(rows) {
 /* ============ the animated viewer ============ */
 const HV = { open: false, i: 0, from: 0, to: 0, t: 1, playing: false, speed: 1, lastTick: 0, raf: null, cam: { x: 0, z: 0, k: 1 }, w: 0, h: 0, canvas: null, ctx: null, projection: false, refOverlay: false, follow: false, full: false, list: true, layers: null, rows: [], i1: 0, drag: null, dockFit: true, lastEventsKey: '' };
 function openHistoryViewer({ index = 0, year = null, half = null } = {}) {
-  HV.rows = scopeBuildings(); HV.layers = HV.layers || { regions: true, districts: true, hoods: false, roads: true, transit: true, stations: true, buildings: true, footprints: true, businesses: false, labels: false, grid: false, historical: true };
+  HV.rows = scopeBuildings(); HV.layers = HV.layers || { regions: true, districts: true, hoods: false, roads: true, transit: true, stations: true, buildings: true, footprints: true, businesses: false, labels: false, grid: false, historical: true, ghostsAll: false };
   const { i1 } = hyRange(HV.rows, { projection: HV.projection }); HV.i1 = i1;
   let i = year != null ? clamp(hyIndex(year, half || 'E'), 0, i1) : clamp(index, 0, i1);
-  HV.i = HV.from = HV.to = i; HV.t = 1; HV.playing = false; HV.open = true;
+  HV.i = HV.from = HV.to = i; HV.t = 1; HV.playing = false; HV.open = true; document.body.classList.add('hv-open');
   const root = $('#hv-root'); root.hidden = false; root.classList.toggle('full', HV.full);
   root.innerHTML = hvHTML(); HV.canvas = $('#hv-canvas'); HV.ctx = HV.canvas.getContext('2d');
   hvResize(); const ext = scopeExtent(); if (ext) { const pad = 50; HV.cam.k = clamp(Math.min((HV.w - pad * 2) / Math.max(120, ext.x2 - ext.x1), (HV.h - pad * 2) / Math.max(120, ext.z2 - ext.z1)), 0.02, 10); HV.cam.x = (ext.x1 + ext.x2) / 2; HV.cam.z = (ext.z1 + ext.z2) / 2; }
   hvWire(); hvUpdateChrome(); hvDraw();
   if (!HV.resizeBound) { window.addEventListener('resize', () => { if (HV.open) { hvResize(); hvDraw(); } }); HV.resizeBound = true; }
 }
-function closeHistoryViewer() { hvPause(); HV.open = false; const root = $('#hv-root'); root.hidden = true; root.innerHTML = ''; }
+function closeHistoryViewer() { hvPause(); hideHover(); HV.open = false; document.body.classList.remove('hv-open'); const root = $('#hv-root'); root.hidden = true; root.innerHTML = ''; }
 function hvHTML() {
   const i1 = HV.i1; const eras = ERAS.filter(e => hyIndex(e.from, 'E') <= i1).map(e => { const a = hyIndex(e.from, 'E'), b = Math.min(i1 + 1, hyIndex(e.to, 'E')); return `<span data-era="${a}" style="flex:${Math.max(1, b - a)} 0 0">${esc(e.name.toUpperCase())}</span>`; }).join('');
   const ticks = []; for (let y = FOUNDED_YEAR; y <= hyFromIndex(i1).year; y++) ticks.push(`<span data-i="${hyIndex(y, 'E')}">${(hyFromIndex(i1).year - FOUNDED_YEAR) > 14 && (y - FOUNDED_YEAR) % 2 ? '' : y}</span>`);
@@ -98,7 +98,7 @@ function hvHTML() {
       <div class="hv-stage" id="hv-stage"><canvas id="hv-canvas"></canvas>
         <div class="hv-date" id="hv-date"></div>
         <div class="hv-counts" id="hv-counts"></div>
-        <div class="hv-layers">${[['districts', 'Borders'], ['hoods', 'Neighborhoods'], ['roads', 'Roads'], ['transit', 'Transit'], ['historical', 'Ghosts'], ['labels', 'Labels'], ['grid', 'Grid']].map(([k, l]) => `<button class="crumb" data-hvlayer="${k}" aria-pressed="${!!L[k]}">${l}</button>`).join('')}</div>
+        <div class="hv-layers">${[['districts', 'Borders'], ['hoods', 'Neighborhoods'], ['roads', 'Roads'], ['transit', 'Transit'], ['historical', 'Ghosts', 'A demolished building lingers as a ghost for about a year, then fades out'], ['ghostsAll', 'All ghosts', 'Keep every ghost on the map after its demolition'], ['labels', 'Labels'], ['grid', 'Grid']].map(([k, l, tip]) => `<button class="crumb" data-hvlayer="${k}" aria-pressed="${!!L[k]}" ${tip ? `title="${esc(tip)}"` : ''}>${l}</button>`).join('')}</div>
         <div class="hv-note" id="hv-note"></div>
       </div>
       <aside class="hv-side"><div class="sh"><span>WHAT CHANGED</span><span class="note" id="hv-ev-note"></span></div><div class="evlist" id="hv-events"></div><div class="chron" id="hv-chron"></div></aside>
@@ -120,7 +120,11 @@ function hvResize() { const c = HV.canvas; if (!c) return; const r = c.parentEle
 function hvWire() {
   const c = HV.canvas;
   c.addEventListener('pointerdown', e => { c.setPointerCapture(e.pointerId); HV.drag = { sx: e.offsetX, sy: e.offsetY, cx: HV.cam.x, cz: HV.cam.z, moved: false }; $('#hv-stage').classList.add('panning'); });
-  c.addEventListener('pointermove', e => { if (!HV.drag) { const hit = hvHit(e.offsetX, e.offsetY); c.style.cursor = hit ? 'pointer' : ''; return; } const dx = e.offsetX - HV.drag.sx, dy = e.offsetY - HV.drag.sy; if (Math.abs(dx) + Math.abs(dy) > 3) HV.drag.moved = true; HV.cam.x = HV.drag.cx - dx / HV.cam.k; HV.cam.z = HV.drag.cz - dy / HV.cam.k; hvDraw(); });
+  c.addEventListener('pointermove', e => {
+    if (!HV.drag) { const hit = hvHit(e.offsetX, e.offsetY); c.style.cursor = hit ? 'pointer' : ''; if (hit) { if (HOVER.id !== hit.id || HOVER.hy !== HV.to) showHover(hit.id, e.clientX, e.clientY, { hy: HV.to, projection: HV.projection }); else positionHover(e.clientX, e.clientY); } else hideHover(); return; }
+    hideHover(); const dx = e.offsetX - HV.drag.sx, dy = e.offsetY - HV.drag.sy; if (Math.abs(dx) + Math.abs(dy) > 3) HV.drag.moved = true; HV.cam.x = HV.drag.cx - dx / HV.cam.k; HV.cam.z = HV.drag.cz - dy / HV.cam.k; hvDraw();
+  });
+  c.addEventListener('pointerleave', hideHover);
   c.addEventListener('pointerup', e => { const d = HV.drag; HV.drag = null; $('#hv-stage').classList.remove('panning'); if (d && !d.moved) { const hit = hvHit(e.offsetX, e.offsetY); if (hit) { hvPause(); openBuilding(hit.id); } } });
   c.addEventListener('wheel', e => { e.preventDefault(); const f = Math.exp(-e.deltaY * 0.0015); const P = projFor(HV.cam, HV.w, HV.h); const [wx, wz] = P.w(e.offsetX, e.offsetY); HV.cam.k = clamp(HV.cam.k * f, 0.02, 40); const P2 = projFor(HV.cam, HV.w, HV.h); const [nx, nz] = P2.w(e.offsetX, e.offsetY); HV.cam.x += wx - nx; HV.cam.z += wz - nz; hvDraw(); }, { passive: false });
   $('#hv-range').addEventListener('input', e => { hvPause(); hvSet(+e.target.value, { instant: true }); });

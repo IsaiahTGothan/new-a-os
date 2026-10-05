@@ -414,7 +414,7 @@ function readFormInto(b, strict = true) {
   b.number = g('number').trim(); b.street = g('street').trim(); b.name = g('name').trim();
   b.x = num(g('x')); b.z = num(g('z'));
   const ex = num(g('ex')), ez = num(g('ez')); b.entrance = ex != null && ez != null ? { x: ex, z: ez } : null;
-  b.roadId = g('road') || null;
+  { const rid = g('road') || null; if (rid !== (b.roadId || null)) b.roadIdSource = rid ? 'manual' : null; b.roadId = rid; }
   b.bldgClass = g('class').trim().toUpperCase(); b.taxClass = g('tax') || suggestTaxClass(b.bldgClass);
   b.zoning = g('zoning').trim().toUpperCase(); b.overlay = g('overlay'); b.special = g('special').trim();
   b.physical = g('physical') || 'standing'; b.market = g('market') || ''; b.landmark = !!$('#f-landmark')?.checked;

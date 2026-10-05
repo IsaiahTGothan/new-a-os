@@ -148,9 +148,9 @@ document.addEventListener('click', async e => {
     case 'ten-add': { const b = byId(DR.id); if (b) await linkBusinessToBuilding(b); break; }
     case 'ten-end': endTenancy(t.dataset.id); break;
     case 'ten-remove': { const r = await confirmDialog({ title: 'Remove this tenancy record?', body: '<p>It disappears from the occupancy history. To keep it as a former tenancy, use End instead.</p>', ok: 'Remove', danger: true }); if (r !== 'ok') break; S.tenancies = S.tenancies.filter(x => x.id !== t.dataset.id); commit(); renderDrawer(); renderView(false); break; }
-    case 'road-pick': { const b = byId(DR.id); if (!b) break; const id = await roadPickDialog('Serving road for ' + b.reg); if (!id) break; b.roadId = id; b.updated = now(); commit(); renderDrawer(); toast(`${b.reg} now served by ${roadLabel(roadById(id))}`, 'good'); break; }
-    case 'road-apply': { const b = byId(DR.id); if (!b) break; b.roadId = t.dataset.id; b.updated = now(); commit(); renderDrawer(); toast(`${b.reg} now served by ${roadLabel(roadById(t.dataset.id))}`, 'good'); break; }
-    case 'road-clear': { const b = byId(DR.id); if (!b) break; b.roadId = null; b.updated = now(); commit(); renderDrawer(); break; }
+    case 'road-pick': { const b = byId(DR.id); if (!b) break; const id = await roadPickDialog('Serving road for ' + b.reg); if (!id) break; b.roadId = id; b.roadIdSource = 'manual'; b.updated = now(); commit(); renderDrawer(); toast(`${b.reg} now served by ${roadLabel(roadById(id))}`, 'good'); break; }
+    case 'road-apply': { const b = byId(DR.id); if (!b) break; b.roadId = t.dataset.id; b.roadIdSource = 'manual'; b.updated = now(); commit(); renderDrawer(); toast(`${b.reg} now served by ${roadLabel(roadById(t.dataset.id))}`, 'good'); break; }
+    case 'road-clear': { const b = byId(DR.id); if (!b) break; b.roadId = null; b.roadIdSource = null; b.updated = now(); commit(); renderDrawer(); break; }
     case 'entrance-set': { const id = DR.id; const stack = DR.stack.slice(); closeDrawer(true); if (UI.nav !== 'map') setNav('map'); const go = () => { MAPW.pending = { kind: 'place-building', buildingId: id, field: 'entrance', label: `Click where you walk into ${byId(id)?.reg || 'the building'}`, resume: () => { openBuilding(id, 'view'); DR.stack = stack; } }; setMapMode('place', { pending: MAPW.pending }); const b = byId(id); if (b?.x != null) { MAPW.cam.x = b.x; MAPW.cam.z = b.z; if (MAPW.cam.k < 2) MAPW.cam.k = 3; mapDraw(); } }; if (MAPW.mounted) go(); else setTimeout(go, 40); break; }
     case 'place-on-map': pickPointForDraft('xz'); break;
     case 'footprint-draw': drawFootprintForDraft(); break;
@@ -176,6 +176,11 @@ document.addEventListener('click', async e => {
     case 'loc-add': { readBizFormInto(DR.draft, false); DR.draft.locations = [...(DR.draft.locations || []), { label: '', districtId: null, note: '' }]; rerenderEditor(); break; }
     case 'loc-remove': { readBizFormInto(DR.draft, false); DR.draft.locations.splice(+t.dataset.i, 1); rerenderEditor(); break; }
     case 'biz-from-owners': openOwnerImport(); break;
+    case 'link-by-name': { const r = roadById(t.dataset.id); if (r) linkRoadByNameFlow(r); break; }
+    case 'link-all-by-name': linkAllByNameFlow(); break;
+    case 'markets-import': $('#file-markets').click(); break;
+    case 'markets-refresh': marketsRefresh({ source: 'live' }); break;
+    case 'markets-vault': marketsRefresh({ source: 'vault' }); break;
     case 'clear-filters': UI.filters = { ...UI.filters, physical: '', market: '', landmark: false, family: '', zfam: '', yearMin: '', yearMax: '', photo: false, hist: false }; UI.q = ''; $('#q').value = ''; refreshRegistry(); break;
   }
 });
@@ -221,6 +226,7 @@ document.addEventListener('keydown', e => {
     if (SCOPE_POP.open) { closeScopePop(); return; }
     if (!$('#addmenu').hidden) { $('#addmenu').hidden = true; return; }
     if (isModal) { if (ARCH.editing) { archiveCancel(); return; } ARCH.viewing = null; closeModal(); return; }
+    if (DR.id && HV.open) { closeDrawer(); return; }
     if (HV.open) { closeHistoryViewer(); return; }
     if (UI.nav === 'map' && (MAPW.draft || MAPW.pending)) { mapCancel(); return; }
     if (DR.id) { closeDrawer(); return; }

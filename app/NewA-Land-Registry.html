@@ -1333,6 +1333,14 @@ table.reg td .mkt.info{ color:var(--info); border-color:rgba(127,178,255,.35); }
   .seg.lg{ max-width:100%; overflow-x:auto; scrollbar-width:none; } .seg.lg button{ white-space:nowrap; padding:0 10px; flex:none; }
 }
 
+/* ---------- fixes (Oct 2026) ---------- */
+/* while the playback viewer is open, records and chronicle images open above it, not behind it; toasts (120) and hover cards (110) stay on top */
+body.hv-open #backdrop{ z-index:103; } body.hv-open #drawer{ z-index:104; } body.hv-open #modal-root{ z-index:106; }
+/* the play icon inside a text link is a 12px glyph, not a default 300×150 svg box */
+.rowlink svg{ width:12px; height:12px; vertical-align:-2px; }
+#hover .at{ font-family:var(--font-mono); font-size:10px; letter-spacing:.14em; color:var(--cyan); margin-bottom:4px; }
+#hover .at.gone{ color:var(--hist); } #hover .at.construction{ color:var(--warn); } #hover .at.future,#hover .at.undated{ color:var(--ink-3); }
+
 </style>
 </head>
 <body>
@@ -1464,6 +1472,7 @@ table.reg td .mkt.info{ color:var(--info); border-color:rgba(127,178,255,.35); }
 <input type="file" id="file-img" accept="image/*" hidden>
 <input type="file" id="file-json" accept="application/json,.json,text/csv,.csv" hidden>
 <input type="file" id="file-feed" accept=".xml,.rss,.atom,application/rss+xml,text/xml,application/xml" hidden>
+<input type="file" id="file-markets" accept=".json,application/json,.csv,text/csv" hidden>
 
 <script>
 'use strict';
@@ -1475,7 +1484,7 @@ table.reg td .mkt.info{ color:var(--info); border-color:rgba(127,178,255,.35); }
 /* =====================================================================
    §0  CONFIG
    ===================================================================== */
-const APP = { name: 'New A Land Registry', version: '2.5.0', schema: 3, site: 'zays.us/new-a', newsSite: 'https://newa-site.vercel.app', feedUrl: 'https://newa-site.vercel.app/feed.xml' };
+const APP = { name: 'New A Land Registry', version: '2.5.0', schema: 3, site: 'zays.us/new-a', newsSite: 'https://newa-site.vercel.app', feedUrl: 'https://newa-site.vercel.app/feed.xml', marketsUrl: 'https://newa-site.vercel.app/api/markets' };
 const FOUNDED_YEAR = 2013;                       // Jan 27, 2013 — the timeline starts here
 const CURRENT_YEAR = new Date().getFullYear();   // the "present" end of the timeline
 const CURRENT_HALF = new Date().getMonth() < 6 ? 'E' : 'L';
@@ -1963,7 +1972,7 @@ function newBuilding(st, districtId) {
     physical: 'standing', market: '', landmark: false, legacyStatus: null,
     halfBuilt: '', halfDemolished: '', halfAltered: '', yearStarted: null, halfStarted: '', yearStartedApprox: false, yearExpected: null, halfExpected: '', yearExpectedApprox: false,
     dateBuilt: '', dateDemolished: '', dateStarted: '',
-    roadId: null, entrance: null, footprint: null, floorArea: null, assessBuilding: null, assessYear: null, valuationBasis: '',
+    roadId: null, roadIdSource: null, entrance: null, footprint: null, floorArea: null, assessBuilding: null, assessYear: null, valuationBasis: '',
     listings: [], transactions: [], migrationNotes: [],
   };
 }
@@ -1971,7 +1980,7 @@ function newRoad(st) { return { id: uid('r'), reg: nextGlobal(st, 'RD'), name: '
 function newTrack(st, mode = 'subway') { return { id: uid('k'), reg: nextGlobal(st, 'TR'), name: '', mode, grade: 'surface', geometry: [], yearOpened: null, halfOpened: '', yearClosed: null, halfClosed: '', notes: '', created: now(), updated: now() }; }
 function newLine(st) { return { id: uid('l'), reg: nextGlobal(st, 'TL'), name: '', shortName: '', mode: 'subway', color: TRANSIT_COLORS[(st.lines?.length || 0) % TRANSIT_COLORS.length], width: 4, style: 'solid', status: 'open', operator: '', yearOpened: null, halfOpened: '', yearOpenedApprox: false, yearClosed: null, halfClosed: '', trackIds: [], roadIds: [], stopIds: [], notes: '', source: '', sourceType: '', confidence: '', verified: false, created: now(), updated: now() }; }
 function newStation(st) { return { id: uid('s'), reg: nextGlobal(st, 'ST'), name: '', aliases: [], kind: 'station', x: null, z: null, buildingId: null, parentId: null, districtId: null, status: 'open', yearOpened: null, halfOpened: '', yearClosed: null, halfClosed: '', notes: '', source: '', confidence: '', created: now(), updated: now() }; }
-function newBusiness(st) { return { id: uid('z'), reg: nextGlobal(st, 'BZ'), name: '', aliases: [], category: '', orgType: 'company', parentId: null, status: 'open', yearOpened: null, halfOpened: '', yearOpenedApprox: false, yearClosed: null, halfClosed: '', website: '', ticker: '', exchangeListed: false, exchangeSince: null, locations: [], revenue: [], listings: [], notes: '', source: '', sourceType: '', confidence: '', verified: false, tags: [], image: false, created: now(), updated: now() }; }
+function newBusiness(st) { return { id: uid('z'), reg: nextGlobal(st, 'BZ'), name: '', aliases: [], category: '', orgType: 'company', parentId: null, status: 'open', yearOpened: null, halfOpened: '', yearOpenedApprox: false, yearClosed: null, halfClosed: '', website: '', ticker: '', exchangeListed: false, exchangeSince: null, sector: '', locations: [], revenue: [], listings: [], marketQuotes: [], notes: '', source: '', sourceType: '', confidence: '', verified: false, tags: [], image: false, created: now(), updated: now() }; }
 function newTenancy(businessId, buildingId, role = 'tenant') { return { id: uid('t'), businessId, buildingId, role, unit: '', yearFrom: null, halfFrom: '', yearTo: null, halfTo: '', current: true, notes: '', created: now() }; }
 function newArchiveEntry(year, districtId) { return { id: uid('a'), year: year ?? CURRENT_YEAR, month: null, districtId: districtId || null, neighborhoodId: null, title: '', description: '', source: '', sourceType: 'screenshot', confidence: 'confirmed', tags: [], image: false, created: now(), updated: now() }; }
 
@@ -2104,7 +2113,7 @@ function ensureV3(st) {
     for (const k of ['halfBuilt', 'halfDemolished', 'halfAltered', 'halfStarted', 'halfExpected']) if (!['E', 'L'].includes(b[k])) b[k] = '';
     b.yearStarted ??= null; b.yearStartedApprox = !!b.yearStartedApprox; b.yearExpected ??= null; b.yearExpectedApprox = !!b.yearExpectedApprox;
     b.dateBuilt ??= ''; b.dateDemolished ??= ''; b.dateStarted ??= '';
-    b.roadId ??= null; b.entrance ??= null; b.footprint = Array.isArray(b.footprint) && b.footprint.length >= 3 ? b.footprint : null; b.floorArea ??= null; b.assessBuilding ??= null; b.assessYear ??= null; b.valuationBasis ??= '';
+    b.roadId ??= null; if (b.roadId && !b.roadIdSource) b.roadIdSource = 'manual'; if (!b.roadId) b.roadIdSource = null; b.entrance ??= null; b.footprint = Array.isArray(b.footprint) && b.footprint.length >= 3 ? b.footprint : null; b.floorArea ??= null; b.assessBuilding ??= null; b.assessYear ??= null; b.valuationBasis ??= '';
     if (!Array.isArray(b.listings)) b.listings = []; if (!Array.isArray(b.transactions)) b.transactions = []; if (!Array.isArray(b.migrationNotes)) b.migrationNotes = [];
     if (b.parcelIds) { for (const pid of b.parcelIds) st.legacy.parcelLinks.push({ buildingId: b.id, buildingReg: b.reg, parcelId: pid }); delete b.parcelIds; } delete b.parcelRegs;
     b.status = summaryStatus(b);
@@ -2115,7 +2124,7 @@ function ensureV3(st) {
   for (const t of st.tracks) { const d = newTrack({ meta: { gseq: {} } }); for (const k of Object.keys(d)) if (t[k] === undefined) t[k] = k === 'reg' ? '' : d[k]; }
   for (const l of st.lines) { const d = newLine({ meta: { gseq: {} }, lines: [] }); for (const k of Object.keys(d)) if (l[k] === undefined) l[k] = k === 'reg' ? '' : d[k]; for (const k of ['trackIds', 'roadIds', 'stopIds']) if (!Array.isArray(l[k])) l[k] = []; }
   for (const s of st.stations) { const d = newStation({ meta: { gseq: {} } }); for (const k of Object.keys(d)) if (s[k] === undefined) s[k] = k === 'reg' ? '' : d[k]; }
-  for (const z of st.businesses) { const d = newBusiness({ meta: { gseq: {} } }); for (const k of Object.keys(d)) if (z[k] === undefined) z[k] = k === 'reg' ? '' : d[k]; for (const k of ['aliases', 'locations', 'revenue', 'listings', 'tags']) if (!Array.isArray(z[k])) z[k] = []; }
+  for (const z of st.businesses) { const d = newBusiness({ meta: { gseq: {} } }); for (const k of Object.keys(d)) if (z[k] === undefined) z[k] = k === 'reg' ? '' : d[k]; for (const k of ['aliases', 'locations', 'revenue', 'listings', 'tags', 'marketQuotes']) if (!Array.isArray(z[k])) z[k] = []; }
   for (const t of st.tenancies) { t.role ??= 'tenant'; t.unit ??= ''; t.yearFrom ??= null; t.halfFrom ??= ''; t.yearTo ??= null; t.halfTo ??= ''; t.current = t.current ?? (t.yearTo == null); t.notes ??= ''; }
   syncSequences(st);
   // missing global numbers (records created by older imports)
@@ -2250,7 +2259,7 @@ const undatedOf = rows => ({ built: rows.filter(b => isActive(b) && !isUnderWay(
    One master file is the lossless record. Export-only conveniences (names, linked
    numbers, photo paths) ride along and are stripped on import.                      */
 const cityWide = a => !a.districtId;
-const EXPORT_README = 'Registry 2.5 master file. ids are authoritative; every field named *Name, *Reg(s), district, neighborhood, region, imageFile, generations and relations[].reg/name is a read-only convenience derived on export and ignored on import. regions[] (union › state / federal district › city › region) hold districts[] (boroughs) which hold neighborhoods[]; borders are polygons[] of [x,z] Minecraft coordinates. buildings[]: physical (planned · construction · standing · closed · vacant-lot · demolished), market (for-sale · for-lease · sold · leased), landmark; status is the legacy single-value summary kept in sync; dates are year + half (E = Jan–Jun, L = Jul–Dec, empty = half unknown) with *Approx flags; yearStarted / yearExpected / yearBuilt / yearDemolished are distinct; relations[] link what replaced what; roadId is the serving road. roads[], tracks[] (physical rails), lines[] (services over tracks, with stopIds), stations[], businesses[] + tenancies[] (owner · tenant · developer · operator per building and period), archive[] (chronicle: dated screenshots with descriptions), news (fetched articles, decisions, change log), legacy (archived parcels from 2.0). imageFile is the photo path inside the vault folder.';
+const EXPORT_README = 'Registry 2.5 master file. ids are authoritative; every field named *Name, *Reg(s), district, neighborhood, region, imageFile, generations and relations[].reg/name is a read-only convenience derived on export and ignored on import. regions[] (union › state / federal district › city › region) hold districts[] (boroughs) which hold neighborhoods[]; borders are polygons[] of [x,z] Minecraft coordinates. buildings[]: physical (planned · construction · standing · closed · vacant-lot · demolished), market (for-sale · for-lease · sold · leased), landmark; status is the legacy single-value summary kept in sync; dates are year + half (E = Jan–Jun, L = Jul–Dec, empty = half unknown) with *Approx flags; yearStarted / yearExpected / yearBuilt / yearDemolished are distinct; relations[] link what replaced what; roadId is the serving road (roadIdSource says whether it was set by hand, by a street-name match or from a proximity suggestion). roads[], tracks[] (physical rails), lines[] (services over tracks, with stopIds), stations[], businesses[] + tenancies[] (owner · tenant · developer · operator per building and period; marketQuotes[] are simulated prices from the site market, never revenue), archive[] (chronicle: dated screenshots with descriptions), news (fetched articles, decisions, change log), legacy (archived parcels from 2.0). imageFile is the photo path inside the vault folder.';
 function exportBuilding(b) {
   const d = districtById(b.districtId), h = hoodById(b.neighborhoodId), r = b.roadId ? roadById(b.roadId) : null;
   return { ...b, status: summaryStatus(b), district: d?.name || null, neighborhood: h?.name || null, region: d?.parentId ? regionById(d.parentId)?.name || null : null, imageFile: b.image ? `images/${b.id}.jpg` : null, roadName: r?.name || null,
@@ -2960,9 +2969,9 @@ function openSearchHit(hit, { map = UI.nav === 'map' } = {}) {
 }
 
 /* ---- hovercards for anything with data-hover="<buildingId>" or data-hover="kind:id" ---- */
-const HOVER = { id: null, timer: null };
-function showHover(key, x, y) {
-  const el = $('#hover'); let html = null;
+const HOVER = { id: null, timer: null, hy: null };
+function showHover(key, x, y, opts = {}) {
+  const el = $('#hover'); let html = null; HOVER.hy = opts.hy ?? null;
   if (key.includes(':')) {
     const [kind, id] = key.split(':');
     if (kind === 'road') { const r = roadById(id); if (!r) return; html = `<div class="b"><div class="reg" style="color:var(--road)">${esc(r.reg)} · ${esc(ROAD_TYPE_LABEL[r.type] || r.type).toUpperCase()}</div><div class="addr">${esc(r.name || 'Unnamed road')}</div>${r.aliases?.length ? `<div class="nm">also ${esc(r.aliases.join(', '))}</div>` : ''}<div class="meta"><span>Length <b>${fmtInt(polyLength(r.geometry))} blk</b></span><span>Width <b>${esc(r.width ?? '—')}</b></span><span>Grade <b>${esc(GRADE_LABEL[r.grade] || r.grade)}</b></span><span>Buildings <b>${buildingsOnRoad(r).length}</b></span></div></div>`; }
@@ -2972,7 +2981,8 @@ function showHover(key, x, y) {
     if (!html) return;
   } else {
     const b = byId(key); if (!b) return; const d = districtById(b.districtId); const url = imgUrl(key, 'full'); const h = isHist(b); const ph = physicalOf(b.physical);
-    html = `<div class="img">${url ? `<img src="${url}" alt="">` : icon(h ? 'hist' : 'img')}</div><div class="b">
+    const at = opts.hy != null ? (() => { const st = stateAtHY(b, opts.hy, { projection: !!opts.projection }); const { year, half } = hyFromIndex(opts.hy); const lbl = { standing: b.physical === 'vacant-lot' && isActive(b) ? 'vacant lot' : 'standing', construction: b.physical === 'planned' && isActive(b) ? 'planned' : 'under construction', gone: 'demolished' + (b.yearDemolished != null ? ' ' + hyLabel(b.yearDemolished, b.halfDemolished) : ''), future: 'not yet built', undated: 'undated' }[st] || st; return `<div class="at ${st}">AT ${esc(hyLabel(year, half).toUpperCase())} · ${esc(lbl.toUpperCase())}</div>`; })() : '';
+    html = `<div class="img">${url ? `<img src="${url}" alt="">` : icon(h ? 'hist' : 'img')}</div><div class="b">${at}
       <div class="reg ${h ? 'reg-h' : ''}">${esc(b.reg)} · <span style="color:${distColor(d)}">${esc(d?.name || '')}</span>${h ? ' · <span class="reg-h">DEMOLISHED</span>' : ''}</div>
       <div class="addr">${esc(titleOf(b))}</div>${b.name && addressOf(b) ? `<div class="nm">${esc(b.name)}</div>` : ''}
       <div class="meta">
@@ -2989,7 +2999,7 @@ function positionHover(x, y) {
   if (left + w > innerWidth - 12) left = x - w - 18; if (top + h > innerHeight - 12) top = innerHeight - h - 12;
   el.style.left = left + 'px'; el.style.top = Math.max(8, top) + 'px';
 }
-function hideHover() { clearTimeout(HOVER.timer); HOVER.id = null; $('#hover')?.classList.remove('on'); }
+function hideHover() { clearTimeout(HOVER.timer); HOVER.id = null; HOVER.hy = null; $('#hover')?.classList.remove('on'); }
 document.addEventListener('pointerover', e => {
   const t = e.target.closest?.('[data-hover]'); if (!t) return;
   const id = t.dataset.hover; if (HOVER.id === id) return;
@@ -3292,31 +3302,61 @@ function roadJunctions(roads = S.roads) {
   return out;
 }
 const roadConnections = (r, js = roadJunctions()) => js.filter(j => (j.a === r.id || j.b === r.id) && j.kind !== 'separated');
-/* nearest roads to a building, with the reasons — never equates proximity with an entrance */
+/* ---- street names: a building whose street text names a road is served by that road (name beats proximity) ---- */
+const STREET_ABBR = { st: 'street', str: 'street', ave: 'avenue', av: 'avenue', blvd: 'boulevard', bld: 'boulevard', pkwy: 'parkway', pky: 'parkway', rd: 'road', dr: 'drive', ln: 'lane', pl: 'place', sq: 'square', ter: 'terrace', terr: 'terrace', ct: 'court', hwy: 'highway', expy: 'expressway', brg: 'bridge', w: 'west', e: 'east', n: 'north', s: 'south', mt: 'mount', ft: 'fort', '1st': 'first', '2nd': 'second', '3rd': 'third', '4th': 'fourth', '5th': 'fifth', '6th': 'sixth', '7th': 'seventh', '8th': 'eighth', '9th': 'ninth', '10th': 'tenth' };
+function normStreet(s) { return norm(String(s || '').replace(/\./g, ' ')).split(' ').filter(Boolean).map(w => STREET_ABBR[w] || w).join(' '); }
+const roadNamesOf = r => [r.name, ...(r.aliases || []), ...(r.formerNames || [])].map(normStreet).filter(Boolean);
+/* the street a building says it is on: the street field, or the street part of an address-shaped name ("1493 Mill Street") */
+function buildingStreetText(b) { if (b.street && b.street.trim()) return b.street.trim(); const m = /^\s*\d+[a-z]?\s+(.+)$/i.exec(b.name || ''); return m ? m[1].trim() : ''; }
+function roadMatchesStreet(r, streetText) { const q = normStreet(streetText); if (!q) return false; return roadNamesOf(r).includes(q); }
+const roadsNamedLike = streetText => S.roads.filter(r => roadMatchesStreet(r, streetText));
+/* buildings that name this road and could be linked to it: unlinked ones, and ones whose current link was itself automatic (never a link set by hand) */
+function nameLinkCandidates(r) {
+  const out = { link: [], manualElsewhere: [], already: [] };
+  for (const b of S.buildings) { if (!isActive(b)) continue; const st = buildingStreetText(b); if (!st || !roadMatchesStreet(r, st)) continue; if (b.roadId === r.id) { out.already.push(b); continue; } if (b.roadId && roadById(b.roadId) && (b.roadIdSource || 'manual') === 'manual') { out.manualElsewhere.push(b); continue; } out.link.push(b); }
+  return out;
+}
+/* link every candidate of a road by name; returns an undo function and what changed */
+function linkByName(r, buildings = nameLinkCandidates(r).link) {
+  const prev = buildings.map(b => ({ id: b.id, roadId: b.roadId ?? null, src: b.roadIdSource ?? null }));
+  for (const b of buildings) { b.roadId = r.id; b.roadIdSource = 'name'; b.updated = now(); }
+  const undo = () => { for (const p of prev) { const b = byId(p.id); if (!b) continue; b.roadId = p.roadId; b.roadIdSource = p.src; b.updated = now(); } };
+  return { linked: buildings.length, undo };
+}
+/* every road at once: the bulk action in the Streets panel */
+function linkAllByName() {
+  const changes = []; const undos = []; let total = 0;
+  for (const r of S.roads) { const c = nameLinkCandidates(r); if (!c.link.length) continue; const res = linkByName(r, c.link); undos.push(res.undo); total += res.linked; changes.push({ road: r, n: res.linked }); }
+  return { total, changes, undo: () => { for (const u of undos.reverse()) u(); } };
+}
+/* nearest roads to a building, with the reasons — never equates proximity with an entrance; a street-name match outranks distance */
 function roadSuggest(b, { limit = 4 } = {}) {
   const ent = b.entrance && b.entrance.x != null && b.entrance.z != null ? [b.entrance.x, b.entrance.z] : null;
   const pt = ent || (b.x != null && b.z != null ? [b.x, b.z] : null);
-  if (!pt) return { pt: null, basis: 'none', items: [], checked: S.roads.length };
+  const streetText = buildingStreetText(b); const named = streetText ? roadsNamedLike(streetText) : [];
+  if (!pt) { const items = named.filter(r => r.geometry?.length >= 2).slice(0, limit).map((r, i) => ({ road: r, d: Infinity, edgeD: Infinity, q: null, flags: [], penalty: 0, current: b.roadId === r.id, nameMatch: true, kind: i === 0 ? 'best' : 'alt', corner: false })); return { pt: null, basis: 'name', items, checked: S.roads.length, streetText }; }
   const basis = ent ? 'entrance' : 'center'; const items = [];
   for (const r of S.roads) {
     if (!r.geometry || r.geometry.length < 2) continue; const c = polylineClosest(pt, r.geometry); if (!c) continue;
-    const flags = []; let penalty = 0; const g = r.grade || 'surface';
+    const flags = []; let penalty = 0; const g = r.grade || 'surface'; const nameMatch = named.includes(r); if (nameMatch) flags.push(`named on the record (“${streetText}”)`);
     if (g === 'tunnel') { flags.push('tunnel — not reachable from the surface here'); penalty += 10000; }
     if (g === 'elevated' || g === 'bridge') { flags.push(`${(GRADE_LABEL[g] || g).toLowerCase()} — grade-separated, reachable only at its ramps or ends`); penalty += 250; }
     if (r.direction === 'restricted') { flags.push('restricted access'); penalty += 120; }
     if (r.direction === 'pedestrian') flags.push('pedestrian only');
     if (r.yearClosed != null) { flags.push(`closed ${hyLabel(r.yearClosed, r.halfClosed)}`); penalty += 600; }
     const edgeD = Math.max(0, c.d - (num(r.width) || 5) / 2);
-    items.push({ road: r, d: c.d, edgeD, q: c.q, flags, penalty, current: b.roadId === r.id });
+    items.push({ road: r, d: c.d, edgeD, q: c.q, flags, penalty, current: b.roadId === r.id, nameMatch });
   }
-  items.sort((a, b) => (a.d + a.penalty) - (b.d + b.penalty));
+  items.sort((a, b) => (b.nameMatch - a.nameMatch) || ((a.d + a.penalty) - (b.d + b.penalty)));
   const best = items[0]; const out = items.slice(0, limit);
-  for (const it of out) { it.kind = it === best ? 'best' : 'alt'; it.corner = !!best && it !== best && it.d < best.d * 1.6 + 6 && !it.penalty; }
-  return { pt, basis, items: out, checked: S.roads.length };
+  for (const it of out) { it.kind = it === best ? 'best' : 'alt'; it.corner = !!best && it !== best && it.d < best.d * 1.6 + 6 && !it.penalty && !best.nameMatch; }
+  return { pt, basis: best?.nameMatch ? 'name' : basis, items: out, checked: S.roads.length, streetText };
 }
 function roadSuggestReason(it, basis) {
+  if (it.d === Infinity) return `The record names this street (“${it.flags[0] || 'name match'}”); the building has no coordinates, so distance is unknown.`;
   const parts = [`${Math.round(it.d)} block${Math.round(it.d) === 1 ? '' : 's'} from the building ${basis === 'entrance' ? 'entrance' : 'centre'} to the centreline (${Math.round(it.edgeD)} to its edge)`];
-  if (basis === 'center') parts.push('proximity only — no entrance is recorded, so the closest point is not necessarily a usable entrance');
+  if (it.nameMatch) parts.unshift('the street name on the record matches this road — a name match outranks distance');
+  if (basis === 'center' && !it.nameMatch) parts.push('proximity only — no entrance is recorded, so the closest point is not necessarily a usable entrance');
   if (it.corner) parts.push('corner building — this road is almost as close as the first');
   if (it.flags.length) parts.push(it.flags.join(' · '));
   return parts.join('. ') + '.';
@@ -4283,7 +4323,7 @@ function readFormInto(b, strict = true) {
   b.number = g('number').trim(); b.street = g('street').trim(); b.name = g('name').trim();
   b.x = num(g('x')); b.z = num(g('z'));
   const ex = num(g('ex')), ez = num(g('ez')); b.entrance = ex != null && ez != null ? { x: ex, z: ez } : null;
-  b.roadId = g('road') || null;
+  { const rid = g('road') || null; if (rid !== (b.roadId || null)) b.roadIdSource = rid ? 'manual' : null; b.roadId = rid; }
   b.bldgClass = g('class').trim().toUpperCase(); b.taxClass = g('tax') || suggestTaxClass(b.bldgClass);
   b.zoning = g('zoning').trim().toUpperCase(); b.overlay = g('overlay'); b.special = g('special').trim();
   b.physical = g('physical') || 'standing'; b.market = g('market') || ''; b.landmark = !!$('#f-landmark')?.checked;
@@ -4757,6 +4797,7 @@ function renderBizRecord(z) {
     ${kids.length ? `<div class="secthead">BRANCHES & SUBSIDIARIES <span class="muted" style="letter-spacing:0;font-weight:400">· revenue is not double-counted when the parent reports</span></div><div class="rowlist">${kids.map(k => `<div class="r link" data-open="business:${k.id}" data-hover="business:${k.id}"><div><div class="t">${esc(bizLabel(k))}</div><div class="s">${esc(BIZ_STATUS[k.status]?.label || k.status)} · ${tenanciesOf(k).length} location${tenanciesOf(k).length === 1 ? '' : 's'}</div></div><div class="v" style="color:var(--ink-2)">${esc(k.reg)}</div></div>`).join('')}</div>` : ''}
     <div class="secthead">REVENUE <span class="acts"><button class="btn sm" data-act="rev-add">${icon('plus')} Add period</button></span></div>
     ${rv.length ? `<div style="margin:10px 20px 0">${sparklineHTML(rv)}</div><div class="rowlist">${rv.slice().reverse().map(r => `<div class="r inform"><div><div class="t">${esc(hyLabel(r.year, r.half))} <span class="mk ${BASIS[r.basis]?.tone || ''}">${esc(BASIS[r.basis]?.label || r.basis || 'recorded').toUpperCase()}</span></div><div class="s">${r.source ? esc(r.source) : 'no source'}${r.note ? ' · ' + esc(truncate(r.note, 60)) : ''}</div></div><div class="v">${fmtCur(num(r.amount), r.currency)}<small>${r.currency === 'EMR' ? 'emeralds' : 'USD'}</small></div><button class="x" data-act="rev-remove" data-id="${r.id}" title="Remove">×</button></div>`).join('')}</div>${latest ? `<div class="desc-line" style="margin:8px 20px 0">Latest: ${fmtCur(num(latest.amount), latest.currency)} for ${esc(hyLabel(latest.year, latest.half))} (${esc(BASIS[latest.basis]?.label || 'recorded')}). Revenue is never inferred from property assessments or the site's simulated share prices.</div>` : ''}` : `<div class="notes" style="font-size:12.5px;color:var(--ink-3)">Revenue unknown. Record a period when you have a figure, and say whether it is recorded, estimated or simulated — nothing here is inferred from assessments or share prices.</div>`}
+    ${(z.marketQuotes || []).length ? (() => { const q = z.marketQuotes[z.marketQuotes.length - 1]; return `<div class="secthead">MARKET QUOTE <span class="muted" style="letter-spacing:0;font-weight:400">· simulated by the site · not revenue</span></div><div class="rowlist"><div class="r"><div><div class="t"><span class="mk">SIMULATED</span>${esc(z.ticker || bizLabel(z))}</div><div class="s">${fmtDate(q.at)}${q.source ? ' · ' + esc(q.source) : ''} · ${z.marketQuotes.length} quote${z.marketQuotes.length === 1 ? '' : 's'} on file</div></div><div class="v">${fmtCur(num(q.price), q.currency)}${q.change != null ? `<small>${q.change >= 0 ? '+' : ''}${esc(q.change)}</small>` : ''}</div></div></div>`; })() : ''}
     <div class="secthead">LISTINGS <span class="acts"><button class="btn sm" data-act="bizlisting-add">${icon('plus')} Add listing</button></span></div>
     ${(z.listings || []).length ? `<div class="rowlist">${z.listings.map(l => `<div class="r inform"><div><div class="t"><span class="mk good">${l.kind === 'lease' ? 'FOR LEASE' : 'FOR SALE'}</span>${esc(l.what || 'the business')}${l.status ? `<span class="muted">· ${esc(l.status)}</span>` : ''}</div><div class="s">${l.year != null ? 'listed ' + esc(hyLabel(l.year, l.half)) : 'undated'}${l.available ? ' · available ' + esc(l.available) : ''}${l.note ? ' · ' + esc(truncate(l.note, 60)) : ''}</div></div><div class="v">${fmtCur(num(l.price), l.currency)}</div><button class="x" data-act="bizlisting-remove" data-id="${l.id}">×</button></div>`).join('')}</div>` : `<div class="notes" style="font-size:12.5px;color:var(--ink-3)">No sale or lease listing. Exchange listing status is separate (ticker above).</div>`}
     ${near.length ? `<div class="secthead">NEARBY TRANSIT</div><div class="chips">${near.map(({ s, d }) => `<span class="rchip" data-open="station:${s.id}" data-hover="station:${s.id}"><span class="k">${Math.round(d)} BLK</span><b style="color:var(--transit)">${esc(s.name || s.reg)}</b><span class="t">${linesAtStation(s).map(l => esc(l.shortName || l.name)).join(', ')}</span></span>`).join('')}</div>` : ''}
@@ -4894,6 +4935,7 @@ function saveOtherDrawer() {
   else { const i = coll.findIndex(x => x.id === d.id); const prev = coll[i]; if (DR.kind === 'road' && prev.name !== d.name && prev.name) toast(`Renamed — “${prev.name}” kept as a former name`, 'good'); else toast('Saved', 'good'); coll[i] = d; }
   commit(); DR.mode = 'view'; DR.isNew = false; DR.draft = null; UI.selected = d.id;
   renderView(false); renderDrawer();
+  if (DR.kind === 'road') offerNameLinks(d);
 }
 async function deleteOther(kind, id) {
   const rec = recordById(kind, id); if (!rec) return; const label = kind === 'road' ? roadLabel(rec) : kind === 'line' ? lineLabel(rec) : kind === 'business' ? bizLabel(rec) : (rec.name || rec.reg);
@@ -5130,6 +5172,7 @@ async function openDataModal() {
         <div class="dcard" style="grid-column:span 2">
           <h4>MAP ASSISTANT — OPTIONAL AI PROVIDER</h4>
           <p>Search, deterministic suggestions and every map action work without this. Turning it on lets the assistant send your question (and a compact summary of matching records) to an OpenAI-compatible chat endpoint; its answer can only trigger the same validated actions you can click yourself. The key is kept in this browser's storage only — it is <b>never</b> written to Registry.json, backups or exports.</p>
+          <div class="f" style="margin:0 0 10px"><label>Markets endpoint <span class="hint">the site's markets JSON (companies, tickers, simulated prices) — read only</span></label><input id="markets-url" value="${esc(S.settings.marketsUrl || APP.marketsUrl)}" placeholder="${esc(APP.marketsUrl)}"></div>
           <div class="settings-row"><div><div>Use an AI provider</div><div class="d">${AI_KEY_PRESENT ? 'A key is stored in this browser.' : 'No key stored.'}</div></div><label class="switch"><input type="checkbox" data-set="aiEnabled" ${S.settings.ai?.enabled ? 'checked' : ''}></label></div>
           <div class="frow c3" style="margin-top:8px">
             <div class="f"><label>Endpoint</label><input id="ai-endpoint" value="${esc(S.settings.ai?.endpoint || '')}" placeholder="https://api.openai.com/v1/chat/completions"></div>
@@ -5147,6 +5190,7 @@ async function openDataModal() {
         if (k === 'compact') S.settings.density = cb.checked ? 'compact' : 'comfortable'; else if (k === 'fabricYear') S.settings.fabricYear = +cb.value; else if (k === 'aiEnabled') S.settings.ai.enabled = cb.checked; else S.settings[k] = cb.checked;
         applySettings(); commit({ silentRender: true }); if (k === 'fabricYear') renderView(false); if (k === 'compatFile') toast(cb.checked ? 'NewA.json will be written alongside Registry.json' : 'Only Registry.json will be written from now on', '');
       }));
+      m.querySelector('#markets-url')?.addEventListener('change', e => { S.settings.marketsUrl = e.target.value.trim(); commit({ silentRender: true }); });
       m.querySelector('#ai-endpoint').addEventListener('change', e => { S.settings.ai.endpoint = e.target.value.trim(); commit({ silentRender: true }); });
       m.querySelector('#ai-model').addEventListener('change', e => { S.settings.ai.model = e.target.value.trim(); commit({ silentRender: true }); });
       m.querySelector('#ai-key-save').onclick = async () => { const v = m.querySelector('#ai-key').value.trim(); if (!v) { toast('Paste a key first', 'warn'); return; } await idbPut('handles', 'aiKey', v); m.querySelector('#ai-key').value = ''; AI_KEY_PRESENT = true; toast('Key stored in this browser only — never exported', 'good'); };
@@ -5546,6 +5590,9 @@ function dotColor(b) {
   return distMark(districtById(b.districtId));
 }
 const easeOut = t => 1 - Math.pow(1 - clamp(t, 0, 1), 3);
+/* a ghost lingers for GHOST_HALF_YEARS after the demolition and fades out over that time; the "all ghosts" variant keeps it faintly */
+const GHOST_HALF_YEARS = 2;
+function ghostAlpha(ageHalfYears, all = false) { if (all) return ageHalfYears <= GHOST_HALF_YEARS ? 1 : 0.55; if (ageHalfYears < 0) return 0; return clamp(1 - ageHalfYears / (GHOST_HALF_YEARS + 1), 0, 1); }
 function drawScene(R) {
   const { ctx, W, H, cam } = R; const k = cam.k; const P = projFor(cam, W, H); const L = R.layers; const hy = R.hy; const sel = R.sel, hov = R.hover;
   const anim = R.anim || null;      // { from, to, t } for playback transitions
@@ -5641,7 +5688,10 @@ function drawScene(R) {
         }
       }
       if (hy != null && (state === 'future' || state === 'undated')) continue;
-      if (state === 'gone') { if (hy == null && !L.historical) continue; ctx.beginPath(); ctx.arc(x, y, r0 + 1, 0, Math.PI * 2); ctx.setLineDash([2, 2]); ctx.strokeStyle = hexA('#FF7A59', .85 * alpha); ctx.lineWidth = 1.5; ctx.stroke(); ctx.setLineDash([]); ctx.beginPath(); ctx.moveTo(x - 3, y - 3); ctx.lineTo(x + 3, y + 3); ctx.moveTo(x + 3, y - 3); ctx.lineTo(x - 3, y + 3); ctx.strokeStyle = hexA('#FF7A59', .8 * alpha); ctx.lineWidth = 1; ctx.stroke(); if (ring) { ctx.beginPath(); ctx.arc(x, y, r0 + ring, 0, Math.PI * 2); ctx.strokeStyle = hexA('#FF7A59', (1 - ring / 12) * .8); ctx.lineWidth = 1.5; ctx.stroke(); } }
+      if (state === 'gone') {
+        if (!L.historical) continue;
+        if (hy != null) { const di = demolishedIndex(b); const cur = anim && anim.t < 1 ? anim.from + (anim.to - anim.from) * easeOut(anim.t) : hy; const g = ghostAlpha(di == null ? 0 : cur - di, !!L.ghostsAll); if (g <= 0) continue; alpha *= g; }
+        ctx.beginPath(); ctx.arc(x, y, r0 + 1, 0, Math.PI * 2); ctx.setLineDash([2, 2]); ctx.strokeStyle = hexA('#FF7A59', .85 * alpha); ctx.lineWidth = 1.5; ctx.stroke(); ctx.setLineDash([]); ctx.beginPath(); ctx.moveTo(x - 3, y - 3); ctx.lineTo(x + 3, y + 3); ctx.moveTo(x + 3, y - 3); ctx.lineTo(x - 3, y + 3); ctx.strokeStyle = hexA('#FF7A59', .8 * alpha); ctx.lineWidth = 1; ctx.stroke(); if (ring) { ctx.beginPath(); ctx.arc(x, y, r0 + ring, 0, Math.PI * 2); ctx.strokeStyle = hexA('#FF7A59', (1 - ring / 12) * .8); ctx.lineWidth = 1.5; ctx.stroke(); } }
       else if (state === 'construction') { ctx.beginPath(); ctx.arc(x, y, Math.max(1, r), 0, Math.PI * 2); ctx.fillStyle = hexA('#FFD166', .25 * alpha); ctx.fill(); ctx.setLineDash([3, 2]); ctx.strokeStyle = hexA('#FFD166', .95 * alpha); ctx.lineWidth = 1.6; ctx.stroke(); ctx.setLineDash([]); }
       else { ctx.beginPath(); ctx.arc(x, y, Math.max(0.5, r), 0, Math.PI * 2); ctx.fillStyle = hexA(hy != null && b.physical === 'vacant-lot' ? '#6F8494' : dotColor(b), alpha); ctx.fill(); ctx.lineWidth = 2; ctx.strokeStyle = '#05090D'; ctx.stroke(); if (b.landmark && k > 1.2) { ctx.fillStyle = hexA('#E7C36A', alpha); ctx.font = `${Math.max(8, r * 1.4)}px sans-serif`; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillText('✦', x, y + 0.5); } }
       if (ring && state !== 'gone') { ctx.beginPath(); ctx.arc(x, y, r0 + ring, 0, Math.PI * 2); ctx.strokeStyle = hexA('#4FE3FF', .9 * (1 - ring / 14)); ctx.lineWidth = 1.5; ctx.stroke(); }
@@ -5732,6 +5782,7 @@ function renderInspector() {
     <div class="frow c3" style="margin-top:10px"><div class="f"><label>Type</label>${selF('insp-type', ROAD_TYPES, r.type)}</div><div class="f"><label>Grade</label>${selF('insp-grade', GRADES, r.grade)}</div><div class="f"><label>Width</label>${numF('insp-width', r.width, 'min="1" step="1"')}</div></div>
     <div class="frow" style="margin-top:8px"><div class="f"><label>Access</label>${selF('insp-direction', DIRECTIONS, r.direction)}</div><div class="f"><label>Opened</label><div class="hy dock-hy">${`<select id="f-insp-opened-h" title="Half of the year">${HALVES.map(h => `<option value="${h.id}" ${(r.halfOpened || '') === h.id ? 'selected' : ''}>${h.short || 'Any half'}</option>`).join('')}</select><input id="f-insp-opened-y" type="number" value="${esc(r.yearOpened ?? '')}" placeholder="year" min="1990" max="2200">`}</div></div></div>
     <div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:10px"><button class="btn sm primary" data-act="insp-save-road">${icon('check')} Save</button><button class="btn sm" data-act="insp-extend" data-end="end">${icon('draw')} Extend end</button><button class="btn sm" data-act="insp-extend" data-end="start">${icon('draw')} Extend start</button><button class="btn sm" data-act="insp-split" ${sel.vertex != null && sel.vertex > 0 && sel.vertex < r.geometry.length - 1 ? '' : 'disabled title="Select an inner vertex to split there"'}>Split here</button><button class="btn sm" data-act="insp-join">Join with…</button><button class="btn sm danger" data-act="insp-delete">${icon('trash')}</button></div>
+    ${nameLinkHTML(r)}
     <div class="secthead">CHECKS</div>${issuesHTML(issues.filter(i => !i.summary), { max: 5 })}<div class="desc-line" style="margin-top:6px">${esc(issues.find(i => i.summary)?.text || '')}</div>
     ${js.length ? `<div class="secthead">CONNECTED TO</div><div class="chips" style="margin:8px 0 0">${[...new Set(js.map(j => j.a === r.id ? j.b : j.a))].map(id => roadById(id)).filter(Boolean).map(o => `<span class="rchip" data-act="insp-select" data-kind="road" data-id="${o.id}" role="button"><span class="k">${js.find(j => j.a === o.id || j.b === o.id)?.kind === 'joins' ? 'JOINS' : 'CROSSES'}</span><span class="t">${esc(roadLabel(o))}</span></span>`).join('')}</div>` : ''}
     ${vertexEditorHTML(sel)}`;
@@ -5813,7 +5864,8 @@ function renderStreetsPanel() {
   if (q) roads = roads.map(r => ({ r, s: Math.max(fuzzyScore(q, r.name), fuzzyScore(q, r.reg), ...(r.aliases || []).map(a => fuzzyScore(q, a)), ...(r.formerNames || []).map(a => fuzzyScore(q, a) * .9)) })).filter(x => x.s >= 0.3).sort((a, b) => b.s - a.s).map(x => x.r); else roads.sort((a, b) => roadLabel(a).localeCompare(roadLabel(b)));
   return `<div class="search" style="height:34px;max-width:none">${icon('search')}<input id="streets-q" placeholder="Search streets, aliases, former names…" value="${esc(MAPW.streetsQ)}" autocomplete="off"></div>
   <div class="toolbar" style="margin:10px 0 6px"><label class="switch" style="font-size:12px"><input type="checkbox" id="streets-all" ${MAPW.streetsAll ? 'checked' : ''}> all jurisdictions</label><span class="spacer"></span><span class="count">${roads.length} road${roads.length === 1 ? '' : 's'}</span><button class="btn sm primary" data-act="insp-new-road">${icon('plus')} New road</button></div>
-  <div class="streets">${roads.length ? roads.map(r => { const bs = buildingsOnRoad(r).length; const biz = new Set(buildingsOnRoad(r).flatMap(b => currentTenanciesAt(b).map(t => t.businessId))).size; return `<div class="sr ${MAPW.sel?.kind === 'road' && MAPW.sel.id === r.id ? 'sel' : ''}" data-act="insp-select" data-kind="road" data-id="${r.id}" data-hover="road:${r.id}"><div><div class="t">${esc(roadLabel(r))}<span class="reg">${esc(r.reg)}</span>${r.aliases?.length ? `<span class="alias">aka ${esc(r.aliases.join(', '))}</span>` : ''}${r.formerNames?.length ? `<span class="alias">formerly ${esc(r.formerNames.join(', '))}</span>` : ''}</div><div class="s">${esc(ROAD_TYPE_LABEL[r.type] || r.type)} · ${esc(GRADE_LABEL[r.grade] || r.grade)} · ${roadJurisdictions(r).map(d => esc(d.name)).join(', ') || 'no jurisdiction'}</div></div><div class="m">${fmtInt(polyLength(r.geometry))} blk<br>${bs} bldg${biz ? ` · ${biz} biz` : ''}</div></div>`; }).join('') : `<div class="dock-empty">${S.roads.length ? 'No street matches.' : 'No roads yet — press <kbd>D</kbd> and click along the street to draw the first one.'}</div>`}</div>`;
+  ${(() => { const n = S.roads.reduce((a, r) => a + nameLinkCandidates(r).link.length, 0); return n ? `<div class="callout info" style="margin:0 0 8px;padding:8px 10px"><b>${n} building${n === 1 ? '' : 's'}</b> name a street that is on the map but are not linked to it. <div class="acts"><button class="btn sm primary" data-act="link-all-by-name">${icon('link')} Link ${n} by street name</button></div></div>` : ''; })()}
+  <div class="streets">${roads.length ? roads.map(r => { const bs = buildingsOnRoad(r).length; const biz = new Set(buildingsOnRoad(r).flatMap(b => currentTenanciesAt(b).map(t => t.businessId))).size; return `<div class="sr ${MAPW.sel?.kind === 'road' && MAPW.sel.id === r.id ? 'sel' : ''}" data-act="insp-select" data-kind="road" data-id="${r.id}" data-hover="road:${r.id}"><div><div class="t">${esc(roadLabel(r))}<span class="reg">${esc(r.reg)}</span>${r.aliases?.length ? `<span class="alias">aka ${esc(r.aliases.join(', '))}</span>` : ''}${r.formerNames?.length ? `<span class="alias">formerly ${esc(r.formerNames.join(', '))}</span>` : ''}</div><div class="s">${esc(ROAD_TYPE_LABEL[r.type] || r.type)} · ${esc(GRADE_LABEL[r.grade] || r.grade)} · ${roadJurisdictions(r).map(d => esc(d.name)).join(', ') || 'no jurisdiction'}</div></div><div class="m">${fmtInt(polyLength(r.geometry))} blk<br>${bs} bldg${biz ? ` · ${biz} biz` : ''}${(() => { const n = nameLinkCandidates(r).link.length; return n ? `<br><button class="rowlink" data-act="link-by-name" data-id="${r.id}" title="Link the ${n} building${n === 1 ? '' : 's'} whose street field names this road" style="font:inherit">+${n} by name</button>` : ''; })()}</div></div>`; }).join('') : `<div class="dock-empty">${S.roads.length ? 'No street matches.' : 'No roads yet — press <kbd>D</kbd> and click along the street to draw the first one.'}</div>`}</div>`;
 }
 function wireDock() {
   const body = $('#dock-body'); if (!body) return;
@@ -5846,9 +5898,9 @@ function inspectorAction(act, t) {
     case 'insp-footprint': { if (!sel) break; MAPW.pending = { kind: 'footprint', buildingId: sel.id, label: `Trace the outline of ${byId(sel.id)?.reg || 'the building'}`, resume: () => { MAPW.sel = sel; renderDock(); } }; setMapMode('footprint', { pending: MAPW.pending }); break; }
     case 'insp-footprint-clear': { const b = byId(sel.id); if (b) { mapPushUndo(); b.footprint = null; b.updated = now(); commit(); renderDock(); mapDraw(); } break; }
     case 'insp-move-district': { const b = byId(sel.id); const d = districtById(t.dataset.district); if (b && d) { confirmDialog({ title: `Move ${b.reg} to ${d.name}?`, body: `<p>The record moves to <b>${esc(d.name)}</b> and receives a new number in that series; <code>${esc(b.reg)}</code> stays on file as a former number. Coordinates are not changed.</p>`, ok: 'Move record' }).then(r => { if (r !== 'ok') return; b.formerRegs = [...(b.formerRegs || []), b.reg]; b.districtId = d.id; b.neighborhoodId = null; b.reg = isHist(b) ? nextHistReg(S, d.id) : nextReg(S, d.id); b.updated = now(); commit(); renderDock(); mapDraw(); toast(`Moved to ${d.name} as ${b.reg}`, 'good'); }); } break; }
-    case 'insp-road-apply': { const b = byId(sel.id); if (b) { b.roadId = t.dataset.id; b.updated = now(); commit(); renderDock(); mapDraw(); toast(`${b.reg} now served by ${roadLabel(roadById(t.dataset.id))}`, 'good'); } break; }
-    case 'insp-road-clear': { const b = byId(sel.id); if (b) { b.roadId = null; b.updated = now(); commit(); renderDock(); mapDraw(); } break; }
-    case 'insp-save-road': { const r = roadById(sel.id); if (!r) break; const name = $('#insp-name').value.trim(); if (r.name && name && name !== r.name && !(r.formerNames || []).includes(r.name)) r.formerNames = [...(r.formerNames || []), r.name]; r.name = name; r.type = $('#f-insp-type').value; r.grade = $('#f-insp-grade').value; r.width = num($('#f-insp-width').value); r.direction = $('#f-insp-direction').value; const y = num($('#f-insp-opened-y').value); r.yearOpened = y; r.halfOpened = y != null && ['E', 'L'].includes($('#f-insp-opened-h').value) ? $('#f-insp-opened-h').value : ''; r.updated = now(); JUNCTION_CACHE.key = ''; commit(); renderDock(); mapDraw(); toast('Road saved', 'good'); break; }
+    case 'insp-road-apply': { const b = byId(sel.id); if (b) { b.roadId = t.dataset.id; b.roadIdSource = 'manual'; b.updated = now(); commit(); renderDock(); mapDraw(); toast(`${b.reg} now served by ${roadLabel(roadById(t.dataset.id))}`, 'good'); } break; }
+    case 'insp-road-clear': { const b = byId(sel.id); if (b) { b.roadId = null; b.roadIdSource = null; b.updated = now(); commit(); renderDock(); mapDraw(); } break; }
+    case 'insp-save-road': { const r = roadById(sel.id); if (!r) break; const name = $('#insp-name').value.trim(); if (r.name && name && name !== r.name && !(r.formerNames || []).includes(r.name)) r.formerNames = [...(r.formerNames || []), r.name]; r.name = name; r.type = $('#f-insp-type').value; r.grade = $('#f-insp-grade').value; r.width = num($('#f-insp-width').value); r.direction = $('#f-insp-direction').value; const y = num($('#f-insp-opened-y').value); r.yearOpened = y; r.halfOpened = y != null && ['E', 'L'].includes($('#f-insp-opened-h').value) ? $('#f-insp-opened-h').value : ''; r.updated = now(); JUNCTION_CACHE.key = ''; commit(); renderDock(); mapDraw(); toast('Road saved', 'good'); offerNameLinks(r); break; }
     case 'insp-save-line': { const l = lineById(sel.id); if (!l) break; l.name = $('#insp-name').value.trim(); l.shortName = $('#f-insp-short').value.trim(); l.mode = $('#f-insp-mode').value; l.status = $('#f-insp-status').value; for (const tr of lineTracks(l)) tr.mode = l.mode; l.updated = now(); commit(); renderDock(); mapDraw(); toast('Line saved', 'good'); break; }
     case 'insp-save-station': { const s = stationById(sel.id); if (!s) break; s.name = $('#insp-name').value.trim(); s.kind = $('#f-insp-kind').value; s.status = $('#f-insp-status').value; const x = num($('#f-insp-x').value), z = num($('#f-insp-z').value); if (x != null && z != null) { mapPushUndo(); s.x = x; s.z = z; s.districtId = placeSuggest(x, z).districts[0]?.d.id || null; } s.updated = now(); commit(); renderDock(); mapDraw(); toast('Station saved', 'good'); break; }
     case 'insp-extend': { if (sel?.kind === 'road') { const r = roadById(sel.id); const fromStart = t.dataset.end === 'start'; MAPW.draft = { kind: 'polyline', pts: [fromStart ? r.geometry[0] : r.geometry[r.geometry.length - 1]], cursor: null, forKind: 'road', extend: { kind: 'road', id: r.id }, prepend: fromStart }; setMapMode('road', { keepDraft: true }); } else if (sel?.kind === 'line') { const l = lineById(sel.id); const tr = lineTracks(l)[0]; if (!tr) { toast('This line has no track yet — draw one with Add track', 'warn'); break; } MAPW.draft = { kind: 'polyline', pts: [tr.geometry[tr.geometry.length - 1]], cursor: null, forKind: 'transit', extend: { kind: 'track', id: tr.id }, lineId: l.id }; setMapMode('transit', { keepDraft: true }); } break; }
@@ -5862,6 +5914,26 @@ function inspectorAction(act, t) {
     case 'insp-new-road': setMapMode('road'); break;
   }
 }
+/* ---- street-name links: bulk action, offers after naming a road, undo ---- */
+function nameLinkHTML(r) {
+  const c = nameLinkCandidates(r); if (!c.link.length && !c.manualElsewhere.length && !c.already.length) return '';
+  return `<div class="secthead">BY STREET NAME <span class="muted" style="letter-spacing:0;font-weight:400">· ${esc(roadLabel(r))}</span></div>
+  ${c.link.length ? `<div class="callout info" style="margin-top:8px;padding:8px 10px"><b>${c.link.length}</b> building${c.link.length === 1 ? '' : 's'} name this street but ${c.link.length === 1 ? 'is' : 'are'} not linked to it: ${c.link.slice(0, 6).map(b => `<span class="where" data-act="insp-select" data-kind="building" data-id="${b.id}">${esc(b.reg)}</span>`).join('')}${c.link.length > 6 ? '…' : ''}<div class="acts"><button class="btn sm primary" data-act="link-by-name" data-id="${r.id}">${icon('link')} Link ${c.link.length} building${c.link.length === 1 ? '' : 's'} on ${esc(roadLabel(r))}</button></div></div>` : ''}
+  ${c.manualElsewhere.length ? `<div class="desc-line" style="margin-top:6px">${c.manualElsewhere.length} name${c.manualElsewhere.length === 1 ? 's' : ''} this street but ${c.manualElsewhere.length === 1 ? 'was' : 'were'} linked to another road by hand — left as set: ${c.manualElsewhere.slice(0, 4).map(b => `<span class="where" data-act="insp-select" data-kind="building" data-id="${b.id}">${esc(b.reg)}</span>`).join('')}</div>` : ''}
+  ${c.already.length && !c.link.length ? `<div class="desc-line" style="margin-top:6px">${c.already.length} building${c.already.length === 1 ? '' : 's'} linked by name.</div>` : ''}`;
+}
+function linkRoadByNameFlow(r) {
+  const c = nameLinkCandidates(r); if (!c.link.length) { toast('Nothing to link by name', ''); return; }
+  const res = linkByName(r, c.link); commit(); renderDock(); mapDraw(); if (DR.id) renderDrawer();
+  toast(`${res.linked} building${res.linked === 1 ? '' : 's'} linked to ${roadLabel(r)} by street name${c.manualElsewhere.length ? ` · ${c.manualElsewhere.length} hand-set link${c.manualElsewhere.length === 1 ? '' : 's'} left alone` : ''}`, 'good', { label: 'UNDO', fn: () => { res.undo(); commit(); renderDock(); mapDraw(); if (DR.id) renderDrawer(); toast('Street-name links undone', 'warn'); } });
+}
+function linkAllByNameFlow() {
+  const res = linkAllByName(); if (!res.total) { toast('Every building that names a mapped street is already linked', ''); return; }
+  commit(); renderDock(); mapDraw(); if (DR.id) renderDrawer();
+  toast(`${res.total} building${res.total === 1 ? '' : 's'} linked by street name across ${res.changes.length} road${res.changes.length === 1 ? '' : 's'}`, 'good', { label: 'UNDO', fn: () => { res.undo(); commit(); renderDock(); mapDraw(); if (DR.id) renderDrawer(); toast('Street-name links undone', 'warn'); } });
+}
+/* after a road is created or renamed: offer the matching unlinked buildings, never link silently */
+function offerNameLinks(r) { if (!r?.name) return; const n = nameLinkCandidates(r).link.length; if (n) toast(`${n} building${n === 1 ? '' : 's'} name${n === 1 ? 's' : ''} ${r.name} — link ${n === 1 ? 'it' : 'them'}?`, '', { label: `LINK ${n}`, fn: () => linkRoadByNameFlow(r) }); }
 /* station move via pending */
 function mapStationClick(raw) { const pend = MAPW.pending; if (pend?.kind === 'move-station') { const s = stationById(pend.id); if (s) { mapPushUndo(); const p = roundPt(snapPoint(raw).p); s.x = p[0]; s.z = p[1]; s.districtId = placeSuggest(p[0], p[1]).districts[0]?.d.id || null; s.updated = now(); commit(); } MAPW.pending = null; MAPW.sel = { kind: 'station', id: pend.id }; setMapMode('select'); renderDock(); mapDraw(); toast('Station moved', 'good'); return true; } return false; }
 /* flows that come from elsewhere (drawer buttons, modals, add menu) */
@@ -5963,17 +6035,17 @@ function renderPlaybackSection(rows) {
 /* ============ the animated viewer ============ */
 const HV = { open: false, i: 0, from: 0, to: 0, t: 1, playing: false, speed: 1, lastTick: 0, raf: null, cam: { x: 0, z: 0, k: 1 }, w: 0, h: 0, canvas: null, ctx: null, projection: false, refOverlay: false, follow: false, full: false, list: true, layers: null, rows: [], i1: 0, drag: null, dockFit: true, lastEventsKey: '' };
 function openHistoryViewer({ index = 0, year = null, half = null } = {}) {
-  HV.rows = scopeBuildings(); HV.layers = HV.layers || { regions: true, districts: true, hoods: false, roads: true, transit: true, stations: true, buildings: true, footprints: true, businesses: false, labels: false, grid: false, historical: true };
+  HV.rows = scopeBuildings(); HV.layers = HV.layers || { regions: true, districts: true, hoods: false, roads: true, transit: true, stations: true, buildings: true, footprints: true, businesses: false, labels: false, grid: false, historical: true, ghostsAll: false };
   const { i1 } = hyRange(HV.rows, { projection: HV.projection }); HV.i1 = i1;
   let i = year != null ? clamp(hyIndex(year, half || 'E'), 0, i1) : clamp(index, 0, i1);
-  HV.i = HV.from = HV.to = i; HV.t = 1; HV.playing = false; HV.open = true;
+  HV.i = HV.from = HV.to = i; HV.t = 1; HV.playing = false; HV.open = true; document.body.classList.add('hv-open');
   const root = $('#hv-root'); root.hidden = false; root.classList.toggle('full', HV.full);
   root.innerHTML = hvHTML(); HV.canvas = $('#hv-canvas'); HV.ctx = HV.canvas.getContext('2d');
   hvResize(); const ext = scopeExtent(); if (ext) { const pad = 50; HV.cam.k = clamp(Math.min((HV.w - pad * 2) / Math.max(120, ext.x2 - ext.x1), (HV.h - pad * 2) / Math.max(120, ext.z2 - ext.z1)), 0.02, 10); HV.cam.x = (ext.x1 + ext.x2) / 2; HV.cam.z = (ext.z1 + ext.z2) / 2; }
   hvWire(); hvUpdateChrome(); hvDraw();
   if (!HV.resizeBound) { window.addEventListener('resize', () => { if (HV.open) { hvResize(); hvDraw(); } }); HV.resizeBound = true; }
 }
-function closeHistoryViewer() { hvPause(); HV.open = false; const root = $('#hv-root'); root.hidden = true; root.innerHTML = ''; }
+function closeHistoryViewer() { hvPause(); hideHover(); HV.open = false; document.body.classList.remove('hv-open'); const root = $('#hv-root'); root.hidden = true; root.innerHTML = ''; }
 function hvHTML() {
   const i1 = HV.i1; const eras = ERAS.filter(e => hyIndex(e.from, 'E') <= i1).map(e => { const a = hyIndex(e.from, 'E'), b = Math.min(i1 + 1, hyIndex(e.to, 'E')); return `<span data-era="${a}" style="flex:${Math.max(1, b - a)} 0 0">${esc(e.name.toUpperCase())}</span>`; }).join('');
   const ticks = []; for (let y = FOUNDED_YEAR; y <= hyFromIndex(i1).year; y++) ticks.push(`<span data-i="${hyIndex(y, 'E')}">${(hyFromIndex(i1).year - FOUNDED_YEAR) > 14 && (y - FOUNDED_YEAR) % 2 ? '' : y}</span>`);
@@ -5985,7 +6057,7 @@ function hvHTML() {
       <div class="hv-stage" id="hv-stage"><canvas id="hv-canvas"></canvas>
         <div class="hv-date" id="hv-date"></div>
         <div class="hv-counts" id="hv-counts"></div>
-        <div class="hv-layers">${[['districts', 'Borders'], ['hoods', 'Neighborhoods'], ['roads', 'Roads'], ['transit', 'Transit'], ['historical', 'Ghosts'], ['labels', 'Labels'], ['grid', 'Grid']].map(([k, l]) => `<button class="crumb" data-hvlayer="${k}" aria-pressed="${!!L[k]}">${l}</button>`).join('')}</div>
+        <div class="hv-layers">${[['districts', 'Borders'], ['hoods', 'Neighborhoods'], ['roads', 'Roads'], ['transit', 'Transit'], ['historical', 'Ghosts', 'A demolished building lingers as a ghost for about a year, then fades out'], ['ghostsAll', 'All ghosts', 'Keep every ghost on the map after its demolition'], ['labels', 'Labels'], ['grid', 'Grid']].map(([k, l, tip]) => `<button class="crumb" data-hvlayer="${k}" aria-pressed="${!!L[k]}" ${tip ? `title="${esc(tip)}"` : ''}>${l}</button>`).join('')}</div>
         <div class="hv-note" id="hv-note"></div>
       </div>
       <aside class="hv-side"><div class="sh"><span>WHAT CHANGED</span><span class="note" id="hv-ev-note"></span></div><div class="evlist" id="hv-events"></div><div class="chron" id="hv-chron"></div></aside>
@@ -6007,7 +6079,11 @@ function hvResize() { const c = HV.canvas; if (!c) return; const r = c.parentEle
 function hvWire() {
   const c = HV.canvas;
   c.addEventListener('pointerdown', e => { c.setPointerCapture(e.pointerId); HV.drag = { sx: e.offsetX, sy: e.offsetY, cx: HV.cam.x, cz: HV.cam.z, moved: false }; $('#hv-stage').classList.add('panning'); });
-  c.addEventListener('pointermove', e => { if (!HV.drag) { const hit = hvHit(e.offsetX, e.offsetY); c.style.cursor = hit ? 'pointer' : ''; return; } const dx = e.offsetX - HV.drag.sx, dy = e.offsetY - HV.drag.sy; if (Math.abs(dx) + Math.abs(dy) > 3) HV.drag.moved = true; HV.cam.x = HV.drag.cx - dx / HV.cam.k; HV.cam.z = HV.drag.cz - dy / HV.cam.k; hvDraw(); });
+  c.addEventListener('pointermove', e => {
+    if (!HV.drag) { const hit = hvHit(e.offsetX, e.offsetY); c.style.cursor = hit ? 'pointer' : ''; if (hit) { if (HOVER.id !== hit.id || HOVER.hy !== HV.to) showHover(hit.id, e.clientX, e.clientY, { hy: HV.to, projection: HV.projection }); else positionHover(e.clientX, e.clientY); } else hideHover(); return; }
+    hideHover(); const dx = e.offsetX - HV.drag.sx, dy = e.offsetY - HV.drag.sy; if (Math.abs(dx) + Math.abs(dy) > 3) HV.drag.moved = true; HV.cam.x = HV.drag.cx - dx / HV.cam.k; HV.cam.z = HV.drag.cz - dy / HV.cam.k; hvDraw();
+  });
+  c.addEventListener('pointerleave', hideHover);
   c.addEventListener('pointerup', e => { const d = HV.drag; HV.drag = null; $('#hv-stage').classList.remove('panning'); if (d && !d.moved) { const hit = hvHit(e.offsetX, e.offsetY); if (hit) { hvPause(); openBuilding(hit.id); } } });
   c.addEventListener('wheel', e => { e.preventDefault(); const f = Math.exp(-e.deltaY * 0.0015); const P = projFor(HV.cam, HV.w, HV.h); const [wx, wz] = P.w(e.offsetX, e.offsetY); HV.cam.k = clamp(HV.cam.k * f, 0.02, 40); const P2 = projFor(HV.cam, HV.w, HV.h); const [nx, nz] = P2.w(e.offsetX, e.offsetY); HV.cam.x += wx - nx; HV.cam.z += wz - nz; hvDraw(); }, { passive: false });
   $('#hv-range').addEventListener('input', e => { hvPause(); hvSet(+e.target.value, { instant: true }); });
@@ -6388,7 +6464,7 @@ function renderBusinesses() {
   return `
   <section class="dhead" style="margin-bottom:14px">
     <div><div class="code biz"><i></i>BUSINESSES · ${esc(scopeName().toUpperCase())} · ${all.length} ON FILE · ${operating.length} OPERATING</div><h2>Businesses</h2><p>Who owns, rents, develops and operates the buildings — kept as separate roles with their own dates. Listings, tickers and revenue stay distinct, and revenue is only ever what was recorded, estimated or simulated — never inferred from assessments or share prices.</p></div>
-    <div class="stats"><button class="btn sm" data-act="export-biz-csv">${icon('down')} CSV</button>${ownerNames ? `<button class="btn sm" data-act="biz-from-owners" title="Create business records from the owner names already typed on buildings — you review the list first">${icon('spark')} From owner names · ${ownerNames}</button>` : ''}<button class="btn sm primary" data-act="new-business">${icon('plus')} Add business</button></div>
+    <div class="stats"><button class="btn sm" data-act="export-biz-csv">${icon('down')} CSV</button><button class="btn sm" data-act="markets-refresh" title="Read the New A site's markets section and propose business records into the inbox (nothing is created without your click)">${icon('news')} From the site's markets</button>${ownerNames ? `<button class="btn sm" data-act="biz-from-owners" title="Create business records from the owner names already typed on buildings — you review the list first">${icon('spark')} From owner names · ${ownerNames}</button>` : ''}<button class="btn sm primary" data-act="new-business">${icon('plus')} Add business</button></div>
   </section>
   <section class="tiles">
     ${tile('OPERATING', `<span class="count" data-to="${operating.length}">0</span>`, `${all.filter(z => z.status === 'closed').length} closed · ${all.filter(z => z.status === 'relocated').length} relocated · ${all.filter(z => z.status === 'planned').length} planned`, 'biz')}
@@ -6413,7 +6489,7 @@ function renderBusinesses() {
     <span class="spacer"></span><span class="count">${rows.length}${rows.length !== all.length ? ` of ${all.length}` : ''} businesses</span>
   </div>
   ${rows.length ? `<div class="panel hud" style="padding:0"><div class="bizrows">${rows.map(z => { const ts = tenanciesOf(z); const cur = ts.filter(t => t.current); const rv = latestRevenue(z); const st = BIZ_STATUS[z.status] || BIZ_STATUS.open; const u = imgUrl(z.id); const parent = z.parentId ? bizById(z.parentId) : null; return `<div class="bz" data-open="business:${z.id}" data-hover="business:${z.id}"><div class="lg">${u ? `<img src="${u}" alt="">` : esc((z.name || '?').slice(0, 2).toUpperCase())}</div><div><div class="nm">${esc(bizLabel(z))}<small>${esc(z.reg)}${z.category ? ' · ' + esc(z.category) : ''}${parent ? ' · part of ' + esc(bizLabel(parent)) : ''}</small>${z.ticker ? `<span class="ticker">${esc(z.ticker)}</span>` : ''}</div><div class="s"><span><b>${cur.length}</b> location${cur.length === 1 ? '' : 's'}${ts.length > cur.length ? ` · ${ts.length - cur.length} former` : ''}</span><span>${[...new Set(cur.map(t => ROLE_LABEL[t.role] || t.role))].map(esc).join(' · ') || 'no building linked'}</span>${z.yearOpened != null ? `<span>since <b>${esc(hyLabel(z.yearOpened, z.halfOpened, z.yearOpenedApprox))}</b></span>` : ''}${bizDistrictIds(z).size ? `<span>${[...bizDistrictIds(z)].map(id => esc(districtById(id)?.name || '')).join(', ')}</span>` : ''}</div></div><div class="rv">${rv ? `${fmtCur(num(rv.amount), rv.currency)}<small>${esc(hyLabel(rv.year, rv.half) || rv.year)} · ${esc(BASIS[rv.basis]?.label || 'recorded')}</small>` : '<span class="muted">revenue unknown</span>'}</div><span class="status ${st.tone}"><i>●</i>${st.label}</span></div>`; }).join('')}</div></div>`
-    : `<div class="panel empty"><b>${S.businesses.length ? 'No business matches' : 'No businesses yet'}</b>${S.businesses.length ? 'Try clearing the filters, or include all jurisdictions.' : `Add the first business, or create records from the owner names already typed on your buildings${ownerNames ? ` (${ownerNames} distinct names found)` : ''}.`}<br><button class="btn primary" data-act="new-business">${icon('plus')} Add business</button>${ownerNames ? ` <button class="btn" data-act="biz-from-owners">${icon('spark')} Create from owner names</button>` : ''}</div>`}`;
+    : `<div class="panel empty"><b>${S.businesses.length ? 'No business matches' : 'No businesses yet'}</b>${S.businesses.length ? 'Try clearing the filters, or include all jurisdictions.' : `Add the first business, or create records from the owner names already typed on your buildings${ownerNames ? ` (${ownerNames} distinct names found)` : ''}.`}<br><button class="btn primary" data-act="new-business">${icon('plus')} Add business</button> <button class="btn" data-act="markets-refresh">${icon('news')} Propose from the site's markets</button>${ownerNames ? ` <button class="btn" data-act="biz-from-owners">${icon('spark')} Create from owner names</button>` : ''}</div>`}`;
 }
 /* owner text on buildings → candidate business records (reviewed before anything is created; never a brand in a building name) */
 function ownerNameCandidates() {
@@ -6552,8 +6628,9 @@ function extractCandidates(item) {
   for (const c of out) if (c.kind !== 'mention') c.conflict = candidateConflict(c);
   return out;
 }
-function candidateEntity(c) { return c.entityKind === 'building' ? byId(c.entityId) : c.entityKind === 'business' ? bizById(c.entityId) : c.entityKind === 'line' ? lineById(c.entityId) : c.entityKind === 'station' ? stationById(c.entityId) : c.entityKind === 'region' ? regionById(c.entityId) : districtById(c.entityId); }
+function candidateEntity(c) { if (c.create && !c.entityId) return null; return c.entityKind === 'building' ? byId(c.entityId) : c.entityKind === 'business' ? bizById(c.entityId) : c.entityKind === 'line' ? lineById(c.entityId) : c.entityKind === 'station' ? stationById(c.entityId) : c.entityKind === 'region' ? regionById(c.entityId) : districtById(c.entityId); }
 function candidateConflict(c) {
+  if (c.create && !c.entityId) { const dup = S.businesses.find(z => (c.create.ticker && z.ticker && z.ticker.toUpperCase() === c.create.ticker.toUpperCase()) || norm(z.name) === norm(c.create.name) || (z.aliases || []).some(a => norm(a) === norm(c.create.name))); return dup ? 'already' : null; }
   const rec = candidateEntity(c); if (!rec) return 'The record no longer exists.';
   const same = Object.entries(c.after || {}).every(([k, v]) => k === 'notes' || k === 'transactions' ? false : JSON.stringify(rec[k] ?? null) === JSON.stringify(v ?? null));
   if (same) return 'already';
@@ -6563,6 +6640,12 @@ function candidateConflict(c) {
   return null;
 }
 function applyCandidate(c, { auto = false } = {}) {
+  if (c.create && !c.entityId) {
+    if (c.entityKind !== 'business') { toast('Only business records can be created from a proposal', 'warn'); return false; }
+    const z = newBusiness(S); Object.assign(z, c.create, { id: z.id, reg: z.reg, created: now(), updated: now() }); S.businesses.push(z);
+    const log = { id: uid('nl'), at: now(), candId: c.id, kind: c.kind, entityKind: 'business', entityId: z.id, label: c.label, before: null, after: c.create, created: z.id, source: { guid: c.itemGuid, link: c.link, title: c.title, published: c.published }, auto };
+    S.news.log.unshift(log); S.news.decisions[c.id] = { status: 'applied', at: now(), logId: log.id, auto, createdId: z.id }; commit(); return true;
+  }
   const rec = candidateEntity(c); if (!rec) { toast('Record not found', 'warn'); return false; }
   const before = {}; for (const k of Object.keys(c.after || {})) before[k] = JSON.parse(JSON.stringify(rec[k] ?? null));
   for (const [k, v] of Object.entries(c.after || {})) rec[k] = JSON.parse(JSON.stringify(v));
@@ -6573,6 +6656,11 @@ function applyCandidate(c, { auto = false } = {}) {
 }
 function undoLog(logId) {
   const log = S.news.log.find(l => l.id === logId); if (!log || log.undone) return;
+  if (log.created) {
+    const z = bizById(log.created); if (!z) { toast('The created record is already gone', 'warn'); return; }
+    if (tenanciesOf(z).length || (z.revenue || []).length || childBusinesses(z).length) { toast('The business has been worked on since (locations, revenue or branches) — not removed; delete it by hand if you mean to', 'warn'); return; }
+    S.businesses = S.businesses.filter(x => x.id !== z.id); log.undone = now(); S.news.decisions[log.candId] = { status: 'undone', at: now(), logId }; commit(); toast(`${bizLabel(z)} removed again — the proposal stays in the inbox`, 'good'); return;
+  }
   const rec = candidateEntity({ entityKind: log.entityKind, entityId: log.entityId }); if (!rec) { toast('Record not found', 'warn'); return; }
   const stillApplied = Object.entries(log.after || {}).every(([k, v]) => JSON.stringify(rec[k] ?? null) === JSON.stringify(v ?? null));
   if (!stillApplied) { toast('The record changed since this was applied — not undone, review it by hand', 'warn'); return; }
@@ -6596,17 +6684,18 @@ function openNewsInbox() {
   const pending = newsPendingCount(); const err = S.news.lastError;
   const candHTML = (c, it) => {
     const dec = S.news.decisions[c.id]; const rec = candidateEntity(c); const conflict = c.conflict && c.conflict !== 'already' ? c.conflict : null; const already = c.conflict === 'already';
-    const kindLabel = { completion: 'COMPLETION', partial: 'PARTIAL · NOTE', start: 'CONSTRUCTION START', demolition: 'DEMOLITION', landmark: 'LANDMARK', listing: 'LISTING / SALE', 'biz-open': 'BUSINESS OPENS', 'biz-close': 'BUSINESS CLOSES', transit: 'TRANSIT OPENING', jurisdiction: 'JURISDICTION', mention: 'MENTION' }[c.kind] || c.kind.toUpperCase();
-    const diff = Object.entries(c.after || {}).filter(([k]) => k !== 'transactions').map(([k, v]) => `<span><span class="muted">${esc(k)}</span> <span class="before">${esc(String((c.before || {})[k] ?? '—'))}</span><span class="arr">→</span><span class="after">${esc(String(v ?? '—'))}</span></span>`).join('');
+    const kindLabel = { completion: 'COMPLETION', partial: 'PARTIAL · NOTE', start: 'CONSTRUCTION START', demolition: 'DEMOLITION', landmark: 'LANDMARK', listing: 'LISTING / SALE', 'biz-open': 'BUSINESS OPENS', 'biz-close': 'BUSINESS CLOSES', 'biz-new': 'NEW BUSINESS · MARKET', 'biz-market': 'MARKET UPDATE', transit: 'TRANSIT OPENING', jurisdiction: 'JURISDICTION', mention: 'MENTION' }[c.kind] || c.kind.toUpperCase();
+    const fmtV = v => v == null ? '—' : Array.isArray(v) ? (v.length ? v.map(x => typeof x === 'object' && x ? Object.entries(x).filter(([k]) => !['id', 'at'].includes(k)).map(([k, y]) => `${k} ${y}`).join(' ') : String(x)).join('; ') : '—') : typeof v === 'object' ? JSON.stringify(v) : String(v);
+    const diff = c.create && !c.entityId ? Object.entries(c.create).filter(([k, v]) => v != null && v !== '' && !(Array.isArray(v) && !v.length) && !['source', 'sourceType', 'confidence'].includes(k)).map(([k, v]) => `<span><span class="muted">${esc(k)}</span> <span class="after">${esc(fmtV(v))}</span></span>`).join('') : Object.entries(c.after || {}).filter(([k]) => k !== 'transactions').map(([k, v]) => `<span><span class="muted">${esc(k)}</span> <span class="before">${esc(fmtV((c.before || {})[k]))}</span><span class="arr">→</span><span class="after">${esc(fmtV(v))}</span></span>`).join('');
     const openAttr = c.entityKind === 'building' ? `data-open="${c.entityId}"` : ['business', 'line', 'station'].includes(c.entityKind) ? `data-open="${c.entityKind}:${c.entityId}"` : '';
-    return `<div class="cand"><div><div class="ct"><span class="kind ${dec?.status === 'applied' ? 'applied' : dec?.status === 'rejected' || dec?.status === 'undone' ? 'rejected' : conflict ? 'conflict' : c.kind === 'mention' ? 'mention' : ''}">${kindLabel}</span><b ${openAttr} style="${openAttr ? 'cursor:pointer' : ''}">${esc(c.label)}</b>${!rec ? '<span class="mk bad">RECORD GONE</span>' : ''}${c.eventYear ? `<span class="mk">${esc(hyLabel(c.eventYear, c.eventHalf))}${c.dateFromText ? '' : ' · from publication date'}</span>` : ''}</div>${c.kind !== 'mention' ? `<div class="diff">${diff}</div>` : ''}<div class="ev"><q>${esc(c.excerpt)}</q></div>${c.note ? `<div class="why">${esc(c.note)}</div>` : ''}${conflict ? `<div class="why">⚠ ${esc(conflict)}</div>` : ''}${already ? `<div class="why" style="color:var(--ink-3)">Already matches the record — nothing to apply.</div>` : ''}</div>
-      <div class="acts">${c.kind === 'mention' ? '<span class="done">no change proposed</span>' : dec?.status === 'applied' ? `<span class="done">applied ${fmtDay(dec.at)}${dec.auto ? ' · by rule' : ''}</span><button class="btn sm" data-act="news-undo" data-log="${dec.logId}">${icon('undo')} Undo</button>` : dec?.status === 'rejected' ? `<span class="done">rejected</span><button class="btn sm ghost" data-act="news-reopen" data-cand="${c.id}">Reopen</button>` : dec?.status === 'undone' ? `<span class="done">undone</span><button class="btn sm ghost" data-act="news-reopen" data-cand="${c.id}">Reopen</button>` : already ? `<button class="btn sm ghost" data-act="news-reject" data-cand="${c.id}">Dismiss</button>` : `<button class="btn sm primary" data-act="news-apply" data-cand="${c.id}" ${rec ? '' : 'disabled'}>${icon('check')} Apply</button><button class="btn sm ghost" data-act="news-reject" data-cand="${c.id}">Reject</button>`}</div></div>`;
+    return `<div class="cand"><div><div class="ct"><span class="kind ${dec?.status === 'applied' ? 'applied' : dec?.status === 'rejected' || dec?.status === 'undone' ? 'rejected' : conflict ? 'conflict' : c.kind === 'mention' ? 'mention' : ''}">${kindLabel}</span><b ${openAttr} style="${openAttr ? 'cursor:pointer' : ''}">${esc(c.label)}</b>${!rec && !(c.create && !c.entityId) ? '<span class="mk bad">RECORD GONE</span>' : ''}${c.basis === 'simulated' ? '<span class="mk" title="Prices from the site are a simulation — never recorded revenue">SIMULATED</span>' : ''}${c.eventYear ? `<span class="mk">${esc(hyLabel(c.eventYear, c.eventHalf))}${c.dateFromText ? '' : ' · from publication date'}</span>` : ''}</div>${c.kind !== 'mention' ? `<div class="diff">${diff}</div>` : ''}<div class="ev"><q>${esc(c.excerpt)}</q></div>${c.note ? `<div class="why">${esc(c.note)}</div>` : ''}${conflict ? `<div class="why">⚠ ${esc(conflict)}</div>` : ''}${already ? `<div class="why" style="color:var(--ink-3)">Already matches the record — nothing to apply.</div>` : ''}</div>
+      <div class="acts">${c.kind === 'mention' ? '<span class="done">no change proposed</span>' : dec?.status === 'applied' ? `<span class="done">applied ${fmtDay(dec.at)}${dec.auto ? ' · by rule' : ''}</span><button class="btn sm" data-act="news-undo" data-log="${dec.logId}">${icon('undo')} Undo</button>` : dec?.status === 'rejected' ? `<span class="done">rejected</span><button class="btn sm ghost" data-act="news-reopen" data-cand="${c.id}">Reopen</button>` : dec?.status === 'undone' ? `<span class="done">undone</span><button class="btn sm ghost" data-act="news-reopen" data-cand="${c.id}">Reopen</button>` : already ? `<button class="btn sm ghost" data-act="news-reject" data-cand="${c.id}">Dismiss</button>` : `<button class="btn sm primary" data-act="news-apply" data-cand="${c.id}" ${rec || (c.create && !c.entityId) ? '' : 'disabled'}>${icon('check')} ${c.create && !c.entityId ? 'Create' : 'Apply'}</button><button class="btn sm ghost" data-act="news-reject" data-cand="${c.id}">Reject</button>`}</div></div>`;
   };
   const shown = items.filter(it => NEWS.filter === 'all' || (it.candidates || []).some(c => c.kind !== 'mention' && !S.news.decisions[c.id]));
   openModal({ title: 'Updates inbox', kicker: `NEWS · ${pending} PENDING`, cls: 'wide',
     body: `<div id="news-inbox">
-      <div class="news-src"><span>source <b>${esc(APP.feedUrl)}</b></span><span>·</span><span>${S.news.lastSync ? `last sync <b>${fmtDate(S.news.lastSync)}</b>${S.news.lastSource ? ` from ${esc(S.news.lastSource)}` : ''}` : 'never synced'}</span><span>·</span><span>${S.news.items.length} articles · ${S.news.log.length} applied changes</span>${err ? `<span class="err">· ${esc(err.message)}</span>` : ''}</div>
-      <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:10px;align-items:center"><button class="btn primary" id="news-refresh" data-act="news-refresh">${icon('news')} Refresh news</button><button class="btn" data-act="news-import">${icon('up')} Import feed file…</button>${VAULT.status === 'granted' ? `<button class="btn" data-act="news-vault">${icon('folder')} Read feed.xml from vault</button>` : ''}<label class="field" style="height:32px"><span>While open</span><select data-set-news="newsRefreshMin"><option value="0" ${!+S.settings.newsRefreshMin ? 'selected' : ''}>manual only</option>${[5, 15, 60].map(m => `<option value="${m}" ${+S.settings.newsRefreshMin === m ? 'selected' : ''}>every ${m} min</option>`).join('')}</select></label><a class="btn ghost" href="${esc(APP.newsSite)}" target="_blank" rel="noopener">${icon('globe')} Open the site</a><span class="spacer"></span><div class="seg" style="height:30px"><button data-newsf="pending" aria-pressed="${NEWS.filter === 'pending'}">Pending</button><button data-newsf="all" aria-pressed="${NEWS.filter === 'all'}">All articles</button><button data-newsf="log" aria-pressed="${NEWS.filter === 'log'}">Log</button></div></div>
+      <div class="news-src"><span>source <b>${esc(APP.feedUrl)}</b></span><span>·</span><span>${S.news.lastSync ? `last sync <b>${fmtDate(S.news.lastSync)}</b>${S.news.lastSource ? ` from ${esc(S.news.lastSource)}` : ''}` : 'never synced'}</span><span>·</span><span>${S.news.items.filter(i => i.source !== 'markets').length} articles · ${S.news.items.filter(i => i.source === 'markets').length} market snapshots · ${S.news.log.length} applied changes</span>${err ? `<span class="err">· ${esc(err.message)}</span>` : ''}${S.news.marketsError ? `<span class="err">· markets: ${esc(S.news.marketsError.message)}</span>` : ''}</div>
+      <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:10px;align-items:center"><button class="btn primary" id="news-refresh" data-act="news-refresh">${icon('news')} Refresh news</button><button class="btn" data-act="news-import">${icon('up')} Import feed file…</button>${VAULT.status === 'granted' ? `<button class="btn" data-act="news-vault">${icon('folder')} Read feed.xml from vault</button>` : ''}<span class="muted" style="font-family:var(--font-mono);font-size:11px">· markets</span><button class="btn" data-act="markets-refresh" title="Read the site's markets section (companies, tickers, simulated prices) and propose business records">${icon('biz')} Sync markets</button><button class="btn" data-act="markets-import">${icon('up')} Import markets file…</button>${VAULT.status === 'granted' ? `<button class="btn" data-act="markets-vault">${icon('folder')} markets.json from vault</button>` : ''}<label class="field" style="height:32px"><span>While open</span><select data-set-news="newsRefreshMin"><option value="0" ${!+S.settings.newsRefreshMin ? 'selected' : ''}>manual only</option>${[5, 15, 60].map(m => `<option value="${m}" ${+S.settings.newsRefreshMin === m ? 'selected' : ''}>every ${m} min</option>`).join('')}</select></label><a class="btn ghost" href="${esc(APP.newsSite)}" target="_blank" rel="noopener">${icon('globe')} Open the site</a><span class="spacer"></span><div class="seg" style="height:30px"><button data-newsf="pending" aria-pressed="${NEWS.filter === 'pending'}">Pending</button><button data-newsf="all" aria-pressed="${NEWS.filter === 'all'}">All articles</button><button data-newsf="log" aria-pressed="${NEWS.filter === 'log'}">Log</button></div></div>
       ${err?.cors ? `<div class="callout" style="margin-top:12px"><b>Why the live refresh failed.</b> A page opened from a file can only read a website when that site allows it (a CORS header). The site's <code>/feed.xml</code> did not allow it, or you are offline. A standalone HTML file also cannot sync in the background — refresh only works while this app is open. Options: <b>Import feed file</b> (download <code>feed.xml</code> from the site and pick it), drop <code>feed.xml</code> into the vault folder and <b>Read from vault</b>, or add <code>Access-Control-Allow-Origin: *</code> to <code>/feed.xml</code> on the site (one line in <code>vercel.json</code> or <code>next.config.js</code> headers) and live refresh will work from here. Nothing is ever posted to the site from this app.</div>` : ''}
       <div class="callout info" style="margin-top:12px"><b>How proposals are made.</b> Each article is matched to records by name or alias; sentences mentioning a record are checked for plain-language patterns (completed, broke ground, demolished, landmark, sold, opens, closes, joins the Union). Every proposal shows the exact sentence, the before/after values and any conflict: verified records, records edited after publication, and completion reports about demolished buildings are flagged, never applied silently. “Topped out” or “exterior complete” becomes a note, not a completion. The site also reads this registry and runs a simulated market, so its own restatements of your data are never treated as confirmation, and share-price chatter never becomes revenue or a physical change.</div>
       <div class="settings-row" style="margin-top:6px"><div><div>Rules — apply automatically when clearly sourced and unambiguous</div><div class="d">Only proposals with a date in the text, a unique match and no conflict. Everything is logged and reversible.</div></div><div style="display:flex;gap:14px"><label class="switch" style="font-size:12px"><input type="checkbox" data-set-rule="landmark" ${S.news.rules.landmark ? 'checked' : ''}> landmark</label><label class="switch" style="font-size:12px"><input type="checkbox" data-set-rule="listing" ${S.news.rules.listing ? 'checked' : ''}> listing / sale</label><label class="switch" style="font-size:12px"><input type="checkbox" data-set-rule="groundbreaking" ${S.news.rules.groundbreaking ? 'checked' : ''}> groundbreaking</label></div></div>
@@ -6621,6 +6710,80 @@ function openNewsInbox() {
     } });
 }
 $('#file-feed').addEventListener('change', async e => { const f = e.target.files?.[0]; e.target.value = ''; if (!f) return; const text = await f.text(); newsRefresh({ source: 'file', text, label: f.name }); });
+
+/* ---- markets: the site's companies / tickers / simulated prices become business proposals ----
+   Read-only towards the site. Accepts the live JSON (when CORS or the OS bridge allows it), a file, or markets.json in the vault.
+   Every figure that comes from the market is basis 'simulated'. Nothing is created without a click in the inbox. */
+function normalizeMarketPayload(payload) {
+  let text = null; if (typeof payload === 'string') { text = payload; try { payload = JSON.parse(payload); } catch { payload = null; } }
+  let rows = [];
+  if (Array.isArray(payload)) rows = payload;
+  else if (payload && typeof payload === 'object') { for (const k of ['companies', 'stocks', 'tickers', 'listings', 'items', 'markets', 'market', 'data', 'results']) { const v = payload[k]; if (Array.isArray(v)) { rows = v; break; } if (v && typeof v === 'object' && !Array.isArray(v)) { const inner = Object.values(v).find(Array.isArray); if (inner) { rows = inner; break; } } } if (!rows.length && Object.values(payload).every(v => v && typeof v === 'object' && !Array.isArray(v))) rows = Object.entries(payload).map(([k, v]) => ({ ticker: k, ...v })); }
+  else if (text) rows = parseCSV(text);
+  const pick = (o, keys) => { for (const k of keys) if (o[k] != null && o[k] !== '') return o[k]; return null; };
+  const out = [];
+  for (const o of rows) {
+    if (!o || typeof o !== 'object') continue;
+    const name = String(pick(o, ['name', 'company', 'companyName', 'title', 'label']) || '').trim(); const ticker = String(pick(o, ['ticker', 'symbol', 'code', 'id']) || '').trim().toUpperCase();
+    if (!name && !ticker) continue;
+    out.push({ name: name || ticker, ticker: /^[A-Z0-9.\-]{1,8}$/.test(ticker) ? ticker : '', sector: String(pick(o, ['sector', 'category', 'industry', 'type']) || '').trim(), price: num(pick(o, ['price', 'lastPrice', 'last', 'close', 'value', 'quote'])), change: num(pick(o, ['change', 'changePct', 'delta', 'pct', 'dayChange'])), status: String(pick(o, ['status']) || '').toLowerCase(), listed: pick(o, ['listed', 'exchangeListed', 'public']) !== false, description: String(pick(o, ['description', 'desc', 'about']) || '').trim(), website: String(pick(o, ['website', 'url', 'site']) || '').trim(), hq: String(pick(o, ['hq', 'headquarters', 'address', 'building']) || '').trim(), currency: String(pick(o, ['currency']) || 'USD').toUpperCase() });
+  }
+  return out;
+}
+const SECTOR_TO_CATEGORY = [[/real ?estate|property|housing|developer/i, 'Real estate'], [/retail|shop|store|grocery|supermarket/i, 'Retail'], [/food|restaurant|cafe|dining|fast/i, 'Restaurant / food'], [/bank|finance|financial|insurance|capital|exchange/i, 'Finance'], [/tech|software|ai|computing|electronics/i, 'Technology'], [/media|news|press|broadcast|tv/i, 'Media'], [/hotel|hospitality|tourism/i, 'Hospitality'], [/transport|transit|rail|airline|logistics|shipping/i, 'Transportation'], [/construction|builder|engineering|cement|steel/i, 'Construction'], [/government|public|municipal|city/i, 'Government'], [/education|school|university/i, 'Education'], [/health|hospital|medical|pharma/i, 'Health'], [/culture|entertainment|sport|music|game/i, 'Culture / entertainment'], [/energy|utility|power|water|gas|oil/i, 'Utilities']];
+const categoryFromSector = s => (SECTOR_TO_CATEGORY.find(([rx]) => rx.test(s || '')) || [])[1] || (s ? 'Other' : '');
+function matchBusinessForMarket(m) { const t = m.ticker; const n = norm(m.name); return S.businesses.find(z => t && z.ticker && z.ticker.toUpperCase() === t) || S.businesses.find(z => n && (norm(z.name) === n || (z.aliases || []).some(a => norm(a) === n))) || null; }
+/* turn a normalised market list into one inbox item with proposals; the same snapshot imported twice adds nothing */
+function mergeMarketItems(list, sourceLabel) {
+  const at = now(); const day = at.slice(0, 10); const hash = hashStr(JSON.stringify(list.map(m => [m.name, m.ticker, m.sector, m.price, m.change, m.status]).sort()));
+  const existing = S.news.items.find(it => it.source === 'markets' && it.hash === hash); if (existing) return { added: 0, revised: 0, unchanged: 1, candidates: 0, item: existing, proposals: existing.candidates.filter(c => !S.news.decisions[c.id]).length };
+  const guid = `markets:${hash}`; const item = { guid, link: APP.newsSite + '/markets', title: `Markets snapshot · ${day} · ${list.length} compan${list.length === 1 ? 'y' : 'ies'}`, published: at, updated: at, content: list.map(m => `${m.name}${m.ticker ? ` (${m.ticker})` : ''}${m.sector ? ` · ${m.sector}` : ''}${m.price != null ? ` · ${m.price}` : ''}`).join('; '), excerpt: `${list.length} companies read from the site's markets section via ${sourceLabel}. Prices are the site's simulation.`, categories: ['markets'], hash, fetchedAt: at, source: 'markets', sourceLabel, revisions: [], candidates: [] };
+  const seen = new Set();
+  for (const m of list) {
+    const key = (m.ticker || norm(m.name)); if (!key || seen.has(key)) continue; seen.add(key);
+    const quote = m.price != null ? { id: uid('mq'), at, price: m.price, change: m.change, currency: m.currency || 'USD', basis: 'simulated', source: sourceLabel } : null;
+    const z = matchBusinessForMarket(m);
+    const base = { entityKind: 'business', label: `${m.name}${m.ticker ? ' · ' + m.ticker : ''}`, excerpt: `${m.name}${m.ticker ? ` (${m.ticker})` : ''}${m.sector ? ` · ${m.sector}` : ''}${m.price != null ? ` · ${m.price} ${m.currency || 'USD'} (simulated)` : ''}${m.description ? ' · ' + truncate(m.description, 140) : ''}`, eventYear: +day.slice(0, 4), eventHalf: +day.slice(5, 7) <= 6 ? 'E' : 'L', dateFromText: true, itemGuid: guid, link: item.link, title: item.title, published: at, basis: 'simulated' };
+    if (!z) {
+      const create = { name: m.name, aliases: [], category: categoryFromSector(m.sector), sector: m.sector, orgType: 'company', status: m.status === 'closed' || m.status === 'delisted' ? 'closed' : 'open', ticker: m.ticker, exchangeListed: !!m.ticker && m.listed, website: m.website, notes: m.description ? `From the site's markets section: ${m.description}` : '', source: `${APP.newsSite}/markets (${sourceLabel})`, sourceType: 'document', confidence: 'approximate', marketQuotes: quote ? [quote] : [], tags: ['markets'] };
+      item.candidates.push({ ...base, kind: 'biz-new', entityId: null, field: 'create', create, note: 'The site reads this registry too, so a listing here is not confirmation of anything beyond the company existing in the market. Prices are simulated and are kept as market quotes, never as revenue.' });
+      continue;
+    }
+    const after = {}; const before = {};
+    if (m.ticker && z.ticker !== m.ticker) { before.ticker = z.ticker; after.ticker = m.ticker; }
+    if (m.ticker && m.listed && !z.exchangeListed) { before.exchangeListed = z.exchangeListed; after.exchangeListed = true; }
+    if (m.sector && !z.sector) { before.sector = z.sector; after.sector = m.sector; }
+    if (!z.category && categoryFromSector(m.sector)) { before.category = z.category; after.category = categoryFromSector(m.sector); }
+    if (quote) { const last = (z.marketQuotes || [])[(z.marketQuotes || []).length - 1]; if (!last || last.price !== quote.price || last.at.slice(0, 10) !== day) { before.marketQuotes = z.marketQuotes || []; after.marketQuotes = [...(z.marketQuotes || []), quote].slice(-120); } }
+    if (!Object.keys(after).length) { item.candidates.push({ ...base, kind: 'mention', entityId: z.id }); continue; }
+    item.candidates.push({ ...base, kind: 'biz-market', entityId: z.id, field: 'market', before, after, note: 'Ticker, listing flag, sector and a simulated quote only — status, revenue and locations are never changed from the market.' });
+  }
+  for (const c of item.candidates) { c.id = hashStr(`${guid}|${c.kind}|${c.entityId || norm(c.create?.name || '')}|${c.field || ''}`); if (c.kind !== 'mention') c.conflict = candidateConflict(c); }
+  S.news.items.push(item); S.news.items.sort((a, b) => (b.published || '').localeCompare(a.published || ''));
+  return { added: 1, revised: 0, unchanged: 0, candidates: item.candidates.filter(c => c.kind !== 'mention').length, item, proposals: item.candidates.filter(c => c.kind !== 'mention').length };
+}
+async function marketsRefresh({ source = 'live', text = null, label = '' } = {}) {
+  if (NEWS.busy) return; NEWS.busy = true;
+  try {
+    let payload = text;
+    if (source === 'live') { const url = S.settings.marketsUrl || APP.marketsUrl; label = url; const res = await bridgeFetch(url); if (!res.ok) throw new Error(`The markets endpoint answered HTTP ${res.status} — set the right URL under Vault & settings`); payload = await res.text(); }
+    if (source === 'vault') { const h = VAULT.handle; if (!h) throw new Error('No vault folder linked'); payload = await readText(h, 'markets.json'); if (!payload) throw new Error('No markets.json in the vault folder'); label = `${VAULT.name}/markets.json`; }
+    const list = normalizeMarketPayload(payload); if (!list.length) throw new Error('No companies found in that data (expected name/ticker rows, or a companies[] array)');
+    const r = mergeMarketItems(list, label || source);
+    S.news.lastMarkets = now(); S.news.marketsError = null; commit(); renderStatus();
+    toast(r.unchanged ? `Markets unchanged since the last snapshot · ${r.proposals} proposal${r.proposals === 1 ? '' : 's'} still pending` : `Markets read — ${list.length} companies · ${r.candidates} proposal${r.candidates === 1 ? '' : 's'} in the inbox`, 'good');
+    if (modalOpen() && $('#news-inbox')) openNewsInbox();
+    return r;
+  } catch (e) {
+    const cors = source === 'live' && (e instanceof TypeError || /fetch|network|CORS/i.test(e.message));
+    S.news.marketsError = { at: now(), message: cors ? 'The browser blocked reading the markets endpoint from this file (no CORS header, offline, or the New A OS bridge is not running).' : e.message, cors }; commit({ silentRender: true });
+    toast(S.news.marketsError.message, 'warn', { label: 'OPTIONS', fn: openNewsInbox }); if (modalOpen() && $('#news-inbox')) openNewsInbox();
+    return null;
+  } finally { NEWS.busy = false; }
+}
+/* fetch through the New A OS bridge when it runs (no CORS), else straight from the browser */
+async function bridgeFetch(url, opts = {}) { if (typeof OS !== 'undefined' && OS.online) { try { return await OS.proxyFetch(url, opts); } catch (e) { console.warn('bridge fetch failed, falling back', e); } } return fetch(url, { mode: 'cors', cache: 'no-store', ...opts }); }
+$('#file-markets').addEventListener('change', async e => { const f = e.target.files?.[0]; e.target.value = ''; if (!f) return; const text = await f.text(); marketsRefresh({ source: 'file', text, label: f.name }); });
 
 
 /* =====================================================================
@@ -6897,9 +7060,9 @@ document.addEventListener('click', async e => {
     case 'ten-add': { const b = byId(DR.id); if (b) await linkBusinessToBuilding(b); break; }
     case 'ten-end': endTenancy(t.dataset.id); break;
     case 'ten-remove': { const r = await confirmDialog({ title: 'Remove this tenancy record?', body: '<p>It disappears from the occupancy history. To keep it as a former tenancy, use End instead.</p>', ok: 'Remove', danger: true }); if (r !== 'ok') break; S.tenancies = S.tenancies.filter(x => x.id !== t.dataset.id); commit(); renderDrawer(); renderView(false); break; }
-    case 'road-pick': { const b = byId(DR.id); if (!b) break; const id = await roadPickDialog('Serving road for ' + b.reg); if (!id) break; b.roadId = id; b.updated = now(); commit(); renderDrawer(); toast(`${b.reg} now served by ${roadLabel(roadById(id))}`, 'good'); break; }
-    case 'road-apply': { const b = byId(DR.id); if (!b) break; b.roadId = t.dataset.id; b.updated = now(); commit(); renderDrawer(); toast(`${b.reg} now served by ${roadLabel(roadById(t.dataset.id))}`, 'good'); break; }
-    case 'road-clear': { const b = byId(DR.id); if (!b) break; b.roadId = null; b.updated = now(); commit(); renderDrawer(); break; }
+    case 'road-pick': { const b = byId(DR.id); if (!b) break; const id = await roadPickDialog('Serving road for ' + b.reg); if (!id) break; b.roadId = id; b.roadIdSource = 'manual'; b.updated = now(); commit(); renderDrawer(); toast(`${b.reg} now served by ${roadLabel(roadById(id))}`, 'good'); break; }
+    case 'road-apply': { const b = byId(DR.id); if (!b) break; b.roadId = t.dataset.id; b.roadIdSource = 'manual'; b.updated = now(); commit(); renderDrawer(); toast(`${b.reg} now served by ${roadLabel(roadById(t.dataset.id))}`, 'good'); break; }
+    case 'road-clear': { const b = byId(DR.id); if (!b) break; b.roadId = null; b.roadIdSource = null; b.updated = now(); commit(); renderDrawer(); break; }
     case 'entrance-set': { const id = DR.id; const stack = DR.stack.slice(); closeDrawer(true); if (UI.nav !== 'map') setNav('map'); const go = () => { MAPW.pending = { kind: 'place-building', buildingId: id, field: 'entrance', label: `Click where you walk into ${byId(id)?.reg || 'the building'}`, resume: () => { openBuilding(id, 'view'); DR.stack = stack; } }; setMapMode('place', { pending: MAPW.pending }); const b = byId(id); if (b?.x != null) { MAPW.cam.x = b.x; MAPW.cam.z = b.z; if (MAPW.cam.k < 2) MAPW.cam.k = 3; mapDraw(); } }; if (MAPW.mounted) go(); else setTimeout(go, 40); break; }
     case 'place-on-map': pickPointForDraft('xz'); break;
     case 'footprint-draw': drawFootprintForDraft(); break;
@@ -6925,6 +7088,11 @@ document.addEventListener('click', async e => {
     case 'loc-add': { readBizFormInto(DR.draft, false); DR.draft.locations = [...(DR.draft.locations || []), { label: '', districtId: null, note: '' }]; rerenderEditor(); break; }
     case 'loc-remove': { readBizFormInto(DR.draft, false); DR.draft.locations.splice(+t.dataset.i, 1); rerenderEditor(); break; }
     case 'biz-from-owners': openOwnerImport(); break;
+    case 'link-by-name': { const r = roadById(t.dataset.id); if (r) linkRoadByNameFlow(r); break; }
+    case 'link-all-by-name': linkAllByNameFlow(); break;
+    case 'markets-import': $('#file-markets').click(); break;
+    case 'markets-refresh': marketsRefresh({ source: 'live' }); break;
+    case 'markets-vault': marketsRefresh({ source: 'vault' }); break;
     case 'clear-filters': UI.filters = { ...UI.filters, physical: '', market: '', landmark: false, family: '', zfam: '', yearMin: '', yearMax: '', photo: false, hist: false }; UI.q = ''; $('#q').value = ''; refreshRegistry(); break;
   }
 });
@@ -6970,6 +7138,7 @@ document.addEventListener('keydown', e => {
     if (SCOPE_POP.open) { closeScopePop(); return; }
     if (!$('#addmenu').hidden) { $('#addmenu').hidden = true; return; }
     if (isModal) { if (ARCH.editing) { archiveCancel(); return; } ARCH.viewing = null; closeModal(); return; }
+    if (DR.id && HV.open) { closeDrawer(); return; }
     if (HV.open) { closeHistoryViewer(); return; }
     if (UI.nav === 'map' && (MAPW.draft || MAPW.pending)) { mapCancel(); return; }
     if (DR.id) { closeDrawer(); return; }
