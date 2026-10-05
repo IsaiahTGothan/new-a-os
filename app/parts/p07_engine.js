@@ -335,3 +335,29 @@ function allIssues(sc = UI.scope) {
   if (typeof civicIssues === 'function') for (const i of civicIssues(sc)) out.push(i);
   return out.sort((a, b) => LEVEL_RANK[a.level] - LEVEL_RANK[b.level]);
 }
+
+/* ---- dated shapes: a road or track keeps earlier geometries as versions; the current shape applies from geometryFrom ---- */
+function geometryAt(o, hy) {
+  const vs = (o.versions || []).filter(v => Array.isArray(v.geometry) && v.geometry.length >= 2 && v.year != null);
+  if (hy == null || !vs.length) return { geometry: o.geometry, width: o.width, version: null };
+  const list = vs.map(v => ({ v, idx: hyIndex(v.year, v.half || '') })).sort((a, b) => a.idx - b.idx);
+  const curIdx = o.geometryFromYear != null ? hyIndex(o.geometryFromYear, o.geometryFromHalf || '') : list[list.length - 1].idx + 1;
+  list.push({ v: null, idx: curIdx }); list.sort((a, b) => a.idx - b.idx);
+  let pick = null; for (const e of list) if (e.idx <= hy) pick = e; if (!pick) pick = list[0];
+  return pick.v ? { geometry: pick.v.geometry, width: pick.v.width ?? o.width, version: pick.v } : { geometry: o.geometry, width: o.width, version: null };
+}
+function saveShapeVersion(o, year, half, note = '') {
+  const v = { id: uid('gv'), year, half: half || '', geometry: JSON.parse(JSON.stringify(o.geometry || [])), width: o.width ?? null, note, saved: now() };
+  o.versions = [...(o.versions || []), v].sort((a, b) => hyIndex(a.year, a.half || '') - hyIndex(b.year, b.half || ''));
+  if (o.geometryFromYear == null) { const n = hyFromIndex(hyIndex(year, half || 'E') + 1); o.geometryFromYear = n.year; o.geometryFromHalf = n.half; }
+  o.updated = now(); return v;
+}
+/* ---- lots: frontage runs along X unless the lot is rotated; snapping to the serving road sets the side and the orientation ---- */
+function lotRect(b) { const fr = num(b.lotFront), dp = num(b.lotDepth); if (!fr || !dp || b.x == null || b.z == null) return null; const w = b.lotRotated ? dp : fr, h = b.lotRotated ? fr : dp; return { x1: b.x - w / 2, z1: b.z - h / 2, x2: b.x + w / 2, z2: b.z + h / 2, w, h }; }
+function snapToStreet(b, road = null) {
+  const r = road || roadById(b.roadId) || roadSuggest(b).items.find(it => it.road.geometry?.length >= 2)?.road; if (!r || !r.geometry || r.geometry.length < 2 || b.x == null || b.z == null) return null;
+  const c = polylineClosest([b.x, b.z], r.geometry); if (!c) return null; const a = r.geometry[c.i], e = r.geometry[c.i + 1]; const dx = e[0] - a[0], dz = e[1] - a[1]; const len = Math.hypot(dx, dz) || 1; const ux = dx / len, uz = dz / len;
+  const alongX = Math.abs(ux) >= Math.abs(uz); const dp = num(b.lotDepth) || num(b.lotFront) || 20;
+  const side = Math.sign((b.x - c.q[0]) * -uz + (b.z - c.q[1]) * ux) || 1; const off = (num(r.width) || 5) / 2 + 1 + dp / 2;
+  return { x: Math.round(c.q[0] - uz * side * off), z: Math.round(c.q[1] + ux * side * off), lotRotated: !alongX, road: r, d: c.d };
+}

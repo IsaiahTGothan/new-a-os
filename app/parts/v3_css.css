@@ -422,3 +422,12 @@ table.reg th{ font-family:var(--font-pixel); font-size:8.5px; letter-spacing:.04
 
 #side .side-end .osdot span b{ color:var(--ink-2); } #side .side-end .osdot{ background:none; border:0; cursor:pointer; width:100%; } #side .side-end .osdot:hover span{ color:var(--ink); }
 #status .it i.bad{ background:var(--bad); box-shadow:0 0 6px var(--bad); }
+
+/* ===================== fixes: menus above the page · record map · estimate · dated shapes ===================== */
+#top{ position:relative; z-index:50; }
+.minimap.gm-mini{ cursor:pointer; position:relative; } .minimap.gm-mini:hover{ outline:1px solid var(--cyan-3); }
+.minimap .gm-brand-mini{ position:absolute; left:8px; top:6px; z-index:2; display:flex; align-items:baseline; gap:4px; padding:3px 7px; background:rgba(5,9,13,.78); border-radius:6px; pointer-events:none; }
+.minimap .gm-brand-mini .gm-word{ font-size:9px; } .minimap .gm-brand-mini .gm-maps{ font-size:11px; }
+.minimap .open{ position:absolute; right:8px; bottom:8px; font:600 9.5px var(--font-mono); letter-spacing:.1em; color:var(--cyan); background:rgba(5,9,13,.8); padding:3px 7px; border-radius:5px; opacity:0; transition:opacity .2s; pointer-events:none; } .minimap.gm-mini:hover .open{ opacity:1; }
+.fieldnote .est{ margin-top:8px; padding:10px 12px; border:1px solid var(--line-2); border-radius:8px; background:var(--bg-2); } .fieldnote .est .big{ font:700 22px/1 Silkscreen, var(--font-mono); color:var(--good); margin-bottom:5px; } .fieldnote .est .why{ font-size:11.5px; color:var(--ink-3); line-height:1.45; } .fieldnote .est .acts{ display:flex; gap:6px; margin-top:8px; flex-wrap:wrap; }
+.rowlist.versions .r .mk{ margin-right:6px; }

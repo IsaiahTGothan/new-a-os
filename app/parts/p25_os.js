@@ -78,3 +78,6 @@ function osCardHTML() {
     <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:12px"><button class="btn primary sm" data-act="os-backup" ${OS.online ? '' : 'disabled'}>${icon('shield')} Back up now</button><button class="btn sm" data-act="os-backup-full" ${OS.online ? '' : 'disabled'}>Full backup</button><button class="btn sm" data-act="os-verify" ${OS.online ? '' : 'disabled'}>${icon('check')} Verify latest</button><button class="btn sm" data-act="os-restore-test" ${OS.online ? '' : 'disabled'}>${icon('undo')} Restore test</button><span class="spacer"></span><button class="btn sm" data-act="os-scan" ${OS.online ? '' : 'disabled'}>${icon('sat')} Scan the world…</button><button class="btn sm ghost" data-act="os-poll">${icon('redo')} Reconnect</button></div>
   </div>`;
 }
+
+/* autosave through the bridge when no folder is linked in the browser: no reconnect click, same files */
+OS.vaultWrite = async () => { if (!OS.online || !OS.status?.vaultOk) return false; await OS.post('/api/vault/write', { name: 'Registry.json', text: JSON.stringify(serializeMaster(), null, 2) }, 30000); if (S.settings.compatFile !== false) await OS.post('/api/vault/write', { name: 'NewA.json', text: JSON.stringify(serializeCompat(), null, 2) }, 30000); OS.lastVaultWrite = new Date(); return true; };

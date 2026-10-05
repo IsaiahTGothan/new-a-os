@@ -128,7 +128,7 @@ function renderRecord(b) {
       ${kv(hist ? 'ORIGINAL COORDINATES' : 'COORDINATES', b.x != null && b.z != null ? `X ${esc(b.x)} · Z ${esc(b.z)}${b.entrance?.x != null ? `<small>entrance X ${esc(b.entrance.x)} · Z ${esc(b.entrance.z)}</small>` : ''}` : null, 'num')}${kv('OWNER', esc(b.owner))}
       ${fp != null ? kv('FOOTPRINT · MEASURED', `${fmtInt(fp)}<small>blocks² · ${b.footprint.length} vertices</small>`, 'num') : ''}
     </div>
-    ${b.x != null && b.z != null ? `<div class="minimap"><canvas id="minimap"></canvas><span class="coord">X ${esc(b.x)} · Z ${esc(b.z)}</span></div>` : ''}
+    ${b.x != null && b.z != null ? `<div class="minimap gm-mini" data-act="dr-map" role="button" title="Open in New A Maps"><div class="gm-brand-mini">${WORDMARK}</div><canvas id="minimap"></canvas><span class="coord">X ${esc(b.x)} · Z ${esc(b.z)}${b.lotFront && b.lotDepth ? ` · lot ${esc(b.lotFront)}×${esc(b.lotDepth)} ${b.lotRotated ? 'N–S' : 'E–W'}` : ''}</span><span class="open">OPEN IN MAPS ↗</span></div>` : ''}
     <div class="secthead">CLASSIFICATION & ZONING</div>
     <div class="kv">
       ${kv('BUILDING CLASS', b.bldgClass ? `${esc(b.bldgClass)}<small>${esc(classDesc(b.bldgClass))}</small>` : null)}${kv('TAX CLASS', b.taxClass ? `Class ${esc(b.taxClass)}<small>${esc(TAX_CLASSES.find(t => t.id === b.taxClass)?.label.split('—')[1] || '')}</small>` : null)}
@@ -245,9 +245,10 @@ function renderEditor(b) {
           <div class="f"><label for="f-name">Building name <span class="hint">optional</span></label>${inp('name', b.name, 'placeholder="New BK Tower"')}</div>
           ${f('x', 'X coordinate', numI('x', b.x, 'placeholder="0" step="1"'), 'Minecraft X')}
           ${f('z', 'Z coordinate', numI('z', b.z, 'placeholder="0" step="1"'), 'Minecraft Z')}
+          <div class="f"><label>Unnamed</label><label class="switch"><input type="checkbox" id="f-unnamed" ${b.unnamed ? 'checked' : ''}> <span class="muted" style="font-size:12px">no name or address known — shown by number</span></label></div>
         </div>
         <div class="frow c3">
-          <div class="f" style="align-self:end"><button type="button" class="btn sm" data-act="place-on-map">${icon('pin')} Pick coordinates on the map</button></div>
+          <div class="f" style="align-self:end;display:flex;gap:6px;flex-wrap:wrap"><button type="button" class="btn sm" data-act="place-on-map">${icon('pin')} Pick on the map</button><button type="button" class="btn sm" data-act="snap-street-draft" title="Centre the building on its serving road's frontage and turn the lot to face the street">${icon('road')} Snap to street</button>${b.footprint ? `<button type="button" class="btn sm" data-act="center-footprint-draft" title="Move the coordinates to the middle of the footprint">${icon('fit')} Centre on footprint</button>` : ''}</div>
           ${f('ex', 'Entrance X', numI('ex', b.entrance?.x, 'placeholder="—" step="1"'), 'optional · where you walk in')}
           ${f('ez', 'Entrance Z', numI('ez', b.entrance?.z, 'placeholder="—" step="1"'))}
         </div>
@@ -304,6 +305,7 @@ function renderEditor(b) {
           ${f('floorArea', 'Floor area', numI('floorArea', b.floorArea, 'placeholder="measured" min="0"'), 'blocks² · measured, not assumed')}
           ${f('lotFront', 'Frontage', numI('lotFront', b.lotFront, 'placeholder="20" min="0"'), 'blocks')}
           ${f('lotDepth', 'Depth', numI('lotDepth', b.lotDepth, 'placeholder="30" min="0"'), 'blocks')}
+          ${f('lotRotated', 'Lot orientation', `<select id="f-lotRotated"><option value="" ${!b.lotRotated ? 'selected' : ''}>Frontage along X (east–west)</option><option value="1" ${b.lotRotated ? 'selected' : ''}>Frontage along Z (north–south)</option></select>`, 'how the lot sits on the map · Snap to street sets it')}
           ${f('lotArea', 'Total lot size', numI('lotArea', b.lotArea, 'placeholder="auto" min="0"'), 'blocks² · auto = front × depth')}
         </div>
         <div class="fieldnote" style="margin-top:8px">Footprint: ${b.footprint ? `<b>${fmtInt(footprintAreaOf(b))} blk²</b> measured from ${b.footprint.length} vertices` : 'not drawn'} · <button type="button" class="rowlink" data-act="footprint-draw" style="font:inherit">${b.footprint ? 'redraw on the map' : 'draw on the map'}</button>${b.footprint ? ` · <button type="button" class="rowlink" data-act="footprint-clear" style="font:inherit">clear</button>` : ''}</div>
@@ -318,6 +320,7 @@ function renderEditor(b) {
           ${f('valuationBasis', 'Basis', `<select id="f-valuationBasis">${['', 'as-is', 'completed', 'land only', 'estimate'].map(v => `<option value="${v}" ${v === (b.valuationBasis || '') ? 'selected' : ''}>${v || '— unspecified —'}</option>`).join('')}</select>`)}
           ${f('listPrice', 'Asking price / rent', `<div class="pre"><span>$</span>${numI('listPrice', b.listPrice, 'placeholder="0" min="0" step="1000"')}</div>`, 'current listing')}
         </div>
+        <div id="f-estimate" class="fieldnote" style="margin-top:8px"><button type="button" class="btn sm" data-act="estimate-draft">${icon('spark')} Auto-estimate from nearby buildings &amp; transit</button> <span class="muted">compares assessed buildings within 200 blocks (then the borough), adjusts for stations, services, floors and condition — nothing is saved until you apply it</span></div>
         <div id="f-listings">${editorListingsHTML(b)}</div>
         <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:8px"><button type="button" class="btn sm" data-act="listing-add">${icon('plus')} Listing</button><button type="button" class="btn sm" data-act="tx-add">${icon('plus')} Transaction</button></div>
       </div>
@@ -431,7 +434,7 @@ function readFormInto(b, strict = true) {
   b.dateStarted = g('dateStarted'); b.dateBuilt = g('dateBuilt'); b.dateDemolished = g('dateDemolished');
   b.floors = num(g('floors')); b.height = num(g('height')); b.owner = g('owner').trim();
   b.unitsRes = num(g('unitsRes')); b.unitsCom = num(g('unitsCom')); b.floorArea = num(g('floorArea'));
-  b.lotFront = num(g('lotFront')); b.lotDepth = num(g('lotDepth')); b.lotArea = num(g('lotArea'));
+  b.lotFront = num(g('lotFront')); b.lotDepth = num(g('lotDepth')); b.lotArea = num(g('lotArea')); b.lotRotated = $('#f-lotRotated')?.value === '1'; b.unnamed = !!$('#f-unnamed')?.checked;
   b.assessLand = num(g('assessLand')); b.assessBuilding = num(g('assessBuilding')); b.assessTotal = num(g('assessTotal')); b.assessYear = num(g('assessYear')); b.valuationBasis = g('valuationBasis'); b.listPrice = num(g('listPrice'));
   b.tags = g('tags').split(/[\s,]+/).map(t => t.trim().toLowerCase()).filter(Boolean);
   b.notes = g('notes'); readCivicForm(b); readValuationForm(b);
@@ -439,7 +442,7 @@ function readFormInto(b, strict = true) {
   b.confidence = g('confidence'); b.sourceType = g('sourceType'); b.verified = !!$('#f-verified')?.checked; b.source = g('source').trim();
   b.status = summaryStatus(b);
   if (strict) {
-    if (!b.number && !b.street && !b.name) return 'Give the record at least a street, a building number or a name.';
+    if (!b.number && !b.street && !b.name && !b.unnamed) return 'Give the record at least a street, a building number or a name — or tick Unnamed.';
     for (const [k, v] of [['Started', b.yearStarted], ['Expected', b.yearExpected], ['Completed', b.yearBuilt], ['Demolished', b.yearDemolished]]) if (v != null && (v < 1900 || v > 2200)) return `${k} year looks off.`;
     if (b.yearDemolished != null && b.physical !== 'demolished') return 'A demolition date needs the physical status “Demolished” — or clear the date.';
     if (b.yearDemolished != null && b.yearBuilt != null && hyIndex(b.yearDemolished, b.halfDemolished) < hyIndex(b.yearBuilt, b.halfBuilt)) return 'Demolished before it was completed — check the dates.';

@@ -47,6 +47,7 @@ async function flush() {
     await SAVE.write(JSON.parse(JSON.stringify(S)));
     await maybeSnapshot();
     if (VAULT.status === 'granted') await vaultWrite();
+    else if (typeof OS !== 'undefined' && OS.online && OS.status?.vaultOk) { try { await OS.vaultWrite(); } catch (e) { console.warn('bridge vault write failed', e); } }
     SAVE.dirty = false; SAVE.lastSaved = new Date(); SAVE.lastError = null;
     setSaveState('saved', 'SAVED ' + fmtTime(SAVE.lastSaved));
   } catch (e) {

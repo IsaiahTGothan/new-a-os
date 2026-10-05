@@ -273,15 +273,61 @@ function openBasemapModal() {
   const list = S.settings.basemaps || [];
   openModal({ title: 'Basemap — the rendered city under the data', kicker: 'MAP', cls: 'wide',
     body: `<p class="muted" style="font-size:12.5px;margin:12px 0 0">Give a render a year (and half) and playback shows it at that date — only the latest render at or before the date, so a newer map can never sit behind an older one. Drop a north-up image of the world — a JourneyMap export, the Chronicle's block-by-block render, or a screenshot of the in-game map — and tell New A OS where its top-left pixel sits (X, Z) and how many blocks one pixel covers. JourneyMap tiles are 1 block per pixel at zoom 0. The image is kept in this browser and written to the vault's images folder; nothing is traced from it automatically.</p>
-      <div style="display:flex;gap:8px;margin-top:12px;flex-wrap:wrap"><button class="btn primary" id="bm-add">${icon('img')} Add image…</button><input type="file" id="bm-file" accept="image/*" hidden></div>
+      <div class="callout info" style="margin-top:12px"><b>JourneyMap, the exact way.</b> Point at JourneyMap's tile folder (<code>.minecraft/journeymap/data/sp/&lt;world&gt;/overworld/day</code>) or its exported ZIP: every tile is named by its position (<code>0,0.png</code> = X 0–511 · Z 0–511), so the map is placed exactly and 0,0 is derived, never calibrated. A single “Save map” PNG still works, but its centre is not 0,0 — you would have to type the top-left corner yourself.</div>
+      <div style="display:flex;gap:8px;margin-top:12px;flex-wrap:wrap"><button class="btn primary" id="bm-jm-dir">${icon('folder')} JourneyMap tiles folder…</button><input type="file" id="bm-jm-files" webkitdirectory multiple hidden><button class="btn" id="bm-jm-zip">${icon('up')} JourneyMap export ZIP…</button><input type="file" id="bm-jm-zipfile" accept=".zip,application/zip" hidden><button class="btn" id="bm-add">${icon('img')} Single image…</button><input type="file" id="bm-file" accept="image/*" hidden></div>
       <div class="list" id="bm-list" style="margin-top:12px">${list.length ? list.map(bm => `<div class="li" style="grid-template-columns:1fr;gap:8px;--c:var(--amber)"><div class="t">${esc(bm.name)} <span class="muted" style="font-family:var(--font-mono);font-size:11px">· ${bm.w || '?'}×${bm.h || '?'} px</span></div>
         <div class="frow c3"><div class="f"><label>Dated render <span class="hint">year · half (for playback)</span></label><div class="hy dock-hy"><select data-bm="${bm.id}" data-k="half">${HALVES.map(h => `<option value="${h.id}" ${(bm.half || '') === h.id ? 'selected' : ''}>${h.short || 'Any half'}</option>`).join('')}</select><input type="number" data-bm="${bm.id}" data-k="year" value="${esc(bm.year ?? '')}" placeholder="present" min="1990" max="2200"></div></div><div class="f"><label>Top-left X</label><input type="number" step="1" data-bm="${bm.id}" data-k="x" value="${esc(bm.x)}"></div><div class="f"><label>Top-left Z</label><input type="number" step="1" data-bm="${bm.id}" data-k="z" value="${esc(bm.z)}"></div><div class="f"><label>Blocks per pixel</label><input type="number" step="0.01" min="0.01" data-bm="${bm.id}" data-k="scale" value="${esc(bm.scale)}"></div><div class="f"><label>Opacity</label><input type="number" step="0.05" min="0.05" max="1" data-bm="${bm.id}" data-k="opacity" value="${esc(bm.opacity ?? 0.75)}"></div><div class="f"><label>Shown</label><label class="switch"><input type="checkbox" data-bm="${bm.id}" data-k="hidden" ${bm.hidden ? '' : 'checked'}></label></div><div class="f" style="align-self:end"><button class="btn sm danger" data-bm-del="${bm.id}">${icon('trash')} Remove</button></div></div>
         <div class="desc-line">Covers X ${esc(bm.x)} → ${esc(Math.round(bm.x + (bm.w || 0) * bm.scale))} · Z ${esc(bm.z)} → ${esc(Math.round(bm.z + (bm.h || 0) * bm.scale))}. Edits apply live on the map behind this dialog.</div></div>`).join('') : `<div class="li empty">No basemap yet.</div>`}</div>`,
     foot: `<span class="spacer"></span><button class="btn" data-act="modal-close">Done</button>`,
     onOpen: m => {
       m.querySelector('#bm-add').onclick = () => m.querySelector('#bm-file').click();
+      m.querySelector('#bm-jm-dir').onclick = () => m.querySelector('#bm-jm-files').click();
+      m.querySelector('#bm-jm-zip').onclick = () => m.querySelector('#bm-jm-zipfile').click();
+      m.querySelector('#bm-jm-files').addEventListener('change', async e => { const files = [...(e.target.files || [])]; if (!files.length) return; toast(`Reading ${files.length} files…`); try { const bm = await importJourneyMap(files.map(f => ({ path: f.webkitRelativePath || f.name, file: f })), { name: `JourneyMap ${new Date().toISOString().slice(0, 10)}` }); if (bm) openBasemapModal(); } catch (err) { toast('Could not read the tiles: ' + err.message, 'bad'); } });
+      m.querySelector('#bm-jm-zipfile').addEventListener('change', async e => { const f = e.target.files?.[0]; if (!f) return; toast('Unpacking the ZIP…'); try { const entries = await unzipEntries(f, p => JM_TILE.test(p)); const bm = await importJourneyMap(entries, { name: f.name.replace(/\.zip$/i, '') }); if (bm) openBasemapModal(); } catch (err) { toast('Could not read the ZIP: ' + err.message, 'bad'); } });
       m.querySelector('#bm-file').addEventListener('change', async e => { const f = e.target.files?.[0]; if (!f) return; const bm = await basemapAdd(f); if (bm) { toast(`${bm.name} added — set its X, Z and scale`, 'good'); openBasemapModal(); } });
       m.querySelectorAll('[data-bm]').forEach(inp => inp.addEventListener('input', () => { const bm = (S.settings.basemaps || []).find(b => b.id === inp.dataset.bm); if (!bm) return; const k = inp.dataset.k; if (k === 'hidden') bm.hidden = !inp.checked; else if (k === 'half') bm.half = ['E', 'L'].includes(inp.value) ? inp.value : ''; else if (k === 'year') bm.year = num(inp.value); else { const v = num(inp.value); if (v == null) return; bm[k] = k === 'scale' ? Math.max(0.01, v) : k === 'opacity' ? clamp(v, 0.05, 1) : v; } commit({ silentRender: true }); mapDraw(); if (HV.open) hvDraw(); }));
       m.querySelectorAll('[data-bm-del]').forEach(b => b.onclick = async () => { const r = await confirmDialog({ title: 'Remove this basemap?', body: '<p>The image is removed from the browser store and the vault.</p>', ok: 'Remove', danger: true }); if (r === 'ok') { await basemapRemove(b.dataset.bmDel); openBasemapModal(); } else openBasemapModal(); });
     } });
+}
+
+/* ---- JourneyMap tiles: files named "x,z.png" are 512-block tiles whose position is derived from the name, never calibrated ---- */
+const JM_TILE = /(?:^|[\\/])(-?\d+),(-?\d+)\.png$/i;
+function jmPick(entries) {
+  const tiles = entries.map(e => { const m = JM_TILE.exec(e.path || ''); if (!m) return null; const dir = (e.path || '').slice(0, (e.path || '').length - m[0].length).replace(/\\/g, '/'); return { ...e, tx: +m[1], tz: +m[2], dir }; }).filter(Boolean);
+  if (!tiles.length) return { tiles: [], dir: null, dirs: [] };
+  const dirs = [...new Set(tiles.map(t => t.dir))]; const score = d => (/(^|\/)day$/i.test(d) ? 4 : 0) + (/overworld|dim0/i.test(d) ? 2 : 0) + (/topo|night|biome|cave|nether|the_end|dim-1|dim1/i.test(d) ? -3 : 0);
+  const best = dirs.slice().sort((a, b) => score(b) - score(a) || tiles.filter(t => t.dir === b).length - tiles.filter(t => t.dir === a).length)[0];
+  return { tiles: tiles.filter(t => t.dir === best), dir: best, dirs };
+}
+async function jmStitch(tiles, { name = 'JourneyMap', maxPixels = 48e6 } = {}) {
+  const imgs = []; for (const t of tiles) imgs.push({ ...t, bmp: await createImageBitmap(t.file) });
+  const ts = imgs[0].bmp.width || 512; const blocksPerPx = 512 / ts;
+  const txs = imgs.map(t => t.tx), tzs = imgs.map(t => t.tz); const minTx = Math.min(...txs), maxTx = Math.max(...txs), minTz = Math.min(...tzs), maxTz = Math.max(...tzs);
+  const cols = maxTx - minTx + 1, rows = maxTz - minTz + 1; let f = 1; while ((cols * ts / f) * (rows * ts / f) > maxPixels) f *= 2;
+  const c = document.createElement('canvas'); c.width = Math.ceil(cols * ts / f); c.height = Math.ceil(rows * ts / f); const g = c.getContext('2d'); g.imageSmoothingEnabled = f > 1;
+  for (const t of imgs) { g.drawImage(t.bmp, (t.tx - minTx) * ts / f, (t.tz - minTz) * ts / f, ts / f, ts / f); t.bmp.close?.(); }
+  const blob = await new Promise(r => c.toBlob(r, 'image/png')); const file = new File([blob], `${name}.png`, { type: 'image/png' });
+  return { file, x: minTx * 512, z: minTz * 512, scale: blocksPerPx * f, w: c.width, h: c.height, tiles: imgs.length, cols, rows, downscaled: f };
+}
+async function importJourneyMap(entries, { name = 'JourneyMap tiles' } = {}) {
+  const { tiles, dir, dirs } = jmPick(entries); if (!tiles.length) { toast('No JourneyMap tiles found — expected files named like 0,0.png, ideally from overworld/day', 'warn'); return null; }
+  const st = await jmStitch(tiles, { name }); const bm = await basemapAdd(st.file); if (!bm) return null;
+  bm.name = name; bm.x = st.x; bm.z = st.z; bm.scale = st.scale; bm.w = st.w; bm.h = st.h; bm.opacity = 0.85; bm.source = 'journeymap'; bm.tiles = st.tiles; bm.tileDir = dir; commit({ silentRender: true }); if (UI.nav === 'map') { refreshChips(); mapDraw(); }
+  toast(`${st.tiles} tile${st.tiles === 1 ? '' : 's'} stitched from ${dir || 'the folder'} — placed at X ${st.x} · Z ${st.z}, ${st.scale} block${st.scale === 1 ? '' : 's'} per pixel${st.downscaled > 1 ? ' (downscaled ×' + st.downscaled + ' to fit)' : ''}${dirs.length > 1 ? ' · ignored: ' + dirs.filter(d => d !== dir).slice(0, 3).join(', ') : ''}`, 'good');
+  return bm;
+}
+/* minimal ZIP reader in the browser: stored and deflated entries (what JourneyMap's export writes); nothing is uploaded anywhere */
+async function unzipEntries(file, filter = () => true) {
+  const buf = new Uint8Array(await file.arrayBuffer()); const dv = new DataView(buf.buffer, buf.byteOffset, buf.byteLength); let eocd = -1;
+  for (let i = buf.length - 22; i >= Math.max(0, buf.length - 70000); i--) if (dv.getUint32(i, true) === 0x06054b50) { eocd = i; break; } if (eocd < 0) throw new Error('not a ZIP file');
+  const count = dv.getUint16(eocd + 10, true); let p = dv.getUint32(eocd + 16, true); const out = []; const td = new TextDecoder();
+  for (let n = 0; n < count; n++) {
+    if (dv.getUint32(p, true) !== 0x02014b50) break; const method = dv.getUint16(p + 10, true), csize = dv.getUint32(p + 20, true), usize = dv.getUint32(p + 24, true), nlen = dv.getUint16(p + 28, true), elen = dv.getUint16(p + 30, true), clen = dv.getUint16(p + 32, true), off = dv.getUint32(p + 42, true);
+    const path = td.decode(buf.subarray(p + 46, p + 46 + nlen)); p += 46 + nlen + elen + clen; if (path.endsWith('/') || !filter(path)) continue;
+    const lnlen = dv.getUint16(off + 26, true), lelen = dv.getUint16(off + 28, true); const start = off + 30 + lnlen + lelen; const data = buf.subarray(start, start + csize); let blob;
+    if (method === 0) blob = new Blob([data], { type: 'image/png' }); else if (method === 8) { const ds = new DecompressionStream('deflate-raw'); const raw = await new Response(new Blob([data]).stream().pipeThrough(ds)).blob(); blob = new Blob([raw], { type: 'image/png' }); } else continue;
+    out.push({ path, file: new File([blob], path.split('/').pop(), { type: 'image/png' }), size: usize });
+  }
+  return out;
 }

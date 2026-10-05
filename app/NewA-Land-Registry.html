@@ -78,13 +78,6 @@ a{ color:var(--cyan); }
 }
 html[data-scanlines="off"] #fx .scan{ display:none; }
 #fx .vig{ position:absolute; inset:0; background:radial-gradient(ellipse at center, transparent 55%, rgba(0,0,0,.55) 100%); }
-#fx .beam{
-  position:absolute; left:0; right:0; height:120px; top:-140px; opacity:.06;
-  background:linear-gradient(to bottom, transparent, var(--cyan), transparent);
-  animation:beam 9s linear infinite;
-}
-html[data-motion="off"] #fx .beam{ display:none; }
-@keyframes beam{ to{ transform:translateY(calc(100vh + 280px)); } }
 body::before{
   content:""; position:fixed; inset:0; z-index:0; pointer-events:none;
   background:
@@ -1766,6 +1759,15 @@ table.reg th{ font-family:var(--font-pixel); font-size:8.5px; letter-spacing:.04
 #side .side-end .osdot span b{ color:var(--ink-2); } #side .side-end .osdot{ background:none; border:0; cursor:pointer; width:100%; } #side .side-end .osdot:hover span{ color:var(--ink); }
 #status .it i.bad{ background:var(--bad); box-shadow:0 0 6px var(--bad); }
 
+/* ===================== fixes: menus above the page · record map · estimate · dated shapes ===================== */
+#top{ position:relative; z-index:50; }
+.minimap.gm-mini{ cursor:pointer; position:relative; } .minimap.gm-mini:hover{ outline:1px solid var(--cyan-3); }
+.minimap .gm-brand-mini{ position:absolute; left:8px; top:6px; z-index:2; display:flex; align-items:baseline; gap:4px; padding:3px 7px; background:rgba(5,9,13,.78); border-radius:6px; pointer-events:none; }
+.minimap .gm-brand-mini .gm-word{ font-size:9px; } .minimap .gm-brand-mini .gm-maps{ font-size:11px; }
+.minimap .open{ position:absolute; right:8px; bottom:8px; font:600 9.5px var(--font-mono); letter-spacing:.1em; color:var(--cyan); background:rgba(5,9,13,.8); padding:3px 7px; border-radius:5px; opacity:0; transition:opacity .2s; pointer-events:none; } .minimap.gm-mini:hover .open{ opacity:1; }
+.fieldnote .est{ margin-top:8px; padding:10px 12px; border:1px solid var(--line-2); border-radius:8px; background:var(--bg-2); } .fieldnote .est .big{ font:700 22px/1 Silkscreen, var(--font-mono); color:var(--good); margin-bottom:5px; } .fieldnote .est .why{ font-size:11.5px; color:var(--ink-3); line-height:1.45; } .fieldnote .est .acts{ display:flex; gap:6px; margin-top:8px; flex-wrap:wrap; }
+.rowlist.versions .r .mk{ margin-right:6px; }
+
 </style>
 </head>
 <body>
@@ -1833,7 +1835,7 @@ table.reg th{ font-family:var(--font-pixel); font-size:8.5px; letter-spacing:.04
   </defs>
 </svg>
 
-<div id="fx" aria-hidden="true"><div class="scan"></div><div class="beam"></div><div class="vig"></div></div>
+<div id="fx" aria-hidden="true"><div class="scan"></div><div class="vig"></div></div>
 
 <div id="boot" aria-live="polite">
   <div class="box">
@@ -2439,14 +2441,14 @@ function newBuilding(st, districtId) {
     roadId: null, roadIdSource: null, entrance: null, footprint: null, floorArea: null, assessBuilding: null, assessYear: null, valuationBasis: '',
     listings: [], transactions: [], migrationNotes: [],
     // v3 · civic, condition, publishing, valuation
-    civic: null, condition: '', public: true, valuation: null, valuations: [], valuationOverride: null,
+    civic: null, condition: '', public: true, valuation: null, valuations: [], valuationOverride: null, unnamed: false, lotRotated: false,
   };
 }
 function newOfficial(st) { return { id: uid('g'), reg: nextGlobal(st, 'GV'), name: '', office: '', jurisdictionId: 'new-a-city', party: '', status: 'serving', termFromYear: null, termFromHalf: '', termToYear: null, termToHalf: '', officeBuildingId: null, residenceBuildingId: null, notes: '', source: '', created: now(), updated: now() }; }
 function newProject(st) { return { id: uid('p'), reg: nextGlobal(st, 'PJ'), name: '', stage: 'idea', districtId: null, buildingIds: [], roadIds: [], lineIds: [], startedYear: null, startedHalf: '', targetYear: null, targetHalf: '', notes: '', log: [], archiveIds: [], created: now(), updated: now() }; }
-function newRoad(st) { return { id: uid('r'), reg: nextGlobal(st, 'RD'), name: '', aliases: [], formerNames: [], type: 'street', grade: 'surface', width: 5, direction: 'two-way', surface: '', yearOpened: null, halfOpened: '', yearOpenedApprox: false, yearClosed: null, halfClosed: '', geometry: [], notes: '', source: '', sourceType: '', confidence: '', verified: false, created: now(), updated: now() }; }
-function newTrack(st, mode = 'subway') { return { id: uid('k'), reg: nextGlobal(st, 'TR'), name: '', mode, grade: 'surface', geometry: [], yearOpened: null, halfOpened: '', yearClosed: null, halfClosed: '', notes: '', created: now(), updated: now() }; }
-function newLine(st) { return { id: uid('l'), reg: nextGlobal(st, 'TL'), name: '', shortName: '', mode: 'subway', color: TRANSIT_COLORS[(st.lines?.length || 0) % TRANSIT_COLORS.length], width: 4, style: 'solid', status: 'open', operator: '', yearOpened: null, halfOpened: '', yearOpenedApprox: false, yearClosed: null, halfClosed: '', trackIds: [], roadIds: [], stopIds: [], service: null, segments: [], notes: '', source: '', sourceType: '', confidence: '', verified: false, created: now(), updated: now() }; }
+function newRoad(st) { return { id: uid('r'), reg: nextGlobal(st, 'RD'), name: '', aliases: [], formerNames: [], type: 'street', grade: 'surface', width: 5, direction: 'two-way', surface: '', yearOpened: null, halfOpened: '', yearOpenedApprox: false, yearClosed: null, halfClosed: '', geometry: [], versions: [], geometryFromYear: null, geometryFromHalf: '', unnamed: false, notes: '', source: '', sourceType: '', confidence: '', verified: false, created: now(), updated: now() }; }
+function newTrack(st, mode = 'subway') { return { id: uid('k'), reg: nextGlobal(st, 'TR'), name: '', mode, grade: 'surface', geometry: [], versions: [], geometryFromYear: null, geometryFromHalf: '', yearOpened: null, halfOpened: '', yearClosed: null, halfClosed: '', notes: '', created: now(), updated: now() }; }
+function newLine(st) { return { id: uid('l'), reg: nextGlobal(st, 'TL'), name: '', shortName: '', mode: 'subway', color: TRANSIT_COLORS[(st.lines?.length || 0) % TRANSIT_COLORS.length], width: 4, style: 'solid', status: 'open', operator: '', yearOpened: null, halfOpened: '', yearOpenedApprox: false, yearClosed: null, halfClosed: '', trackIds: [], roadIds: [], stopIds: [], service: null, segments: [], unnamed: false, notes: '', source: '', sourceType: '', confidence: '', verified: false, created: now(), updated: now() }; }
 function newStation(st) { return { id: uid('s'), reg: nextGlobal(st, 'ST'), name: '', aliases: [], kind: 'station', x: null, z: null, buildingId: null, parentId: null, districtId: null, status: 'open', yearOpened: null, halfOpened: '', yearClosed: null, halfClosed: '', notes: '', source: '', confidence: '', created: now(), updated: now() }; }
 function newBusiness(st) { return { id: uid('z'), reg: nextGlobal(st, 'BZ'), name: '', aliases: [], category: '', orgType: 'company', parentId: null, status: 'open', yearOpened: null, halfOpened: '', yearOpenedApprox: false, yearClosed: null, halfClosed: '', website: '', ticker: '', exchangeListed: false, exchangeSince: null, sector: '', locations: [], revenue: [], listings: [], marketQuotes: [], notes: '', source: '', sourceType: '', confidence: '', verified: false, tags: [], image: false, created: now(), updated: now() }; }
 function newTenancy(businessId, buildingId, role = 'tenant') { return { id: uid('t'), businessId, buildingId, role, unit: '', yearFrom: null, halfFrom: '', yearTo: null, halfTo: '', current: true, notes: '', created: now() }; }
@@ -2961,6 +2963,7 @@ async function flush() {
     await SAVE.write(JSON.parse(JSON.stringify(S)));
     await maybeSnapshot();
     if (VAULT.status === 'granted') await vaultWrite();
+    else if (typeof OS !== 'undefined' && OS.online && OS.status?.vaultOk) { try { await OS.vaultWrite(); } catch (e) { console.warn('bridge vault write failed', e); } }
     SAVE.dirty = false; SAVE.lastSaved = new Date(); SAVE.lastError = null;
     setSaveState('saved', 'SAVED ' + fmtTime(SAVE.lastSaved));
   } catch (e) {
@@ -3288,6 +3291,7 @@ function renderStatus() {
   idb.className = SAVE.lastError ? 'warn' : SAVE.dirty ? 'warn' : ''; $('#st-idb-t').textContent = SAVE.lastError ? 'browser store · SAVE FAILED' : SAVE.dirty ? 'browser store · unsaved' : 'browser store · ok';
   const v = $('#st-vault'), vt = $('#st-vault-t');
   if (VAULT.status === 'granted') { v.className = ''; vt.textContent = `vault · ${VAULT.name}${VAULT.lastWrite ? ' · ' + fmtTime(VAULT.lastWrite) : ''}`; }
+  else if (typeof OS !== 'undefined' && OS.online && OS.status?.vaultOk) { v.className = ''; vt.textContent = `vault · via OS bridge${OS.lastVaultWrite ? ' · ' + fmtTime(OS.lastVaultWrite) : ''}`; }
   else if (VAULT.status === 'prompt') { v.className = 'warn'; vt.innerHTML = `vault · <button data-act="vault-reconnect" style="color:var(--warn)">reconnect ${esc(VAULT.name)}</button>`; }
   else if (VAULT.status === 'unsupported') { v.className = 'off'; vt.textContent = 'vault · unsupported browser (use backups)'; }
   else { v.className = 'off'; vt.innerHTML = `vault · <button data-act="vault-link">link a folder</button>`; }
@@ -4042,6 +4046,32 @@ function allIssues(sc = UI.scope) {
   return out.sort((a, b) => LEVEL_RANK[a.level] - LEVEL_RANK[b.level]);
 }
 
+/* ---- dated shapes: a road or track keeps earlier geometries as versions; the current shape applies from geometryFrom ---- */
+function geometryAt(o, hy) {
+  const vs = (o.versions || []).filter(v => Array.isArray(v.geometry) && v.geometry.length >= 2 && v.year != null);
+  if (hy == null || !vs.length) return { geometry: o.geometry, width: o.width, version: null };
+  const list = vs.map(v => ({ v, idx: hyIndex(v.year, v.half || '') })).sort((a, b) => a.idx - b.idx);
+  const curIdx = o.geometryFromYear != null ? hyIndex(o.geometryFromYear, o.geometryFromHalf || '') : list[list.length - 1].idx + 1;
+  list.push({ v: null, idx: curIdx }); list.sort((a, b) => a.idx - b.idx);
+  let pick = null; for (const e of list) if (e.idx <= hy) pick = e; if (!pick) pick = list[0];
+  return pick.v ? { geometry: pick.v.geometry, width: pick.v.width ?? o.width, version: pick.v } : { geometry: o.geometry, width: o.width, version: null };
+}
+function saveShapeVersion(o, year, half, note = '') {
+  const v = { id: uid('gv'), year, half: half || '', geometry: JSON.parse(JSON.stringify(o.geometry || [])), width: o.width ?? null, note, saved: now() };
+  o.versions = [...(o.versions || []), v].sort((a, b) => hyIndex(a.year, a.half || '') - hyIndex(b.year, b.half || ''));
+  if (o.geometryFromYear == null) { const n = hyFromIndex(hyIndex(year, half || 'E') + 1); o.geometryFromYear = n.year; o.geometryFromHalf = n.half; }
+  o.updated = now(); return v;
+}
+/* ---- lots: frontage runs along X unless the lot is rotated; snapping to the serving road sets the side and the orientation ---- */
+function lotRect(b) { const fr = num(b.lotFront), dp = num(b.lotDepth); if (!fr || !dp || b.x == null || b.z == null) return null; const w = b.lotRotated ? dp : fr, h = b.lotRotated ? fr : dp; return { x1: b.x - w / 2, z1: b.z - h / 2, x2: b.x + w / 2, z2: b.z + h / 2, w, h }; }
+function snapToStreet(b, road = null) {
+  const r = road || roadById(b.roadId) || roadSuggest(b).items.find(it => it.road.geometry?.length >= 2)?.road; if (!r || !r.geometry || r.geometry.length < 2 || b.x == null || b.z == null) return null;
+  const c = polylineClosest([b.x, b.z], r.geometry); if (!c) return null; const a = r.geometry[c.i], e = r.geometry[c.i + 1]; const dx = e[0] - a[0], dz = e[1] - a[1]; const len = Math.hypot(dx, dz) || 1; const ux = dx / len, uz = dz / len;
+  const alongX = Math.abs(ux) >= Math.abs(uz); const dp = num(b.lotDepth) || num(b.lotFront) || 20;
+  const side = Math.sign((b.x - c.q[0]) * -uz + (b.z - c.q[1]) * ux) || 1; const off = (num(r.width) || 5) / 2 + 1 + dp / 2;
+  return { x: Math.round(c.q[0] - uz * side * off), z: Math.round(c.q[1] + ux * side * off), lotRotated: !alongX, road: r, d: c.d };
+}
+
 
 /* =====================================================================
    §8  OVERVIEW — the scope at a glance: skyline, tiles, through time,
@@ -4535,7 +4565,7 @@ function renderRecord(b) {
       ${kv(hist ? 'ORIGINAL COORDINATES' : 'COORDINATES', b.x != null && b.z != null ? `X ${esc(b.x)} · Z ${esc(b.z)}${b.entrance?.x != null ? `<small>entrance X ${esc(b.entrance.x)} · Z ${esc(b.entrance.z)}</small>` : ''}` : null, 'num')}${kv('OWNER', esc(b.owner))}
       ${fp != null ? kv('FOOTPRINT · MEASURED', `${fmtInt(fp)}<small>blocks² · ${b.footprint.length} vertices</small>`, 'num') : ''}
     </div>
-    ${b.x != null && b.z != null ? `<div class="minimap"><canvas id="minimap"></canvas><span class="coord">X ${esc(b.x)} · Z ${esc(b.z)}</span></div>` : ''}
+    ${b.x != null && b.z != null ? `<div class="minimap gm-mini" data-act="dr-map" role="button" title="Open in New A Maps"><div class="gm-brand-mini">${WORDMARK}</div><canvas id="minimap"></canvas><span class="coord">X ${esc(b.x)} · Z ${esc(b.z)}${b.lotFront && b.lotDepth ? ` · lot ${esc(b.lotFront)}×${esc(b.lotDepth)} ${b.lotRotated ? 'N–S' : 'E–W'}` : ''}</span><span class="open">OPEN IN MAPS ↗</span></div>` : ''}
     <div class="secthead">CLASSIFICATION & ZONING</div>
     <div class="kv">
       ${kv('BUILDING CLASS', b.bldgClass ? `${esc(b.bldgClass)}<small>${esc(classDesc(b.bldgClass))}</small>` : null)}${kv('TAX CLASS', b.taxClass ? `Class ${esc(b.taxClass)}<small>${esc(TAX_CLASSES.find(t => t.id === b.taxClass)?.label.split('—')[1] || '')}</small>` : null)}
@@ -4652,9 +4682,10 @@ function renderEditor(b) {
           <div class="f"><label for="f-name">Building name <span class="hint">optional</span></label>${inp('name', b.name, 'placeholder="New BK Tower"')}</div>
           ${f('x', 'X coordinate', numI('x', b.x, 'placeholder="0" step="1"'), 'Minecraft X')}
           ${f('z', 'Z coordinate', numI('z', b.z, 'placeholder="0" step="1"'), 'Minecraft Z')}
+          <div class="f"><label>Unnamed</label><label class="switch"><input type="checkbox" id="f-unnamed" ${b.unnamed ? 'checked' : ''}> <span class="muted" style="font-size:12px">no name or address known — shown by number</span></label></div>
         </div>
         <div class="frow c3">
-          <div class="f" style="align-self:end"><button type="button" class="btn sm" data-act="place-on-map">${icon('pin')} Pick coordinates on the map</button></div>
+          <div class="f" style="align-self:end;display:flex;gap:6px;flex-wrap:wrap"><button type="button" class="btn sm" data-act="place-on-map">${icon('pin')} Pick on the map</button><button type="button" class="btn sm" data-act="snap-street-draft" title="Centre the building on its serving road's frontage and turn the lot to face the street">${icon('road')} Snap to street</button>${b.footprint ? `<button type="button" class="btn sm" data-act="center-footprint-draft" title="Move the coordinates to the middle of the footprint">${icon('fit')} Centre on footprint</button>` : ''}</div>
           ${f('ex', 'Entrance X', numI('ex', b.entrance?.x, 'placeholder="—" step="1"'), 'optional · where you walk in')}
           ${f('ez', 'Entrance Z', numI('ez', b.entrance?.z, 'placeholder="—" step="1"'))}
         </div>
@@ -4711,6 +4742,7 @@ function renderEditor(b) {
           ${f('floorArea', 'Floor area', numI('floorArea', b.floorArea, 'placeholder="measured" min="0"'), 'blocks² · measured, not assumed')}
           ${f('lotFront', 'Frontage', numI('lotFront', b.lotFront, 'placeholder="20" min="0"'), 'blocks')}
           ${f('lotDepth', 'Depth', numI('lotDepth', b.lotDepth, 'placeholder="30" min="0"'), 'blocks')}
+          ${f('lotRotated', 'Lot orientation', `<select id="f-lotRotated"><option value="" ${!b.lotRotated ? 'selected' : ''}>Frontage along X (east–west)</option><option value="1" ${b.lotRotated ? 'selected' : ''}>Frontage along Z (north–south)</option></select>`, 'how the lot sits on the map · Snap to street sets it')}
           ${f('lotArea', 'Total lot size', numI('lotArea', b.lotArea, 'placeholder="auto" min="0"'), 'blocks² · auto = front × depth')}
         </div>
         <div class="fieldnote" style="margin-top:8px">Footprint: ${b.footprint ? `<b>${fmtInt(footprintAreaOf(b))} blk²</b> measured from ${b.footprint.length} vertices` : 'not drawn'} · <button type="button" class="rowlink" data-act="footprint-draw" style="font:inherit">${b.footprint ? 'redraw on the map' : 'draw on the map'}</button>${b.footprint ? ` · <button type="button" class="rowlink" data-act="footprint-clear" style="font:inherit">clear</button>` : ''}</div>
@@ -4725,6 +4757,7 @@ function renderEditor(b) {
           ${f('valuationBasis', 'Basis', `<select id="f-valuationBasis">${['', 'as-is', 'completed', 'land only', 'estimate'].map(v => `<option value="${v}" ${v === (b.valuationBasis || '') ? 'selected' : ''}>${v || '— unspecified —'}</option>`).join('')}</select>`)}
           ${f('listPrice', 'Asking price / rent', `<div class="pre"><span>$</span>${numI('listPrice', b.listPrice, 'placeholder="0" min="0" step="1000"')}</div>`, 'current listing')}
         </div>
+        <div id="f-estimate" class="fieldnote" style="margin-top:8px"><button type="button" class="btn sm" data-act="estimate-draft">${icon('spark')} Auto-estimate from nearby buildings &amp; transit</button> <span class="muted">compares assessed buildings within 200 blocks (then the borough), adjusts for stations, services, floors and condition — nothing is saved until you apply it</span></div>
         <div id="f-listings">${editorListingsHTML(b)}</div>
         <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:8px"><button type="button" class="btn sm" data-act="listing-add">${icon('plus')} Listing</button><button type="button" class="btn sm" data-act="tx-add">${icon('plus')} Transaction</button></div>
       </div>
@@ -4838,7 +4871,7 @@ function readFormInto(b, strict = true) {
   b.dateStarted = g('dateStarted'); b.dateBuilt = g('dateBuilt'); b.dateDemolished = g('dateDemolished');
   b.floors = num(g('floors')); b.height = num(g('height')); b.owner = g('owner').trim();
   b.unitsRes = num(g('unitsRes')); b.unitsCom = num(g('unitsCom')); b.floorArea = num(g('floorArea'));
-  b.lotFront = num(g('lotFront')); b.lotDepth = num(g('lotDepth')); b.lotArea = num(g('lotArea'));
+  b.lotFront = num(g('lotFront')); b.lotDepth = num(g('lotDepth')); b.lotArea = num(g('lotArea')); b.lotRotated = $('#f-lotRotated')?.value === '1'; b.unnamed = !!$('#f-unnamed')?.checked;
   b.assessLand = num(g('assessLand')); b.assessBuilding = num(g('assessBuilding')); b.assessTotal = num(g('assessTotal')); b.assessYear = num(g('assessYear')); b.valuationBasis = g('valuationBasis'); b.listPrice = num(g('listPrice'));
   b.tags = g('tags').split(/[\s,]+/).map(t => t.trim().toLowerCase()).filter(Boolean);
   b.notes = g('notes'); readCivicForm(b); readValuationForm(b);
@@ -4846,7 +4879,7 @@ function readFormInto(b, strict = true) {
   b.confidence = g('confidence'); b.sourceType = g('sourceType'); b.verified = !!$('#f-verified')?.checked; b.source = g('source').trim();
   b.status = summaryStatus(b);
   if (strict) {
-    if (!b.number && !b.street && !b.name) return 'Give the record at least a street, a building number or a name.';
+    if (!b.number && !b.street && !b.name && !b.unnamed) return 'Give the record at least a street, a building number or a name — or tick Unnamed.';
     for (const [k, v] of [['Started', b.yearStarted], ['Expected', b.yearExpected], ['Completed', b.yearBuilt], ['Demolished', b.yearDemolished]]) if (v != null && (v < 1900 || v > 2200)) return `${k} year looks off.`;
     if (b.yearDemolished != null && b.physical !== 'demolished') return 'A demolition date needs the physical status “Demolished” — or clear the date.';
     if (b.yearDemolished != null && b.yearBuilt != null && hyIndex(b.yearDemolished, b.halfDemolished) < hyIndex(b.yearBuilt, b.halfBuilt)) return 'Demolished before it was completed — check the dates.';
@@ -5103,6 +5136,7 @@ function renderRoadRecord(r) {
       ${kv('FROM', r.geometry[0] ? `X ${esc(r.geometry[0][0])} · Z ${esc(r.geometry[0][1])}` : null, 'num')}${kv('TO', r.geometry.length > 1 ? `X ${esc(r.geometry[r.geometry.length - 1][0])} · Z ${esc(r.geometry[r.geometry.length - 1][1])}` : null, 'num')}
       ${kv('SURFACE', esc(r.surface))}${kv('JURISDICTIONS', juris.map(d => esc(d.name)).join(', ') || null)}
     </div>
+    ${(r.versions || []).length ? `<div class="secthead">DATED SHAPES <span class="muted" style="letter-spacing:0;font-weight:400">· ${r.versions.length} · current since ${r.geometryFromYear != null ? esc(hyLabel(r.geometryFromYear, r.geometryFromHalf)) : 'after the latest'}</span></div><div class="rowlist versions">${r.versions.map(v => `<div class="r"><div><div class="t"><span class="mk">${esc(hyLabel(v.year, v.half))}</span>${v.geometry.length} points · ${fmtInt(polyLength(v.geometry))} blk${v.width ? ` · ${esc(v.width)} wide` : ''}${v.note ? ` · ${esc(v.note)}` : ''}</div></div></div>`).join('')}</div>` : ''}
     ${r.geometry.length ? `<div class="minimap tall"><canvas id="minimap"></canvas><span class="coord">${fmtInt(L)} blocks</span></div>` : ''}
     <div class="secthead">CHECKS <span class="muted" style="letter-spacing:0;font-weight:400">· what was looked at, nothing changed</span></div>
     ${issuesHTML(issues.filter(i => !i.summary), { max: 6 })}<div class="notes" style="font-size:11.5px;color:var(--ink-3)">${esc(issues.find(i => i.summary)?.text || '')}</div>
@@ -5126,11 +5160,16 @@ function renderRoadEditor(r) {
       <div class="f span"><label for="f-name">Name <span class="hint">renaming keeps the old name as a former name</span></label>${inpF('name', r.name, 'placeholder="Mill Street"')}</div>
       ${fld('aliases', 'Aliases', inpF('aliases', (r.aliases || []).join(', '), 'placeholder="Route 9, The Boulevard"'), 'comma separated')}
       ${fld('formerNames', 'Former names', inpF('formerNames', (r.formerNames || []).join(', '), 'placeholder=""'), 'comma separated')}
+      <div class="f"><label>Unnamed</label><label class="switch"><input type="checkbox" id="f-unnamed" ${r.unnamed ? 'checked' : ''}> <span class="muted" style="font-size:12px">no name known — shown by number, no label on the map</span></label></div>
     </div></div>
     <div class="fsect"><h4>KIND</h4><div class="frow c3">
       ${fld('type', 'Type', selF('type', ROAD_TYPES, r.type))}${fld('grade', 'Grade', selF('grade', GRADES, r.grade), 'bridges & tunnels never form junctions with surface roads')}${fld('direction', 'Access', selF('direction', DIRECTIONS, r.direction))}
       ${fld('width', 'Width', numF('width', r.width, 'min="1" step="1"'), 'blocks')}${fld('surface', 'Surface', inpF('surface', r.surface, 'placeholder="stone bricks, asphalt…"'))}
     </div></div>
+    <div class="fsect"><h4>DATED SHAPES <span style="font-weight:400;letter-spacing:0;color:var(--ink-4);font-family:var(--font-mono);font-size:10.5px">how this road ran in earlier years · playback uses them</span></h4>
+      <div class="rowlist versions">${(r.versions || []).length ? r.versions.map(v => `<div class="r"><div><div class="t"><span class="mk">${esc(hyLabel(v.year, v.half))}</span>${v.geometry.length} points${v.width ? ` · ${esc(v.width)} wide` : ''}${v.note ? ` · ${esc(v.note)}` : ''}</div><div class="s">shown in playback from ${esc(hyLabel(v.year, v.half))} until the next dated shape</div></div><div class="v"><button type="button" class="btn sm ghost" data-act="road-version-remove" data-v="${v.id}" title="Remove">${icon('x')}</button></div></div>`).join('') : '<div class="desc-line">None yet. Save the shape as drawn now with the year it was true for, then redraw the current shape on the map.</div>'}</div>
+      <div class="frow" style="margin-top:8px"><div class="f"><label>Current shape since <span class="hint">blank = right after the latest dated shape</span></label>${hyControl('gfrom', r.geometryFromYear, r.geometryFromHalf, false, { yearPh: '2023', withApprox: false })}</div><div class="f" style="align-self:end"><button type="button" class="btn sm" data-act="road-version-save">${icon('clock')} Save current shape as dated…</button></div></div>
+    </div>
     <div class="fsect"><h4>LIFECYCLE</h4><div class="frow">
       <div class="f"><label>Opened</label>${hyControl('opened', r.yearOpened, r.halfOpened, r.yearOpenedApprox, { yearPh: '2015' })}</div>
       <div class="f"><label>Closed <span class="hint">leave empty while in use</span></label>${hyControl('closed', r.yearClosed, r.halfClosed, false, { yearPh: '—', withApprox: false })}</div>
@@ -5152,8 +5191,8 @@ function readRoadFormInto(r, strict) {
   r.name = newName; r.aliases = g('aliases').split(',').map(s => s.trim()).filter(Boolean); r.formerNames = [...new Set([...(g('formerNames').split(',').map(s => s.trim()).filter(Boolean)), ...(r.formerNames || []).filter(n => n !== r.name)])].filter(n => n !== r.name);
   r.type = g('type') || 'street'; r.grade = g('grade') || 'surface'; r.direction = g('direction') || 'two-way'; r.width = num(g('width')); r.surface = g('surface').trim();
   const op = readHY('opened'), cl = readHY('closed'); r.yearOpened = op.year; r.halfOpened = op.year != null ? op.half : ''; r.yearOpenedApprox = op.year != null && op.approx; r.yearClosed = cl.year; r.halfClosed = cl.year != null ? cl.half : '';
-  r.geometry = readVertexList('v'); r.confidence = g('confidence'); r.sourceType = g('sourceType'); r.verified = !!$('#f-verified')?.checked; r.source = g('source').trim(); r.notes = g('notes');
-  if (strict) { if (!r.name) return 'Give the road a name.'; if (r.geometry.length < 2 && !DR.isNew) return 'A road needs at least two points — draw it on the map.'; if (r.yearClosed != null && r.yearOpened != null && hyIndex(r.yearClosed, r.halfClosed) < hyIndex(r.yearOpened, r.halfOpened)) return 'Closed before it opened — check the dates.'; }
+  r.geometry = readVertexList('v'); r.unnamed = !!$('#f-unnamed')?.checked; const gf = readHY('gfrom'); r.geometryFromYear = gf.year; r.geometryFromHalf = gf.year != null ? gf.half : ''; r.confidence = g('confidence'); r.sourceType = g('sourceType'); r.verified = !!$('#f-verified')?.checked; r.source = g('source').trim(); r.notes = g('notes');
+  if (strict) { if (!r.name && !r.unnamed) return 'Give the road a name, or tick Unnamed.'; if (r.geometry.length < 2 && !DR.isNew) return 'A road needs at least two points — draw it on the map.'; if (r.yearClosed != null && r.yearOpened != null && hyIndex(r.yearClosed, r.halfClosed) < hyIndex(r.yearOpened, r.halfOpened)) return 'Closed before it opened — check the dates.'; }
   return null;
 }
 
@@ -5170,6 +5209,7 @@ function renderLineRecord(l) {
       <div class="badges"><span class="status ${st.tone}"><i>●</i>${st.label}</span>${openBadge(l)}<span class="code">${stops.length} stops</span><span class="code">${fmtInt(lineLength(l))} blk</span><span class="code">${esc((LINE_STYLES.find(x => x[0] === l.style) || [])[1] || 'Solid')} · ${esc(l.width)}px</span>${confHTML(l.confidence, l.verified)}</div>
     </div>
     ${issues.length ? `<div class="secthead">CHECKS</div>${issuesHTML(issues)}` : ''}
+    ${lineTracks(l).some(t => (t.versions || []).length) ? `<div class="secthead">DATED ALIGNMENTS <span class="muted" style="letter-spacing:0;font-weight:400">· saved from the map inspector</span></div><div class="rowlist versions">${lineTracks(l).flatMap(t => (t.versions || []).map(v => `<div class="r"><div><div class="t"><span class="mk">${esc(hyLabel(v.year, v.half))}</span>${esc(t.name || t.reg)} · ${v.geometry.length} points · ${fmtInt(polyLength(v.geometry))} blk</div></div></div>`)).join('')}</div>` : ''}
     ${lineGeometries(l).length ? `<div class="minimap tall"><canvas id="minimap"></canvas><span class="coord">${fmtInt(lineLength(l))} blocks</span></div>` : `<div class="notes" style="font-size:12.5px;color:var(--ink-3)">No alignment drawn yet — <button class="rowlink" data-act="geom-map" style="font:inherit">draw it on the map</button>.</div>`}
     <div class="secthead">STOPS IN ORDER <span class="acts"><button class="btn sm" data-act="stop-add">${icon('station')} Add stop</button><button class="btn sm" data-act="stop-new-map" title="Place a new station on the map">${icon('pin')} New on map</button></span></div>
     ${stops.length ? `<div class="stoplist" style="--c:${esc(l.color)}">${stops.map((s, i) => `<div class="sp ${linesAtStation(s).length > 1 ? 'x' : ''}"><span class="dot"></span><div><div class="t" data-open="station:${s.id}" data-hover="station:${s.id}">${esc(s.name || s.reg)}</div><div class="s">${esc(STATION_KINDS.find(k => k[0] === s.kind)?.[1] || 'Station')}${linesAtStation(s).length > 1 ? ' · transfer: ' + linesAtStation(s).filter(x => x.id !== l.id).map(x => esc(x.shortName || x.name)).join(', ') : ''}${s.x != null ? ` · X ${s.x} Z ${s.z}` : ' · no coordinates'}</div></div><span class="mv"><button data-act="stop-move" data-i="${i}" data-dir="-1" title="Move up" ${i === 0 ? 'disabled' : ''}>${icon('up')}</button><button data-act="stop-move" data-i="${i}" data-dir="1" title="Move down" ${i === stops.length - 1 ? 'disabled' : ''}>${icon('down')}</button></span><button class="x2" data-act="stop-remove" data-id="${s.id}" title="Remove from this line (the station stays)">×</button></div>`).join('')}</div>` : `<div class="notes" style="font-size:12.5px;color:var(--ink-3)">No stops yet. Add existing stations, or place new ones on the map.</div>`}
@@ -5191,6 +5231,7 @@ function renderLineEditor(l) {
       <div class="f" style="grid-column:span 2"><label for="f-name">Name</label>${inpF('name', l.name, 'placeholder="Red Line"')}</div>
       ${fld('shortName', 'Short name', inpF('shortName', l.shortName, 'placeholder="R" maxlength="6"'), 'badge label')}
       ${fld('mode', 'Mode', selF('mode', TRANSIT_MODES, l.mode))}${fld('status', 'Status', selF('status', LINE_STATUSES.map(([id, label]) => [id, label]), l.status))}${fld('operator', 'Operator', inpF('operator', l.operator, 'placeholder="New A Metro"'))}
+      <div class="f"><label>Unnamed</label><label class="switch"><input type="checkbox" id="f-unnamed" ${l.unnamed ? 'checked' : ''}> <span class="muted" style="font-size:12px">no name known — shown by number</span></label></div>
     </div></div>
     <div class="fsect"><h4>APPEARANCE <span style="font-weight:400;letter-spacing:0;color:var(--ink-4);font-family:var(--font-mono);font-size:10.5px">colour · pattern · width — the label is always shown too</span></h4>
       <div class="swatchrow" id="line-swatches">${TRANSIT_COLORS.map(c => `<button type="button" data-color="${c}" aria-pressed="${(l.color || '').toLowerCase() === c.toLowerCase()}" style="--c:${c}" title="${c}"></button>`).join('')}<input type="color" id="f-color" value="${esc(/^#[0-9a-f]{6}$/i.test(l.color || '') ? l.color : TRANSIT_COLORS[0])}" title="Custom colour"></div>
@@ -5220,8 +5261,8 @@ function readLineFormInto(l, strict) {
   const pressed = $('#line-swatches [aria-pressed="true"]'); l.color = pressed ? pressed.dataset.color : (g('color') || TRANSIT_COLORS[0]); l.style = g('style') || 'solid'; l.width = num(g('width')) ?? 4;
   const op = readHY('opened'), cl = readHY('closed'); l.yearOpened = op.year; l.halfOpened = op.year != null ? op.half : ''; l.yearOpenedApprox = op.year != null && op.approx; l.yearClosed = cl.year; l.halfClosed = cl.year != null ? cl.half : '';
   l.trackIds = $$('#lform [data-track]:checked').map(x => x.dataset.track); l.roadIds = $$('#lform [data-road]:checked').map(x => x.dataset.road);
-  l.confidence = g('confidence'); l.sourceType = g('sourceType'); l.verified = !!$('#f-verified')?.checked; l.source = g('source').trim(); l.notes = g('notes'); readLineServiceForm(l);
-  if (strict) { if (!l.name) return 'Give the line a name.'; if (l.yearClosed != null && l.yearOpened != null && hyIndex(l.yearClosed, l.halfClosed) < hyIndex(l.yearOpened, l.halfOpened)) return 'Closed before it opened — check the dates.'; }
+  l.confidence = g('confidence'); l.sourceType = g('sourceType'); l.verified = !!$('#f-verified')?.checked; l.source = g('source').trim(); l.notes = g('notes'); l.unnamed = !!$('#f-unnamed')?.checked; readLineServiceForm(l);
+  if (strict) { if (!l.name && !l.unnamed) return 'Give the line a name, or tick Unnamed.'; if (l.yearClosed != null && l.yearOpened != null && hyIndex(l.yearClosed, l.halfClosed) < hyIndex(l.yearOpened, l.halfOpened)) return 'Closed before it opened — check the dates.'; }
   return null;
 }
 
@@ -6164,21 +6205,21 @@ function drawScene(R) {
   if (L.hoods) for (const h of (R.hoods || S.neighborhoods)) { const d = districtById(h.districtId); drawNode(h, 'hood', hexA(distColor(d), .85), distMark(d), 0.09, false, 3, '600 10px Chakra Petch, sans-serif'); }
   // footprints (drawn outlines) and, at street zoom, lot-sized blocks for buildings that only have frontage × depth
   if (L.footprints && k > 0.8) for (const b of (R.buildings || mapBuildings())) { if (!b.footprint || !onScreen(b.footprint)) continue; if (hy != null && stateAtHY(b, hy, { projection: R.projection }) !== 'standing') continue; tracePoly(b.footprint); ctx.fillStyle = hexA(dotColor(b), .22); ctx.fill(); ctx.strokeStyle = hexA(dotColor(b), .8); ctx.lineWidth = 1; ctx.stroke(); }
-  if (L.lots !== false && k > 1.6) for (const b of (R.buildings || mapBuildings())) { if (b.footprint || b.x == null) continue; const fr = num(b.lotFront), dp = num(b.lotDepth); if (!fr || !dp) continue; if (hy != null && stateAtHY(b, hy, { projection: R.projection }) !== 'standing') continue; const [cx, cy] = P.s(b.x, b.z); const w = fr * k, h = dp * k; if (cx + w < -20 || cy + h < -20 || cx - w > W + 20 || cy - h > H + 20) continue; const col = isHist(b) ? '#FF7A59' : dotColor(b); ctx.fillStyle = hexA(col, .14); ctx.fillRect(cx - w / 2, cy - h / 2, w, h); ctx.strokeStyle = hexA(col, .45); ctx.lineWidth = 1; ctx.strokeRect(cx - w / 2 + .5, cy - h / 2 + .5, w - 1, h - 1); }
+  if (L.lots !== false && k > 1.6) for (const b of (R.buildings || mapBuildings())) { if (b.footprint || b.x == null) continue; const lr = lotRect(b); if (!lr) continue; if (hy != null && stateAtHY(b, hy, { projection: R.projection }) !== 'standing') continue; const [cx, cy] = P.s(b.x, b.z); const w = lr.w * k, h = lr.h * k; if (cx + w < -20 || cy + h < -20 || cx - w > W + 20 || cy - h > H + 20) continue; const col = isHist(b) ? '#FF7A59' : dotColor(b); ctx.fillStyle = hexA(col, .14); ctx.fillRect(cx - w / 2, cy - h / 2, w, h); ctx.strokeStyle = hexA(col, .45); ctx.lineWidth = 1; ctx.strokeRect(cx - w / 2 + .5, cy - h / 2 + .5, w - 1, h - 1); }
   // roads
   if (L.roads) {
     const roads = R.roads || visibleRoads();
     for (const r of roads) {
-      if (r.geometry.length < 2 || !onScreen(r.geometry)) continue;
+      const G = hy != null ? geometryAt(r, hy) : null; const geom = G ? G.geometry : r.geometry; if (!geom || geom.length < 2 || !onScreen(geom)) continue;
       let alpha = 1, dashed = false;
       if (hy != null) { const st = serviceStateAt(r, hy); if (st === 'future') continue; if (st === 'undated') { if (!R.refOverlay) continue; alpha = .35; dashed = true; } if (st === 'closed') { alpha = .3; dashed = true; } if (anim && anim.t < 1) { const was = serviceStateAt(r, anim.from); if (was !== 'open' && st === 'open') alpha *= easeOut(anim.t); } }
       const s = isSel('road', r.id), h = isHov('road', r.id), hl = R.highlight?.ids?.has(r.id);
-      const wpx = Math.max(1.5, (num(r.width) || 5) * k); const col = ROAD_COLORS[r.type] || ROAD_COLORS.other; const g = r.grade || 'surface';
+      const wpx = Math.max(1.5, (num(G ? G.width : r.width) || 5) * k); const col = ROAD_COLORS[r.type] || ROAD_COLORS.other; const g = r.grade || 'surface';
       ctx.lineJoin = 'round'; ctx.lineCap = g === 'bridge' || g === 'elevated' ? 'butt' : 'round';
-      if (g === 'bridge' || g === 'elevated') { tracePath(r.geometry); ctx.lineWidth = wpx + 4; ctx.strokeStyle = hexA('#E0C63A', .55 * alpha); ctx.setLineDash([]); ctx.stroke(); }
-      tracePath(r.geometry); ctx.lineWidth = s || hl ? wpx + 3 : wpx; ctx.strokeStyle = s || hl ? '#FFFFFF' : hexA(h ? '#DCE9F0' : col, alpha); ctx.setLineDash(g === 'tunnel' ? [8, 6] : dashed ? [6, 6] : []); ctx.stroke(); ctx.setLineDash([]);
-      if (s || hl) { tracePath(r.geometry); ctx.lineWidth = Math.max(1, wpx - 1); ctx.strokeStyle = hexA(col, alpha); ctx.stroke(); }
-      if (L.labels && (k > 1.1 || s) && r.name) { const need = r.name.length * 6.6 + 10; let since = 1e9; for (let i = 1; i < r.geometry.length; i++) { const a = P.s(...r.geometry[i - 1]), b = P.s(...r.geometry[i]); const l = Math.hypot(b[0] - a[0], b[1] - a[1]); if (l < need && !s) { since += l; continue; } const reps = Math.max(1, Math.floor(l / 420)); for (let j = 0; j < reps; j++) { const t = (j + 0.5) / reps; if (since < 260 && j === 0 && !s) { since += l; continue; } labels.push({ x: a[0] + (b[0] - a[0]) * t, y: a[1] + (b[1] - a[1]) * t, text: r.name, font: `${s ? '600' : '500'} ${k > 2.5 ? 11 : 10.5}px Bricolage Grotesque, JetBrains Mono, sans-serif`, color: s ? '#fff' : hexA('#D7E3EC', alpha * .92), prio: 5, angle: Math.atan2(b[1] - a[1], b[0] - a[0]), pad: 3 }); since = 0; } since += l; if (!s && !(l >= need)) since += 0; } }
+      if (g === 'bridge' || g === 'elevated') { tracePath(geom); ctx.lineWidth = wpx + 4; ctx.strokeStyle = hexA('#E0C63A', .55 * alpha); ctx.setLineDash([]); ctx.stroke(); }
+      tracePath(geom); ctx.lineWidth = s || hl ? wpx + 3 : wpx; ctx.strokeStyle = s || hl ? '#FFFFFF' : hexA(h ? '#DCE9F0' : col, alpha); ctx.setLineDash(g === 'tunnel' ? [8, 6] : dashed ? [6, 6] : []); ctx.stroke(); ctx.setLineDash([]);
+      if (s || hl) { tracePath(geom); ctx.lineWidth = Math.max(1, wpx - 1); ctx.strokeStyle = hexA(col, alpha); ctx.stroke(); }
+      if (L.labels && (k > 1.1 || s) && r.name) { const need = r.name.length * 6.6 + 10; let since = 1e9; for (let i = 1; i < geom.length; i++) { const a = P.s(...geom[i - 1]), b = P.s(...geom[i]); const l = Math.hypot(b[0] - a[0], b[1] - a[1]); if (l < need && !s) { since += l; continue; } const reps = Math.max(1, Math.floor(l / 420)); for (let j = 0; j < reps; j++) { const t = (j + 0.5) / reps; if (since < 260 && j === 0 && !s) { since += l; continue; } labels.push({ x: a[0] + (b[0] - a[0]) * t, y: a[1] + (b[1] - a[1]) * t, text: r.name, font: `${s ? '600' : '500'} ${k > 2.5 ? 11 : 10.5}px Bricolage Grotesque, JetBrains Mono, sans-serif`, color: s ? '#fff' : hexA('#D7E3EC', alpha * .92), prio: 5, angle: Math.atan2(b[1] - a[1], b[0] - a[0]), pad: 3 }); since = 0; } since += l; if (!s && !(l >= need)) since += 0; } }
     }
     if (R.showJunctions && k > 1.5) for (const j of cachedJunctions()) { const [x, y] = P.s(j.x, j.z); if (x < -10 || y < -10 || x > W + 10 || y > H + 10) continue; if (j.kind === 'separated') { ctx.beginPath(); ctx.arc(x, y, 4, 0, Math.PI * 2); ctx.strokeStyle = 'rgba(224,198,58,.8)'; ctx.setLineDash([2, 2]); ctx.lineWidth = 1.2; ctx.stroke(); ctx.setLineDash([]); } else { ctx.beginPath(); ctx.arc(x, y, j.kind === 'junction' ? 3.2 : 2.6, 0, Math.PI * 2); ctx.fillStyle = sel?.kind === 'junction' && sel.j && Math.round(sel.j.x) === Math.round(j.x) && Math.round(sel.j.z) === Math.round(j.z) ? '#FFFFFF' : 'rgba(220,233,240,.85)'; ctx.fill(); } }
   }
@@ -6191,7 +6232,7 @@ function drawScene(R) {
       if (hy != null) { const st = serviceStateAt(l, hy); if (st === 'future') continue; if (st === 'undated') { if (!R.refOverlay) continue; alpha = .35; dashedByTime = true; } if (st === 'closed') { alpha = .3; dashedByTime = true; } if (anim && anim.t < 1) { const was = serviceStateAt(l, anim.from); if (was !== 'open' && st === 'open') alpha *= easeOut(anim.t); } }
       else if (l.status === 'planned' || l.status === 'construction') dashedByTime = true;
       const s = isSel('line', l.id), h = isHov('line', l.id), hl = R.highlight?.ids?.has(l.id); const wpx = Math.max(2, (num(l.width) || 4) * Math.min(1, k * 0.6 + 0.4));
-      const geoms = [...lineTracks(l).map(t => ({ pts: t.geometry, offset: (() => { const ids = perTrack.get(t.id) || []; const i = ids.indexOf(l.id); return (i - (ids.length - 1) / 2) * (wpx + 1.5); })() })), ...lineRoads(l).map(r => ({ pts: r.geometry, offset: 0 }))];
+      const geoms = [...lineTracks(l).map(t => ({ pts: hy != null ? geometryAt(t, hy).geometry : t.geometry, offset: (() => { const ids = perTrack.get(t.id) || []; const i = ids.indexOf(l.id); return (i - (ids.length - 1) / 2) * (wpx + 1.5); })() })), ...lineRoads(l).map(r => ({ pts: hy != null ? geometryAt(r, hy).geometry : r.geometry, offset: 0 }))];
       for (const g of geoms) {
         if (g.pts.length < 2 || !onScreen(g.pts)) continue;
         ctx.beginPath();
@@ -6315,7 +6356,7 @@ function renderInspector() {
     ${iss.length ? issuesHTML(iss, { max: 3 }) : ''}
     ${outside ? `<div class="issue warn">${icon('warn')}<span>Coordinates fall outside the ${esc(d.name)} border${placeSug.districts.length ? ` — inside ${placeSug.districts.map(x => esc(x.d.name)).join(' / ')}` : ''}. ${placeSug.districts[0] ? `<button class="rowlink" data-act="insp-move-district" data-district="${placeSug.districts[0].d.id}" style="font:inherit">Move the record to ${esc(placeSug.districts[0].d.name)}</button> or keep it.` : ''}</span></div>` : ''}
     <div class="kv"><div><div class="k">COORDINATES</div><div class="v num">${b.x != null ? `X ${esc(b.x)} · Z ${esc(b.z)}` : '—'}</div></div><div><div class="k">ENTRANCE</div><div class="v num">${b.entrance?.x != null ? `X ${esc(b.entrance.x)} · Z ${esc(b.entrance.z)}` : '<span class="muted">not marked</span>'}</div></div><div><div class="k">FOOTPRINT</div><div class="v num">${b.footprint ? `${fmtInt(footprintAreaOf(b))}<small>blk² · ${b.footprint.length} pts</small>` : '<span class="muted">not drawn</span>'}</div></div><div><div class="k">NEIGHBORHOOD</div><div class="v">${esc(hoodById(b.neighborhoodId)?.name || '—')}</div></div></div>
-    <div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:10px"><button class="btn sm" data-act="insp-move">${icon('pin')} Move</button><button class="btn sm" data-act="insp-entrance">${icon('pin')} Entrance</button><button class="btn sm" data-act="insp-footprint">${icon('poly')} ${b.footprint ? 'Redraw' : 'Draw'} footprint</button>${b.footprint ? `<button class="btn sm ghost" data-act="insp-footprint-clear">Clear footprint</button>` : ''}</div>
+    <div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:10px"><button class="btn sm" data-act="insp-move">${icon('pin')} Move</button><button class="btn sm" data-act="insp-entrance">${icon('pin')} Entrance</button><button class="btn sm" data-act="insp-footprint">${icon('poly')} ${b.footprint ? 'Redraw' : 'Draw'} footprint</button>${b.footprint ? `<button class="btn sm ghost" data-act="insp-footprint-clear">Clear footprint</button>` : ''}${num(b.lotFront) && num(b.lotDepth) ? `<button class="btn sm" data-act="insp-rotate-lot" title="Swap frontage and depth on the map">${icon('redo')} Rotate lot</button>` : ''}${b.footprint ? `<button class="btn sm" data-act="insp-center-footprint" title="Move the coordinates to the middle of the footprint">${icon('fit')} Centre on footprint</button>` : ''}${b.x != null && S.roads.length ? `<button class="btn sm" data-act="insp-snap-street" title="Sit the lot on its serving road: centre it on the frontage and turn it to face the street">${icon('road')} Snap to street</button>` : ''}</div>
     <div class="secthead">SERVING ROAD <span class="muted" style="letter-spacing:0;font-weight:400">· ${sug.basis === 'entrance' ? 'from the entrance' : sug.pt ? 'proximity from the centre' : 'no coordinates'}</span></div>
     ${road ? `<div class="rowlist"><div class="r link" data-act="insp-select" data-kind="road" data-id="${road.id}"><div><div class="t">${esc(roadLabel(road))} <span class="mk road">CURRENT</span></div><div class="s">${(() => { const it = sug.items.find(x => x.road.id === road.id); return it ? esc(roadSuggestReason(it, sug.basis)) : 'association recorded'; })()}</div></div><button class="x" data-act="insp-road-clear" title="Remove association">×</button></div></div>` : ''}
     ${sug.items.filter(it => it.road.id !== b.roadId).length ? `<div class="suggest">${sug.items.filter(it => it.road.id !== b.roadId).map(it => `<div class="sg ${it.kind === 'best' && !road ? 'best' : ''}" data-connector="${it.road.id}"><div><div class="t">${esc(roadLabel(it.road))} <span class="mk ${it.penalty ? 'warn' : 'road'}">${it.kind === 'best' && !road ? 'SUGGESTED' : it.corner ? 'CORNER' : 'ALTERNATIVE'}</span></div><div class="why">${esc(roadSuggestReason(it, sug.basis))}</div></div><div><div class="d">${Math.round(it.d)} blk</div><button class="btn sm" style="margin-top:6px" data-act="insp-road-apply" data-id="${it.road.id}">Use</button></div></div>`).join('')}<div class="desc-line">Hover a suggestion to preview the connector. The association never moves the building.</div></div>` : (S.roads.length ? '' : `<div class="dock-empty">No roads drawn yet.</div>`)}
@@ -6327,6 +6368,7 @@ function renderInspector() {
     <div class="frow c3" style="margin-top:10px"><div class="f"><label>Type</label>${selF('insp-type', ROAD_TYPES, r.type)}</div><div class="f"><label>Grade</label>${selF('insp-grade', GRADES, r.grade)}</div><div class="f"><label>Width</label>${numF('insp-width', r.width, 'min="1" step="1"')}</div></div>
     <div class="frow" style="margin-top:8px"><div class="f"><label>Access</label>${selF('insp-direction', DIRECTIONS, r.direction)}</div><div class="f"><label>Opened</label><div class="hy dock-hy">${`<select id="f-insp-opened-h" title="Half of the year">${HALVES.map(h => `<option value="${h.id}" ${(r.halfOpened || '') === h.id ? 'selected' : ''}>${h.short || 'Any half'}</option>`).join('')}</select><input id="f-insp-opened-y" type="number" value="${esc(r.yearOpened ?? '')}" placeholder="year" min="1990" max="2200">`}</div></div></div>
     <div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:10px"><button class="btn sm primary" data-act="insp-save-road">${icon('check')} Save</button><button class="btn sm" data-act="insp-extend" data-end="end">${icon('draw')} Extend end</button><button class="btn sm" data-act="insp-extend" data-end="start">${icon('draw')} Extend start</button><button class="btn sm" data-act="insp-split" ${sel.vertex != null && sel.vertex > 0 && sel.vertex < r.geometry.length - 1 ? '' : 'disabled title="Select an inner vertex to split there"'}>Split here</button><button class="btn sm" data-act="insp-join">Join with…</button><button class="btn sm danger" data-act="insp-delete">${icon('trash')}</button></div>
+    ${shapeVersionsHTML(r, 'road')}
     ${nameLinkHTML(r)}
     <div class="secthead">CHECKS</div>${issuesHTML(issues.filter(i => !i.summary), { max: 5 })}<div class="desc-line" style="margin-top:6px">${esc(issues.find(i => i.summary)?.text || '')}</div>
     ${js.length ? `<div class="secthead">CONNECTED TO</div><div class="chips" style="margin:8px 0 0">${[...new Set(js.map(j => j.a === r.id ? j.b : j.a))].map(id => roadById(id)).filter(Boolean).map(o => `<span class="rchip" data-act="insp-select" data-kind="road" data-id="${o.id}" role="button"><span class="k">${js.find(j => j.a === o.id || j.b === o.id)?.kind === 'joins' ? 'JOINS' : 'CROSSES'}</span><span class="t">${esc(roadLabel(o))}</span></span>`).join('')}</div>` : ''}
@@ -6338,6 +6380,7 @@ function renderInspector() {
     <div class="frow c3" style="margin-top:10px"><div class="f"><label>Short</label>${inpF('insp-short', l.shortName, 'maxlength="6"')}</div><div class="f"><label>Mode</label>${selF('insp-mode', TRANSIT_MODES, l.mode)}</div><div class="f"><label>Status</label>${selF('insp-status', LINE_STATUSES.map(([id, lb]) => [id, lb]), l.status)}</div></div>
     <div class="f" style="margin-top:8px"><label>Colour <span class="hint">updates the map, legend, badges and dashboard</span></label><div class="swatchrow" id="insp-swatches">${TRANSIT_COLORS.map(c => `<button type="button" data-color="${c}" aria-pressed="${(l.color || '').toLowerCase() === c.toLowerCase()}" style="--c:${c}"></button>`).join('')}<input type="color" id="insp-color" value="${esc(/^#[0-9a-f]{6}$/i.test(l.color || '') ? l.color : TRANSIT_COLORS[0])}"></div></div>
     <div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:10px"><button class="btn sm primary" data-act="insp-save-line">${icon('check')} Save</button><button class="btn sm" data-act="insp-extend" data-end="end">${icon('draw')} Extend</button><button class="btn sm" data-act="insp-add-track">${icon('transit')} Add track</button><button class="btn sm" data-act="insp-station-mode">${icon('station')} Add stops</button><button class="btn sm danger" data-act="insp-delete">${icon('trash')}</button></div>
+    ${shapeVersionsHTML(null, 'line', l)}
     <div class="secthead">STOPS</div>${stops.length ? `<div class="stoplist" style="--c:${esc(l.color)}">${stops.map((s, i) => `<div class="sp ${linesAtStation(s).length > 1 ? 'x' : ''}"><span class="dot"></span><div><div class="t" data-act="insp-select" data-kind="station" data-id="${s.id}">${esc(s.name || s.reg)}</div><div class="s">${linesAtStation(s).length > 1 ? 'transfer · ' : ''}${s.x != null ? `X ${s.x} Z ${s.z}` : 'no coordinates'}</div></div><span class="mv"><button data-act="stop-move" data-line="${l.id}" data-i="${i}" data-dir="-1" ${i === 0 ? 'disabled' : ''}>${icon('up')}</button><button data-act="stop-move" data-line="${l.id}" data-i="${i}" data-dir="1" ${i === stops.length - 1 ? 'disabled' : ''}>${icon('down')}</button></span><button class="x2" data-act="stop-remove" data-line="${l.id}" data-id="${s.id}">×</button></div>`).join('')}</div>` : `<div class="dock-empty">No stops yet — press <kbd>X</kbd> and click along the line.</div>`}
     ${vertexEditorHTML(sel)}`;
   }
@@ -6434,6 +6477,12 @@ function wireDock() {
 function inspectorAction(act, t) {
   const sel = MAPW.sel;
   switch (act) {
+    case 'insp-rotate-lot': { const b = byId(sel.id); if (!b) break; mapPushUndo(); b.lotRotated = !b.lotRotated; b.updated = now(); commit(); renderDock(); mapDraw(); toast(`Lot turned — frontage now runs along ${b.lotRotated ? 'Z (north–south)' : 'X (east–west)'}`, 'good'); break; }
+    case 'insp-center-footprint': { const b = byId(sel.id); if (!b?.footprint) break; const c = centroidOf(b.footprint); mapPushUndo(); b.x = Math.round(c[0]); b.z = Math.round(c[1]); b.updated = now(); commit(); renderDock(); mapDraw(); toast(`${b.reg} centred on its footprint · X ${b.x} · Z ${b.z}`, 'good'); break; }
+    case 'insp-snap-street': { const b = byId(sel.id); if (!b) break; const sn = snapToStreet(b); if (!sn) { toast('No road near this building to snap to', 'warn'); break; } mapPushUndo(); const was = { x: b.x, z: b.z, lotRotated: b.lotRotated, roadId: b.roadId, roadIdSource: b.roadIdSource }; b.x = sn.x; b.z = sn.z; b.lotRotated = sn.lotRotated; if (!b.roadId) { b.roadId = sn.road.id; b.roadIdSource = 'snap'; } b.updated = now(); commit(); renderDock(); mapDraw(); toast(`${b.reg} snapped to ${roadLabel(sn.road)} · X ${b.x} · Z ${b.z}`, 'good', { label: 'UNDO', fn: () => { Object.assign(b, was); b.updated = now(); commit(); renderDock(); mapDraw(); } }); break; }
+    case 'insp-version-save': shapeVersionSaveFlow(sel); break;
+    case 'insp-version-restore': { const o = sel.kind === 'road' ? roadById(sel.id) : trackById(t.dataset.t); const v = (o?.versions || []).find(x => x.id === t.dataset.v); if (!o || !v) break; mapPushUndo(); o.geometry = JSON.parse(JSON.stringify(v.geometry)); if (v.width) o.width = v.width; o.updated = now(); afterGeometryChange({ kind: sel.kind === 'road' ? 'road' : 'track', id: o.id }); commit(); renderDock(); mapDraw(); toast(`Loaded the ${hyLabel(v.year, v.half)} shape as the current one`, 'good'); break; }
+    case 'insp-version-remove': { const o = sel.kind === 'road' ? roadById(sel.id) : trackById(t.dataset.t); if (!o) break; mapPushUndo(); o.versions = (o.versions || []).filter(x => x.id !== t.dataset.v); o.updated = now(); commit(); renderDock(); break; }
     case 'insp-select': MAPW.sel = { kind: t.dataset.kind, id: t.dataset.id }; MAPW.dock = 'inspector'; renderDock(); refreshTools(); const ext = selExtent(MAPW.sel); if (ext && t.closest('.streets, .chips, .issue')) mapFit(ext); else mapDraw(); break;
     case 'insp-open': if (sel) openRecord(sel.kind, sel.id); break;
     case 'insp-edit': if (sel) openRecord(sel.kind, sel.id, 'edit'); break;
@@ -6502,6 +6551,19 @@ function drawFootprintForDraft() {
   const resume = () => { Object.assign(DR, stackState); DR.draft = draft; renderDrawer(); showDrawer(); };
   const go = () => { MAPW.pending = { kind: 'footprint', buildingId: draft.id, label: `Trace the outline of ${draft.reg || 'the new building'}`, resume }; setMapMode('footprint', { pending: MAPW.pending }); if (draft.x != null) { MAPW.cam.x = draft.x; MAPW.cam.z = draft.z; if (MAPW.cam.k < 3) MAPW.cam.k = 4; mapDraw(); } };
   if (MAPW.mounted) go(); else setTimeout(go, 40);
+}
+
+/* ---- dated shapes in the inspector (roads directly; lines through their tracks) ---- */
+function shapeVersionsHTML(o, kind, line = null) {
+  const objs = kind === 'line' ? lineTracks(line) : [o]; const vs = objs.flatMap(t => (t.versions || []).map(v => ({ v, t }))).sort((a, b) => hyIndex(a.v.year, a.v.half || '') - hyIndex(b.v.year, b.v.half || ''));
+  if (kind === 'line' && !objs.length) return '';
+  return `<div class="secthead">DATED SHAPES <span class="muted" style="letter-spacing:0;font-weight:400">· ${vs.length ? vs.length + ' saved' : 'none yet'}</span><span class="acts"><button class="btn sm" data-act="insp-version-save" title="Keep the shape as drawn now, dated — then edit the current shape for later years">${icon('clock')} Save shape as dated</button></span></div>
+  ${vs.length ? `<div class="rowlist versions">${vs.map(({ v, t }) => `<div class="r"><div><div class="t"><span class="mk">${esc(hyLabel(v.year, v.half))}</span>${kind === 'line' ? esc(t.name || t.reg) + ' · ' : ''}${v.geometry.length} points${v.width ? ` · ${esc(v.width)} wide` : ''}${v.note ? ` · ${esc(v.note)}` : ''}</div><div class="s">playback shows it from ${esc(hyLabel(v.year, v.half))} until the next dated shape</div></div><div class="v" style="display:flex;gap:4px"><button class="btn sm ghost" data-act="insp-version-restore" data-t="${t.id}" data-v="${v.id}" title="Load this shape as the current one">Load</button><button class="btn sm ghost" data-act="insp-version-remove" data-t="${t.id}" data-v="${v.id}" title="Remove this dated shape">${icon('x')}</button></div></div>`).join('')}</div><div class="desc-line">Current shape applies from ${objs[0].geometryFromYear != null ? esc(hyLabel(objs[0].geometryFromYear, objs[0].geometryFromHalf)) : 'the half-year after the latest dated shape'}${kind === 'road' ? ' — change it on the record' : ''}.</div>` : `<div class="desc-line">${kind === 'line' ? 'Alignments' : 'Roads'} change: save today's shape with the year it was true for, then redraw the current one. Playback shows the right shape for each half-year.</div>`}`;
+}
+async function shapeVersionSaveFlow(sel) {
+  const objs = sel?.kind === 'road' ? [roadById(sel.id)].filter(Boolean) : sel?.kind === 'line' ? lineTracks(lineById(sel.id) || { trackIds: [] }) : []; if (!objs.length) { toast('Nothing with a shape is selected', 'warn'); return; }
+  const r = await hyPromptDialog({ title: 'Save the current shape as a dated version', body: '<p>The shape as drawn now is kept for the date you give; playback shows it from that half-year until the next dated shape. Then redraw the current shape for later years.</p>', ok: 'Save dated shape', kicker: 'DATED SHAPE', label: 'This shape was true in', year: FOUNDED_YEAR, half: 'E' });
+  if (!r || r.year == null) return; mapPushUndo(); for (const o of objs) saveShapeVersion(o, r.year, r.half); commit(); renderDock(); toast(`Shape saved as ${hyLabel(r.year, r.half)} — now redraw the current one`, 'good');
 }
 
 
@@ -7660,7 +7722,7 @@ document.addEventListener('click', async e => {
     case 'dr-cancel': if (DR.isNew) closeDrawer(); else { if (formDirty()) { const r = await confirmDialog({ title: 'Discard changes?', body: '<p>Your edits to this record will be lost.</p>', ok: 'Discard', cancel: 'Keep editing', danger: true }); if (r !== 'ok') break; } openRecord(DR.kind, DR.id, 'view', { keepStack: true }); } break;
     case 'dr-save': saveDrawer(); break;
     case 'dr-delete': if (DR.kind === 'building') deleteBuilding(DR.id); else deleteOther(DR.kind, DR.id); break;
-    case 'dr-map': { const ref = { kind: DR.kind, id: DR.id }; closeDrawer(true); mapLocate(ref); break; }
+    case 'dr-map': { const ref = { kind: DR.kind, id: DR.id }; closeDrawer(true); if (MAPW.edit) { if (UI.nav === 'map') setMapEdit(false); else MAPW.edit = false; } mapLocate(ref); break; }
     case 'dr-photo': $('#file-img').click(); break;
     case 'dr-photo-remove': { const b = DR.mode === 'edit' ? DR.draft : recordById(DR.kind, DR.id); if (b) { await removeBuildingImage(b); const real = recordById(DR.kind, b.id); if (real) real.image = false; if (DR.mode === 'edit') renderDrawerPhotoOnly(); else renderDrawer(); renderView(false); } break; }
     case 'dr-copy': { const b = byId(DR.id); if (b) copySummary(b); break; }
@@ -7708,6 +7770,13 @@ document.addEventListener('click', async e => {
     case 'markets-import': $('#file-markets').click(); break;
     case 'markets-refresh': marketsRefresh({ source: 'live' }); break;
     case 'markets-vault': marketsRefresh({ source: 'vault' }); break;
+    // editor helpers: estimate · snap · centre · dated shapes
+    case 'estimate-draft': { if (!DR.draft) break; readFormInto(DR.draft, false); const box = $('#f-estimate'); if (box) box.innerHTML = draftEstimateHTML(DR.draft); break; }
+    case 'estimate-apply': { const v = num(t.dataset.v); if (v == null) break; const a = $('#f-assessTotal'); if (a) a.value = v; const y = $('#f-assessYear'); if (y && !y.value) y.value = CURRENT_YEAR; const bs = $('#f-valuationBasis'); if (bs) bs.value = 'estimate'; toast('Estimate placed in Assessed total — save the record to keep it', 'good'); break; }
+    case 'snap-street-draft': { if (!DR.draft) break; readFormInto(DR.draft, false); const sn = snapToStreet(DR.draft); if (!sn) { toast(DR.draft.x == null ? 'Give the building coordinates first' : 'No road near this building to snap to', 'warn'); break; } $('#f-x').value = sn.x; $('#f-z').value = sn.z; const lr = $('#f-lotRotated'); if (lr) lr.value = sn.lotRotated ? '1' : ''; const rd = $('#f-road'); if (rd && !rd.value) rd.value = sn.road.id; updatePlaceHint(); toast(`Centred on ${roadLabel(sn.road)} · X ${sn.x} · Z ${sn.z} · lot turned to face it`, 'good'); break; }
+    case 'center-footprint-draft': { if (!DR.draft?.footprint) break; const c = centroidOf(DR.draft.footprint); $('#f-x').value = Math.round(c[0]); $('#f-z').value = Math.round(c[1]); updatePlaceHint(); toast('Coordinates set to the middle of the footprint', 'good'); break; }
+    case 'road-version-save': { if (!DR.draft) break; readAnyFormInto(DR.draft, false); if ((DR.draft.geometry || []).length < 2) { toast('Draw the road on the map first', 'warn'); break; } const r = await hyPromptDialog({ title: 'Save the current shape as a dated version', body: '<p>The shape as drawn now is kept for the date you give; playback shows it from that half-year until the next dated shape. Then redraw the current shape.</p>', ok: 'Save dated shape', kicker: 'DATED SHAPE', label: 'This shape was true in', year: FOUNDED_YEAR, half: 'E' }); if (!r || r.year == null) break; saveShapeVersion(DR.draft, r.year, r.half); rerenderEditor(); toast(`Shape saved as ${hyLabel(r.year, r.half)}`, 'good'); break; }
+    case 'road-version-remove': { if (!DR.draft) break; readAnyFormInto(DR.draft, false); DR.draft.versions = (DR.draft.versions || []).filter(v => v.id !== t.dataset.v); rerenderEditor(); break; }
     // OS bridge
     case 'os-open': openDataModal(); break;
     case 'os-poll': await OS.poll(); openDataModal(); break;
@@ -8132,17 +8201,63 @@ function openBasemapModal() {
   const list = S.settings.basemaps || [];
   openModal({ title: 'Basemap — the rendered city under the data', kicker: 'MAP', cls: 'wide',
     body: `<p class="muted" style="font-size:12.5px;margin:12px 0 0">Give a render a year (and half) and playback shows it at that date — only the latest render at or before the date, so a newer map can never sit behind an older one. Drop a north-up image of the world — a JourneyMap export, the Chronicle's block-by-block render, or a screenshot of the in-game map — and tell New A OS where its top-left pixel sits (X, Z) and how many blocks one pixel covers. JourneyMap tiles are 1 block per pixel at zoom 0. The image is kept in this browser and written to the vault's images folder; nothing is traced from it automatically.</p>
-      <div style="display:flex;gap:8px;margin-top:12px;flex-wrap:wrap"><button class="btn primary" id="bm-add">${icon('img')} Add image…</button><input type="file" id="bm-file" accept="image/*" hidden></div>
+      <div class="callout info" style="margin-top:12px"><b>JourneyMap, the exact way.</b> Point at JourneyMap's tile folder (<code>.minecraft/journeymap/data/sp/&lt;world&gt;/overworld/day</code>) or its exported ZIP: every tile is named by its position (<code>0,0.png</code> = X 0–511 · Z 0–511), so the map is placed exactly and 0,0 is derived, never calibrated. A single “Save map” PNG still works, but its centre is not 0,0 — you would have to type the top-left corner yourself.</div>
+      <div style="display:flex;gap:8px;margin-top:12px;flex-wrap:wrap"><button class="btn primary" id="bm-jm-dir">${icon('folder')} JourneyMap tiles folder…</button><input type="file" id="bm-jm-files" webkitdirectory multiple hidden><button class="btn" id="bm-jm-zip">${icon('up')} JourneyMap export ZIP…</button><input type="file" id="bm-jm-zipfile" accept=".zip,application/zip" hidden><button class="btn" id="bm-add">${icon('img')} Single image…</button><input type="file" id="bm-file" accept="image/*" hidden></div>
       <div class="list" id="bm-list" style="margin-top:12px">${list.length ? list.map(bm => `<div class="li" style="grid-template-columns:1fr;gap:8px;--c:var(--amber)"><div class="t">${esc(bm.name)} <span class="muted" style="font-family:var(--font-mono);font-size:11px">· ${bm.w || '?'}×${bm.h || '?'} px</span></div>
         <div class="frow c3"><div class="f"><label>Dated render <span class="hint">year · half (for playback)</span></label><div class="hy dock-hy"><select data-bm="${bm.id}" data-k="half">${HALVES.map(h => `<option value="${h.id}" ${(bm.half || '') === h.id ? 'selected' : ''}>${h.short || 'Any half'}</option>`).join('')}</select><input type="number" data-bm="${bm.id}" data-k="year" value="${esc(bm.year ?? '')}" placeholder="present" min="1990" max="2200"></div></div><div class="f"><label>Top-left X</label><input type="number" step="1" data-bm="${bm.id}" data-k="x" value="${esc(bm.x)}"></div><div class="f"><label>Top-left Z</label><input type="number" step="1" data-bm="${bm.id}" data-k="z" value="${esc(bm.z)}"></div><div class="f"><label>Blocks per pixel</label><input type="number" step="0.01" min="0.01" data-bm="${bm.id}" data-k="scale" value="${esc(bm.scale)}"></div><div class="f"><label>Opacity</label><input type="number" step="0.05" min="0.05" max="1" data-bm="${bm.id}" data-k="opacity" value="${esc(bm.opacity ?? 0.75)}"></div><div class="f"><label>Shown</label><label class="switch"><input type="checkbox" data-bm="${bm.id}" data-k="hidden" ${bm.hidden ? '' : 'checked'}></label></div><div class="f" style="align-self:end"><button class="btn sm danger" data-bm-del="${bm.id}">${icon('trash')} Remove</button></div></div>
         <div class="desc-line">Covers X ${esc(bm.x)} → ${esc(Math.round(bm.x + (bm.w || 0) * bm.scale))} · Z ${esc(bm.z)} → ${esc(Math.round(bm.z + (bm.h || 0) * bm.scale))}. Edits apply live on the map behind this dialog.</div></div>`).join('') : `<div class="li empty">No basemap yet.</div>`}</div>`,
     foot: `<span class="spacer"></span><button class="btn" data-act="modal-close">Done</button>`,
     onOpen: m => {
       m.querySelector('#bm-add').onclick = () => m.querySelector('#bm-file').click();
+      m.querySelector('#bm-jm-dir').onclick = () => m.querySelector('#bm-jm-files').click();
+      m.querySelector('#bm-jm-zip').onclick = () => m.querySelector('#bm-jm-zipfile').click();
+      m.querySelector('#bm-jm-files').addEventListener('change', async e => { const files = [...(e.target.files || [])]; if (!files.length) return; toast(`Reading ${files.length} files…`); try { const bm = await importJourneyMap(files.map(f => ({ path: f.webkitRelativePath || f.name, file: f })), { name: `JourneyMap ${new Date().toISOString().slice(0, 10)}` }); if (bm) openBasemapModal(); } catch (err) { toast('Could not read the tiles: ' + err.message, 'bad'); } });
+      m.querySelector('#bm-jm-zipfile').addEventListener('change', async e => { const f = e.target.files?.[0]; if (!f) return; toast('Unpacking the ZIP…'); try { const entries = await unzipEntries(f, p => JM_TILE.test(p)); const bm = await importJourneyMap(entries, { name: f.name.replace(/\.zip$/i, '') }); if (bm) openBasemapModal(); } catch (err) { toast('Could not read the ZIP: ' + err.message, 'bad'); } });
       m.querySelector('#bm-file').addEventListener('change', async e => { const f = e.target.files?.[0]; if (!f) return; const bm = await basemapAdd(f); if (bm) { toast(`${bm.name} added — set its X, Z and scale`, 'good'); openBasemapModal(); } });
       m.querySelectorAll('[data-bm]').forEach(inp => inp.addEventListener('input', () => { const bm = (S.settings.basemaps || []).find(b => b.id === inp.dataset.bm); if (!bm) return; const k = inp.dataset.k; if (k === 'hidden') bm.hidden = !inp.checked; else if (k === 'half') bm.half = ['E', 'L'].includes(inp.value) ? inp.value : ''; else if (k === 'year') bm.year = num(inp.value); else { const v = num(inp.value); if (v == null) return; bm[k] = k === 'scale' ? Math.max(0.01, v) : k === 'opacity' ? clamp(v, 0.05, 1) : v; } commit({ silentRender: true }); mapDraw(); if (HV.open) hvDraw(); }));
       m.querySelectorAll('[data-bm-del]').forEach(b => b.onclick = async () => { const r = await confirmDialog({ title: 'Remove this basemap?', body: '<p>The image is removed from the browser store and the vault.</p>', ok: 'Remove', danger: true }); if (r === 'ok') { await basemapRemove(b.dataset.bmDel); openBasemapModal(); } else openBasemapModal(); });
     } });
+}
+
+/* ---- JourneyMap tiles: files named "x,z.png" are 512-block tiles whose position is derived from the name, never calibrated ---- */
+const JM_TILE = /(?:^|[\\/])(-?\d+),(-?\d+)\.png$/i;
+function jmPick(entries) {
+  const tiles = entries.map(e => { const m = JM_TILE.exec(e.path || ''); if (!m) return null; const dir = (e.path || '').slice(0, (e.path || '').length - m[0].length).replace(/\\/g, '/'); return { ...e, tx: +m[1], tz: +m[2], dir }; }).filter(Boolean);
+  if (!tiles.length) return { tiles: [], dir: null, dirs: [] };
+  const dirs = [...new Set(tiles.map(t => t.dir))]; const score = d => (/(^|\/)day$/i.test(d) ? 4 : 0) + (/overworld|dim0/i.test(d) ? 2 : 0) + (/topo|night|biome|cave|nether|the_end|dim-1|dim1/i.test(d) ? -3 : 0);
+  const best = dirs.slice().sort((a, b) => score(b) - score(a) || tiles.filter(t => t.dir === b).length - tiles.filter(t => t.dir === a).length)[0];
+  return { tiles: tiles.filter(t => t.dir === best), dir: best, dirs };
+}
+async function jmStitch(tiles, { name = 'JourneyMap', maxPixels = 48e6 } = {}) {
+  const imgs = []; for (const t of tiles) imgs.push({ ...t, bmp: await createImageBitmap(t.file) });
+  const ts = imgs[0].bmp.width || 512; const blocksPerPx = 512 / ts;
+  const txs = imgs.map(t => t.tx), tzs = imgs.map(t => t.tz); const minTx = Math.min(...txs), maxTx = Math.max(...txs), minTz = Math.min(...tzs), maxTz = Math.max(...tzs);
+  const cols = maxTx - minTx + 1, rows = maxTz - minTz + 1; let f = 1; while ((cols * ts / f) * (rows * ts / f) > maxPixels) f *= 2;
+  const c = document.createElement('canvas'); c.width = Math.ceil(cols * ts / f); c.height = Math.ceil(rows * ts / f); const g = c.getContext('2d'); g.imageSmoothingEnabled = f > 1;
+  for (const t of imgs) { g.drawImage(t.bmp, (t.tx - minTx) * ts / f, (t.tz - minTz) * ts / f, ts / f, ts / f); t.bmp.close?.(); }
+  const blob = await new Promise(r => c.toBlob(r, 'image/png')); const file = new File([blob], `${name}.png`, { type: 'image/png' });
+  return { file, x: minTx * 512, z: minTz * 512, scale: blocksPerPx * f, w: c.width, h: c.height, tiles: imgs.length, cols, rows, downscaled: f };
+}
+async function importJourneyMap(entries, { name = 'JourneyMap tiles' } = {}) {
+  const { tiles, dir, dirs } = jmPick(entries); if (!tiles.length) { toast('No JourneyMap tiles found — expected files named like 0,0.png, ideally from overworld/day', 'warn'); return null; }
+  const st = await jmStitch(tiles, { name }); const bm = await basemapAdd(st.file); if (!bm) return null;
+  bm.name = name; bm.x = st.x; bm.z = st.z; bm.scale = st.scale; bm.w = st.w; bm.h = st.h; bm.opacity = 0.85; bm.source = 'journeymap'; bm.tiles = st.tiles; bm.tileDir = dir; commit({ silentRender: true }); if (UI.nav === 'map') { refreshChips(); mapDraw(); }
+  toast(`${st.tiles} tile${st.tiles === 1 ? '' : 's'} stitched from ${dir || 'the folder'} — placed at X ${st.x} · Z ${st.z}, ${st.scale} block${st.scale === 1 ? '' : 's'} per pixel${st.downscaled > 1 ? ' (downscaled ×' + st.downscaled + ' to fit)' : ''}${dirs.length > 1 ? ' · ignored: ' + dirs.filter(d => d !== dir).slice(0, 3).join(', ') : ''}`, 'good');
+  return bm;
+}
+/* minimal ZIP reader in the browser: stored and deflated entries (what JourneyMap's export writes); nothing is uploaded anywhere */
+async function unzipEntries(file, filter = () => true) {
+  const buf = new Uint8Array(await file.arrayBuffer()); const dv = new DataView(buf.buffer, buf.byteOffset, buf.byteLength); let eocd = -1;
+  for (let i = buf.length - 22; i >= Math.max(0, buf.length - 70000); i--) if (dv.getUint32(i, true) === 0x06054b50) { eocd = i; break; } if (eocd < 0) throw new Error('not a ZIP file');
+  const count = dv.getUint16(eocd + 10, true); let p = dv.getUint32(eocd + 16, true); const out = []; const td = new TextDecoder();
+  for (let n = 0; n < count; n++) {
+    if (dv.getUint32(p, true) !== 0x02014b50) break; const method = dv.getUint16(p + 10, true), csize = dv.getUint32(p + 20, true), usize = dv.getUint32(p + 24, true), nlen = dv.getUint16(p + 28, true), elen = dv.getUint16(p + 30, true), clen = dv.getUint16(p + 32, true), off = dv.getUint32(p + 42, true);
+    const path = td.decode(buf.subarray(p + 46, p + 46 + nlen)); p += 46 + nlen + elen + clen; if (path.endsWith('/') || !filter(path)) continue;
+    const lnlen = dv.getUint16(off + 26, true), lelen = dv.getUint16(off + 28, true); const start = off + 30 + lnlen + lelen; const data = buf.subarray(start, start + csize); let blob;
+    if (method === 0) blob = new Blob([data], { type: 'image/png' }); else if (method === 8) { const ds = new DecompressionStream('deflate-raw'); const raw = await new Response(new Blob([data]).stream().pipeThrough(ds)).blob(); blob = new Blob([raw], { type: 'image/png' }); } else continue;
+    out.push({ path, file: new File([blob], path.split('/').pop(), { type: 'image/png' }), size: usize });
+  }
+  return out;
 }
 
 
@@ -8522,8 +8637,10 @@ function drawSandbox(ctx, P, k) { for (const x of S.sandbox.stations || []) { if
    ===================================================================== */
 const VAL = () => ({ ...VALUATION_DEFAULTS, ...(S.settings.valuation || {}) });
 /* ---- valuations: base × (1 + Σ factors), every factor named with its reason ---- */
+function nearbyComparables(b, radius = 200) { if (b.x == null || b.z == null) return { n: 0, radius, vals: [] }; const vals = S.buildings.filter(x => x.id !== b.id && isCompleted(x) && x.x != null && x.z != null && num(x.assessTotal) && lotAreaOf(x) && dist2([b.x, b.z], [x.x, x.z]) <= radius).map(x => num(x.assessTotal) / lotAreaOf(x)); return { n: vals.length, radius, vals }; }
 function basePerBlock(b) {
   const pool = rows => rows.filter(x => x.id !== b.id && isCompleted(x) && num(x.assessTotal) && lotAreaOf(x)).map(x => num(x.assessTotal) / lotAreaOf(x));
+  const nb = nearbyComparables(b); if (nb.n >= 3) return { perBlock: median(nb.vals), basis: `median of ${nb.n} assessed buildings within ${nb.radius} blk`, n: nb.n };
   let vals = pool(buildingsIn(b.districtId)); let basis = 'district median';
   if (vals.length < 3) { vals = pool(S.buildings); basis = 'city-wide median'; }
   if (vals.length < 3) return { perBlock: VAL().fallbackPerBlock, basis: 'fallback setting', n: vals.length };
@@ -8776,6 +8893,12 @@ function saveProject(d, existing) {
 }
 async function deleteProject(id) { const p = projectById(id); if (!p) return; const r = await confirmDialog({ title: `Delete project ${p.name || p.reg}?`, body: '<p>Linked buildings, lines, roads and chronicle entries are untouched.</p>', ok: 'Delete', danger: true }); if (r !== 'ok') return; await takeSnapshot(`before deleting project ${p.reg}`); S.projects = S.projects.filter(x => x.id !== id); commit(); closeModal(); renderView(false); toast('Project deleted', 'warn'); }
 function projectsOf(b) { return S.projects.filter(p => (p.buildingIds || []).includes(b.id)); }
+
+/* ---- the editor's auto-estimate: comparables nearby + transit + services, shown before anything is saved ---- */
+function draftEstimateHTML(draft) {
+  const probe = { ...draft, assessTotal: null }; const e = valueEstimate(probe); const comps = nearbyComparables(probe);
+  return `<div class="est"><div class="big">${fmtMoney(e.value)}</div><div class="why">base ${fmtMoney(Math.round(e.base))} — ${esc(e.baseBasis)}${e.factors.length ? ' · ' + e.factors.map(f => `${esc(f.label)} ${f.pct > 0 ? '+' : ''}${f.pct}% (${esc(f.why)})`).join(' · ') : ''} → ${e.totalPct > 0 ? '+' : ''}${e.totalPct}%${probe.x == null ? ' · add coordinates for transit and services' : comps.n ? '' : ` · no assessed buildings within ${comps.radius} blk, so the borough median is used`}</div><div class="acts"><button type="button" class="btn sm primary" data-act="estimate-apply" data-v="${e.value}">${icon('check')} Use as assessed total</button><button type="button" class="btn sm ghost" data-act="estimate-draft">${icon('redo')} Recompute</button></div></div>`;
+}
 
 
 /* =====================================================================
@@ -9049,6 +9172,9 @@ function osCardHTML() {
     <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:12px"><button class="btn primary sm" data-act="os-backup" ${OS.online ? '' : 'disabled'}>${icon('shield')} Back up now</button><button class="btn sm" data-act="os-backup-full" ${OS.online ? '' : 'disabled'}>Full backup</button><button class="btn sm" data-act="os-verify" ${OS.online ? '' : 'disabled'}>${icon('check')} Verify latest</button><button class="btn sm" data-act="os-restore-test" ${OS.online ? '' : 'disabled'}>${icon('undo')} Restore test</button><span class="spacer"></span><button class="btn sm" data-act="os-scan" ${OS.online ? '' : 'disabled'}>${icon('sat')} Scan the world…</button><button class="btn sm ghost" data-act="os-poll">${icon('redo')} Reconnect</button></div>
   </div>`;
 }
+
+/* autosave through the bridge when no folder is linked in the browser: no reconnect click, same files */
+OS.vaultWrite = async () => { if (!OS.online || !OS.status?.vaultOk) return false; await OS.post('/api/vault/write', { name: 'Registry.json', text: JSON.stringify(serializeMaster(), null, 2) }, 30000); if (S.settings.compatFile !== false) await OS.post('/api/vault/write', { name: 'NewA.json', text: JSON.stringify(serializeCompat(), null, 2) }, 30000); OS.lastVaultWrite = new Date(); return true; };
 
 
 /* =====================================================================

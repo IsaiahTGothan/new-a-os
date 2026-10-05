@@ -32,6 +32,7 @@ function renderRoadRecord(r) {
       ${kv('FROM', r.geometry[0] ? `X ${esc(r.geometry[0][0])} · Z ${esc(r.geometry[0][1])}` : null, 'num')}${kv('TO', r.geometry.length > 1 ? `X ${esc(r.geometry[r.geometry.length - 1][0])} · Z ${esc(r.geometry[r.geometry.length - 1][1])}` : null, 'num')}
       ${kv('SURFACE', esc(r.surface))}${kv('JURISDICTIONS', juris.map(d => esc(d.name)).join(', ') || null)}
     </div>
+    ${(r.versions || []).length ? `<div class="secthead">DATED SHAPES <span class="muted" style="letter-spacing:0;font-weight:400">· ${r.versions.length} · current since ${r.geometryFromYear != null ? esc(hyLabel(r.geometryFromYear, r.geometryFromHalf)) : 'after the latest'}</span></div><div class="rowlist versions">${r.versions.map(v => `<div class="r"><div><div class="t"><span class="mk">${esc(hyLabel(v.year, v.half))}</span>${v.geometry.length} points · ${fmtInt(polyLength(v.geometry))} blk${v.width ? ` · ${esc(v.width)} wide` : ''}${v.note ? ` · ${esc(v.note)}` : ''}</div></div></div>`).join('')}</div>` : ''}
     ${r.geometry.length ? `<div class="minimap tall"><canvas id="minimap"></canvas><span class="coord">${fmtInt(L)} blocks</span></div>` : ''}
     <div class="secthead">CHECKS <span class="muted" style="letter-spacing:0;font-weight:400">· what was looked at, nothing changed</span></div>
     ${issuesHTML(issues.filter(i => !i.summary), { max: 6 })}<div class="notes" style="font-size:11.5px;color:var(--ink-3)">${esc(issues.find(i => i.summary)?.text || '')}</div>
@@ -55,11 +56,16 @@ function renderRoadEditor(r) {
       <div class="f span"><label for="f-name">Name <span class="hint">renaming keeps the old name as a former name</span></label>${inpF('name', r.name, 'placeholder="Mill Street"')}</div>
       ${fld('aliases', 'Aliases', inpF('aliases', (r.aliases || []).join(', '), 'placeholder="Route 9, The Boulevard"'), 'comma separated')}
       ${fld('formerNames', 'Former names', inpF('formerNames', (r.formerNames || []).join(', '), 'placeholder=""'), 'comma separated')}
+      <div class="f"><label>Unnamed</label><label class="switch"><input type="checkbox" id="f-unnamed" ${r.unnamed ? 'checked' : ''}> <span class="muted" style="font-size:12px">no name known — shown by number, no label on the map</span></label></div>
     </div></div>
     <div class="fsect"><h4>KIND</h4><div class="frow c3">
       ${fld('type', 'Type', selF('type', ROAD_TYPES, r.type))}${fld('grade', 'Grade', selF('grade', GRADES, r.grade), 'bridges & tunnels never form junctions with surface roads')}${fld('direction', 'Access', selF('direction', DIRECTIONS, r.direction))}
       ${fld('width', 'Width', numF('width', r.width, 'min="1" step="1"'), 'blocks')}${fld('surface', 'Surface', inpF('surface', r.surface, 'placeholder="stone bricks, asphalt…"'))}
     </div></div>
+    <div class="fsect"><h4>DATED SHAPES <span style="font-weight:400;letter-spacing:0;color:var(--ink-4);font-family:var(--font-mono);font-size:10.5px">how this road ran in earlier years · playback uses them</span></h4>
+      <div class="rowlist versions">${(r.versions || []).length ? r.versions.map(v => `<div class="r"><div><div class="t"><span class="mk">${esc(hyLabel(v.year, v.half))}</span>${v.geometry.length} points${v.width ? ` · ${esc(v.width)} wide` : ''}${v.note ? ` · ${esc(v.note)}` : ''}</div><div class="s">shown in playback from ${esc(hyLabel(v.year, v.half))} until the next dated shape</div></div><div class="v"><button type="button" class="btn sm ghost" data-act="road-version-remove" data-v="${v.id}" title="Remove">${icon('x')}</button></div></div>`).join('') : '<div class="desc-line">None yet. Save the shape as drawn now with the year it was true for, then redraw the current shape on the map.</div>'}</div>
+      <div class="frow" style="margin-top:8px"><div class="f"><label>Current shape since <span class="hint">blank = right after the latest dated shape</span></label>${hyControl('gfrom', r.geometryFromYear, r.geometryFromHalf, false, { yearPh: '2023', withApprox: false })}</div><div class="f" style="align-self:end"><button type="button" class="btn sm" data-act="road-version-save">${icon('clock')} Save current shape as dated…</button></div></div>
+    </div>
     <div class="fsect"><h4>LIFECYCLE</h4><div class="frow">
       <div class="f"><label>Opened</label>${hyControl('opened', r.yearOpened, r.halfOpened, r.yearOpenedApprox, { yearPh: '2015' })}</div>
       <div class="f"><label>Closed <span class="hint">leave empty while in use</span></label>${hyControl('closed', r.yearClosed, r.halfClosed, false, { yearPh: '—', withApprox: false })}</div>
@@ -81,8 +87,8 @@ function readRoadFormInto(r, strict) {
   r.name = newName; r.aliases = g('aliases').split(',').map(s => s.trim()).filter(Boolean); r.formerNames = [...new Set([...(g('formerNames').split(',').map(s => s.trim()).filter(Boolean)), ...(r.formerNames || []).filter(n => n !== r.name)])].filter(n => n !== r.name);
   r.type = g('type') || 'street'; r.grade = g('grade') || 'surface'; r.direction = g('direction') || 'two-way'; r.width = num(g('width')); r.surface = g('surface').trim();
   const op = readHY('opened'), cl = readHY('closed'); r.yearOpened = op.year; r.halfOpened = op.year != null ? op.half : ''; r.yearOpenedApprox = op.year != null && op.approx; r.yearClosed = cl.year; r.halfClosed = cl.year != null ? cl.half : '';
-  r.geometry = readVertexList('v'); r.confidence = g('confidence'); r.sourceType = g('sourceType'); r.verified = !!$('#f-verified')?.checked; r.source = g('source').trim(); r.notes = g('notes');
-  if (strict) { if (!r.name) return 'Give the road a name.'; if (r.geometry.length < 2 && !DR.isNew) return 'A road needs at least two points — draw it on the map.'; if (r.yearClosed != null && r.yearOpened != null && hyIndex(r.yearClosed, r.halfClosed) < hyIndex(r.yearOpened, r.halfOpened)) return 'Closed before it opened — check the dates.'; }
+  r.geometry = readVertexList('v'); r.unnamed = !!$('#f-unnamed')?.checked; const gf = readHY('gfrom'); r.geometryFromYear = gf.year; r.geometryFromHalf = gf.year != null ? gf.half : ''; r.confidence = g('confidence'); r.sourceType = g('sourceType'); r.verified = !!$('#f-verified')?.checked; r.source = g('source').trim(); r.notes = g('notes');
+  if (strict) { if (!r.name && !r.unnamed) return 'Give the road a name, or tick Unnamed.'; if (r.geometry.length < 2 && !DR.isNew) return 'A road needs at least two points — draw it on the map.'; if (r.yearClosed != null && r.yearOpened != null && hyIndex(r.yearClosed, r.halfClosed) < hyIndex(r.yearOpened, r.halfOpened)) return 'Closed before it opened — check the dates.'; }
   return null;
 }
 
@@ -99,6 +105,7 @@ function renderLineRecord(l) {
       <div class="badges"><span class="status ${st.tone}"><i>●</i>${st.label}</span>${openBadge(l)}<span class="code">${stops.length} stops</span><span class="code">${fmtInt(lineLength(l))} blk</span><span class="code">${esc((LINE_STYLES.find(x => x[0] === l.style) || [])[1] || 'Solid')} · ${esc(l.width)}px</span>${confHTML(l.confidence, l.verified)}</div>
     </div>
     ${issues.length ? `<div class="secthead">CHECKS</div>${issuesHTML(issues)}` : ''}
+    ${lineTracks(l).some(t => (t.versions || []).length) ? `<div class="secthead">DATED ALIGNMENTS <span class="muted" style="letter-spacing:0;font-weight:400">· saved from the map inspector</span></div><div class="rowlist versions">${lineTracks(l).flatMap(t => (t.versions || []).map(v => `<div class="r"><div><div class="t"><span class="mk">${esc(hyLabel(v.year, v.half))}</span>${esc(t.name || t.reg)} · ${v.geometry.length} points · ${fmtInt(polyLength(v.geometry))} blk</div></div></div>`)).join('')}</div>` : ''}
     ${lineGeometries(l).length ? `<div class="minimap tall"><canvas id="minimap"></canvas><span class="coord">${fmtInt(lineLength(l))} blocks</span></div>` : `<div class="notes" style="font-size:12.5px;color:var(--ink-3)">No alignment drawn yet — <button class="rowlink" data-act="geom-map" style="font:inherit">draw it on the map</button>.</div>`}
     <div class="secthead">STOPS IN ORDER <span class="acts"><button class="btn sm" data-act="stop-add">${icon('station')} Add stop</button><button class="btn sm" data-act="stop-new-map" title="Place a new station on the map">${icon('pin')} New on map</button></span></div>
     ${stops.length ? `<div class="stoplist" style="--c:${esc(l.color)}">${stops.map((s, i) => `<div class="sp ${linesAtStation(s).length > 1 ? 'x' : ''}"><span class="dot"></span><div><div class="t" data-open="station:${s.id}" data-hover="station:${s.id}">${esc(s.name || s.reg)}</div><div class="s">${esc(STATION_KINDS.find(k => k[0] === s.kind)?.[1] || 'Station')}${linesAtStation(s).length > 1 ? ' · transfer: ' + linesAtStation(s).filter(x => x.id !== l.id).map(x => esc(x.shortName || x.name)).join(', ') : ''}${s.x != null ? ` · X ${s.x} Z ${s.z}` : ' · no coordinates'}</div></div><span class="mv"><button data-act="stop-move" data-i="${i}" data-dir="-1" title="Move up" ${i === 0 ? 'disabled' : ''}>${icon('up')}</button><button data-act="stop-move" data-i="${i}" data-dir="1" title="Move down" ${i === stops.length - 1 ? 'disabled' : ''}>${icon('down')}</button></span><button class="x2" data-act="stop-remove" data-id="${s.id}" title="Remove from this line (the station stays)">×</button></div>`).join('')}</div>` : `<div class="notes" style="font-size:12.5px;color:var(--ink-3)">No stops yet. Add existing stations, or place new ones on the map.</div>`}
@@ -120,6 +127,7 @@ function renderLineEditor(l) {
       <div class="f" style="grid-column:span 2"><label for="f-name">Name</label>${inpF('name', l.name, 'placeholder="Red Line"')}</div>
       ${fld('shortName', 'Short name', inpF('shortName', l.shortName, 'placeholder="R" maxlength="6"'), 'badge label')}
       ${fld('mode', 'Mode', selF('mode', TRANSIT_MODES, l.mode))}${fld('status', 'Status', selF('status', LINE_STATUSES.map(([id, label]) => [id, label]), l.status))}${fld('operator', 'Operator', inpF('operator', l.operator, 'placeholder="New A Metro"'))}
+      <div class="f"><label>Unnamed</label><label class="switch"><input type="checkbox" id="f-unnamed" ${l.unnamed ? 'checked' : ''}> <span class="muted" style="font-size:12px">no name known — shown by number</span></label></div>
     </div></div>
     <div class="fsect"><h4>APPEARANCE <span style="font-weight:400;letter-spacing:0;color:var(--ink-4);font-family:var(--font-mono);font-size:10.5px">colour · pattern · width — the label is always shown too</span></h4>
       <div class="swatchrow" id="line-swatches">${TRANSIT_COLORS.map(c => `<button type="button" data-color="${c}" aria-pressed="${(l.color || '').toLowerCase() === c.toLowerCase()}" style="--c:${c}" title="${c}"></button>`).join('')}<input type="color" id="f-color" value="${esc(/^#[0-9a-f]{6}$/i.test(l.color || '') ? l.color : TRANSIT_COLORS[0])}" title="Custom colour"></div>
@@ -149,8 +157,8 @@ function readLineFormInto(l, strict) {
   const pressed = $('#line-swatches [aria-pressed="true"]'); l.color = pressed ? pressed.dataset.color : (g('color') || TRANSIT_COLORS[0]); l.style = g('style') || 'solid'; l.width = num(g('width')) ?? 4;
   const op = readHY('opened'), cl = readHY('closed'); l.yearOpened = op.year; l.halfOpened = op.year != null ? op.half : ''; l.yearOpenedApprox = op.year != null && op.approx; l.yearClosed = cl.year; l.halfClosed = cl.year != null ? cl.half : '';
   l.trackIds = $$('#lform [data-track]:checked').map(x => x.dataset.track); l.roadIds = $$('#lform [data-road]:checked').map(x => x.dataset.road);
-  l.confidence = g('confidence'); l.sourceType = g('sourceType'); l.verified = !!$('#f-verified')?.checked; l.source = g('source').trim(); l.notes = g('notes'); readLineServiceForm(l);
-  if (strict) { if (!l.name) return 'Give the line a name.'; if (l.yearClosed != null && l.yearOpened != null && hyIndex(l.yearClosed, l.halfClosed) < hyIndex(l.yearOpened, l.halfOpened)) return 'Closed before it opened — check the dates.'; }
+  l.confidence = g('confidence'); l.sourceType = g('sourceType'); l.verified = !!$('#f-verified')?.checked; l.source = g('source').trim(); l.notes = g('notes'); l.unnamed = !!$('#f-unnamed')?.checked; readLineServiceForm(l);
+  if (strict) { if (!l.name && !l.unnamed) return 'Give the line a name, or tick Unnamed.'; if (l.yearClosed != null && l.yearOpened != null && hyIndex(l.yearClosed, l.halfClosed) < hyIndex(l.yearOpened, l.halfOpened)) return 'Closed before it opened — check the dates.'; }
   return null;
 }
 

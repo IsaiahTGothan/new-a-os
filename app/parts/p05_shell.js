@@ -58,6 +58,7 @@ function renderStatus() {
   idb.className = SAVE.lastError ? 'warn' : SAVE.dirty ? 'warn' : ''; $('#st-idb-t').textContent = SAVE.lastError ? 'browser store · SAVE FAILED' : SAVE.dirty ? 'browser store · unsaved' : 'browser store · ok';
   const v = $('#st-vault'), vt = $('#st-vault-t');
   if (VAULT.status === 'granted') { v.className = ''; vt.textContent = `vault · ${VAULT.name}${VAULT.lastWrite ? ' · ' + fmtTime(VAULT.lastWrite) : ''}`; }
+  else if (typeof OS !== 'undefined' && OS.online && OS.status?.vaultOk) { v.className = ''; vt.textContent = `vault · via OS bridge${OS.lastVaultWrite ? ' · ' + fmtTime(OS.lastVaultWrite) : ''}`; }
   else if (VAULT.status === 'prompt') { v.className = 'warn'; vt.innerHTML = `vault · <button data-act="vault-reconnect" style="color:var(--warn)">reconnect ${esc(VAULT.name)}</button>`; }
   else if (VAULT.status === 'unsupported') { v.className = 'off'; vt.textContent = 'vault · unsupported browser (use backups)'; }
   else { v.className = 'off'; vt.innerHTML = `vault · <button data-act="vault-link">link a folder</button>`; }

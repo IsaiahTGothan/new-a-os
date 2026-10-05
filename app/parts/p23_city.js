@@ -5,8 +5,10 @@
    ===================================================================== */
 const VAL = () => ({ ...VALUATION_DEFAULTS, ...(S.settings.valuation || {}) });
 /* ---- valuations: base × (1 + Σ factors), every factor named with its reason ---- */
+function nearbyComparables(b, radius = 200) { if (b.x == null || b.z == null) return { n: 0, radius, vals: [] }; const vals = S.buildings.filter(x => x.id !== b.id && isCompleted(x) && x.x != null && x.z != null && num(x.assessTotal) && lotAreaOf(x) && dist2([b.x, b.z], [x.x, x.z]) <= radius).map(x => num(x.assessTotal) / lotAreaOf(x)); return { n: vals.length, radius, vals }; }
 function basePerBlock(b) {
   const pool = rows => rows.filter(x => x.id !== b.id && isCompleted(x) && num(x.assessTotal) && lotAreaOf(x)).map(x => num(x.assessTotal) / lotAreaOf(x));
+  const nb = nearbyComparables(b); if (nb.n >= 3) return { perBlock: median(nb.vals), basis: `median of ${nb.n} assessed buildings within ${nb.radius} blk`, n: nb.n };
   let vals = pool(buildingsIn(b.districtId)); let basis = 'district median';
   if (vals.length < 3) { vals = pool(S.buildings); basis = 'city-wide median'; }
   if (vals.length < 3) return { perBlock: VAL().fallbackPerBlock, basis: 'fallback setting', n: vals.length };
@@ -259,3 +261,9 @@ function saveProject(d, existing) {
 }
 async function deleteProject(id) { const p = projectById(id); if (!p) return; const r = await confirmDialog({ title: `Delete project ${p.name || p.reg}?`, body: '<p>Linked buildings, lines, roads and chronicle entries are untouched.</p>', ok: 'Delete', danger: true }); if (r !== 'ok') return; await takeSnapshot(`before deleting project ${p.reg}`); S.projects = S.projects.filter(x => x.id !== id); commit(); closeModal(); renderView(false); toast('Project deleted', 'warn'); }
 function projectsOf(b) { return S.projects.filter(p => (p.buildingIds || []).includes(b.id)); }
+
+/* ---- the editor's auto-estimate: comparables nearby + transit + services, shown before anything is saved ---- */
+function draftEstimateHTML(draft) {
+  const probe = { ...draft, assessTotal: null }; const e = valueEstimate(probe); const comps = nearbyComparables(probe);
+  return `<div class="est"><div class="big">${fmtMoney(e.value)}</div><div class="why">base ${fmtMoney(Math.round(e.base))} — ${esc(e.baseBasis)}${e.factors.length ? ' · ' + e.factors.map(f => `${esc(f.label)} ${f.pct > 0 ? '+' : ''}${f.pct}% (${esc(f.why)})`).join(' · ') : ''} → ${e.totalPct > 0 ? '+' : ''}${e.totalPct}%${probe.x == null ? ' · add coordinates for transit and services' : comps.n ? '' : ` · no assessed buildings within ${comps.radius} blk, so the borough median is used`}</div><div class="acts"><button type="button" class="btn sm primary" data-act="estimate-apply" data-v="${e.value}">${icon('check')} Use as assessed total</button><button type="button" class="btn sm ghost" data-act="estimate-draft">${icon('redo')} Recompute</button></div></div>`;
+}
