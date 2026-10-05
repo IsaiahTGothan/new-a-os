@@ -5,3 +5,5 @@ os/node_modules/
 os/.cache/
 *.log
 .DS_Store
+os/backups/
+os/config.json

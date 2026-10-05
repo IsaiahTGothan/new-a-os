@@ -1,0 +1,12 @@
+{
+  "$schema": "https://schema.tauri.app/config/2",
+  "productName": "New A OS",
+  "version": "3.0.0",
+  "identifier": "us.zays.newa.os",
+  "build": { "frontendDist": "../../../app" },
+  "app": {
+    "windows": [{ "title": "New A OS", "width": 1480, "height": 940, "minWidth": 1100, "minHeight": 700, "url": "NewA-Land-Registry.html" }],
+    "security": { "csp": null }
+  },
+  "bundle": { "active": true, "targets": "all", "icon": [] }
+}
