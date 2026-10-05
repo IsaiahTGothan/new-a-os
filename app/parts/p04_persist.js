@@ -178,8 +178,9 @@ async function vaultWrite() {
   if (S.settings.compatFile !== false) await writeFile(h, 'NewA.json', JSON.stringify(serializeCompat(), null, 2));
   if (SAVE.dirtyImages.size || SAVE.deletedImages.size) {
     const imgDir = await h.getDirectoryHandle('images', { create: true });
-    for (const id of [...SAVE.dirtyImages]) { const rec = await idbGet('images', id); if (rec?.full) await writeFile(imgDir, id + '.jpg', rec.full); SAVE.dirtyImages.delete(id); }
-    for (const id of [...SAVE.deletedImages]) { await imgDir.removeEntry(id + '.jpg').catch(() => {}); SAVE.deletedImages.delete(id); }
+    const fileNameFor = (id, rec) => id.startsWith('basemap:') ? `basemap-${id.slice(8)}.${(rec?.full?.type || 'image/png').split('/')[1].replace('jpeg', 'jpg')}` : id + '.jpg';
+    for (const id of [...SAVE.dirtyImages]) { const rec = await idbGet('images', id); if (rec?.full) await writeFile(imgDir, fileNameFor(id, rec), rec.full); SAVE.dirtyImages.delete(id); }
+    for (const id of [...SAVE.deletedImages]) { if (id.startsWith('basemap:')) { for (const ext of ['png', 'jpg', 'webp']) await imgDir.removeEntry(`basemap-${id.slice(8)}.${ext}`).catch(() => {}); } else await imgDir.removeEntry(id + '.jpg').catch(() => {}); SAVE.deletedImages.delete(id); }
   }
   VAULT.lastWrite = new Date();
 }
@@ -193,7 +194,8 @@ async function vaultLoadInto(disk) {
   try {
     const imgDir = await VAULT.handle.getDirectoryHandle('images');
     for await (const [name, entry] of imgDir.entries()) {
-      if (entry.kind !== 'file' || !/\.jpe?g$/i.test(name)) continue;
+      if (entry.kind !== 'file' || !/\.(jpe?g|png|webp)$/i.test(name)) continue;
+      const bmm = /^basemap-(.+)\.(png|jpe?g|webp)$/i.exec(name); if (bmm) { const bm = (S.settings.basemaps || []).find(x => x.id === bmm[1]); if (bm) { const file = await entry.getFile(); await idbPut('images', 'basemap:' + bm.id, { full: file, thumb: null, updated: now(), basemap: true }); BASEMAP_IMG.delete(bm.id); } continue; }
       const id = name.replace(/\.jpe?g$/i, ''); const b = ownerById(id); if (!b) continue;
       const file = await entry.getFile(); const thumb = await downscale(file, 240, 0.8);
       const rec = { full: file, thumb, updated: now() }; await idbPut('images', id, rec); setImgUrls(id, rec); b.image = true;

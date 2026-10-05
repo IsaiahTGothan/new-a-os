@@ -6,7 +6,7 @@ const UI = {                  // transient UI state
   nav: 'overview', scope: { kind: 'region', id: 'new-a-city' }, view: 'table', q: '', sort: { key: 'reg', dir: 1 },
   filters: { physical: '', market: '', landmark: false, family: '', zfam: '', hood: '', district: '', yearMin: '', yearMax: '', photo: false, hist: false },
   selected: null, animateRows: true,
-  layers: { regions: true, districts: true, hoods: true, roads: true, transit: true, stations: true, buildings: true, businesses: false, labels: true, grid: true, historical: false, footprints: true },
+  layers: { regions: true, districts: true, hoods: true, roads: true, transit: true, stations: true, buildings: true, businesses: false, labels: true, grid: false, historical: false, footprints: true, lots: true },
   mapColor: 'district',
   hseg: 'playback', hsort: { key: 'yearDemolished', dir: -1 }, hf: { district: '', hood: '', builtMin: '', builtMax: '', demoMin: '', demoMax: '', conf: '' },
   tseg: 'lines', bseg: 'list', bf: { category: '', status: '', district: '' }, bsort: { key: 'name', dir: 1 },
@@ -22,7 +22,7 @@ function emptyState() {
     roads: [], tracks: [], lines: [], stations: [], businesses: [], tenancies: [],
     news: { items: [], decisions: {}, log: [], lastSync: null, lastError: null, rules: { landmark: false, listing: false, groundbreaking: false } },
     legacy: { parcels: [], parcelLinks: [], notes: [] },
-    settings: { scanlines: true, boot: true, motion: true, density: 'comfortable', lastNav: 'overview', lastScope: { kind: 'region', id: 'new-a-city' }, view: 'table', columns: {}, fabricYear: 2016, tlSpeed: 1, compatFile: true, ai: { enabled: false, endpoint: 'https://api.openai.com/v1/chat/completions', model: 'gpt-4o-mini' }, newsAuto: false, newsRefreshMin: 0 },
+    settings: { scanlines: true, boot: true, motion: true, density: 'comfortable', basemaps: [], lastNav: 'overview', lastScope: { kind: 'region', id: 'new-a-city' }, view: 'table', columns: {}, fabricYear: 2016, tlSpeed: 1, compatFile: true, ai: { enabled: false, endpoint: 'https://api.openai.com/v1/chat/completions', model: 'gpt-4o-mini' }, newsAuto: false, newsRefreshMin: 0 },
   };
 }
 
@@ -165,7 +165,7 @@ function ensureV3(st) {
   for (const k of ['regions', 'districts', 'neighborhoods', 'buildings', 'archive', 'roads', 'tracks', 'lines', 'stations', 'businesses', 'tenancies']) if (!Array.isArray(st[k])) st[k] = [];
   st.news = { ...E.news, ...(st.news || {}) }; st.news.items ??= []; st.news.decisions ??= {}; st.news.log ??= []; st.news.rules = { ...E.news.rules, ...(st.news.rules || {}) };
   st.legacy = { ...E.legacy, ...(st.legacy || {}) }; st.legacy.parcels ??= []; st.legacy.parcelLinks ??= []; st.legacy.notes ??= [];
-  st.settings = { ...E.settings, ...(st.settings || {}) }; st.settings.ai = { ...E.settings.ai, ...(st.settings.ai || {}) };
+  st.settings = { ...E.settings, ...(st.settings || {}) }; st.settings.ai = { ...E.settings.ai, ...(st.settings.ai || {}) }; if (!Array.isArray(st.settings.basemaps)) st.settings.basemaps = [];
   // geography
   for (const r of SEED_REGIONS) if (!st.regions.some(x => x.id === r.id)) st.regions.push({ ...newRegion(r.name, r.type, r.parentId, r.code), ...r, polygons: [] });
   for (const r of st.regions) { r.polygons = Array.isArray(r.polygons) ? r.polygons : []; r.placement ??= 'verified'; r.typeNote ??= ''; r.source ??= ''; r.sourceUrl ??= ''; r.tagline ??= ''; r.founded ??= ''; r.notes ??= ''; r.effectiveYear ??= null; r.effectiveHalf ??= ''; r.created ??= now(); r.updated ??= r.created; if (r.parentId && !st.regions.some(x => x.id === r.parentId)) r.parentId = 'union'; }

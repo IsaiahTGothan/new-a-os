@@ -24,9 +24,10 @@ function renderChrome() {
   const sc = UI.scope; const node = scopeNode(sc); const color = scopeColor(sc);
   // nav rail
   const counts = { registry: scopeActive().length, transit: S.lines.length, businesses: S.businesses.length, history: scopeBuildings().filter(isHist).length };
-  $('#tabs').innerHTML = NAV.map(n => `<button class="tab nav ${n.id}" role="tab" data-nav="${n.id}" aria-selected="${UI.nav === n.id}" title="${esc(n.title)}">${icon(n.icon)}<span class="lbl">${esc(n.label)}</span>${counts[n.id] != null ? `<span class="cnt">${counts[n.id]}</span>` : ''}<kbd>${n.key}</kbd></button>`).join('');
+  $('#tabs').innerHTML = NAV.map(n => `<button class="tab nav ${n.id}" role="tab" data-nav="${n.id}" aria-selected="${UI.nav === n.id}" title="${esc(n.title)}">${icon(n.icon)}<span class="lbl">${esc(n.label)}</span>${counts[n.id] != null && counts[n.id] ? `<span class="cnt">${counts[n.id]}</span>` : ''}<kbd>${n.key}</kbd></button>`).join('');
   const hist = scopeBuildings().filter(isHist).length;
-  $('#rail-end').innerHTML = `<div class="rinfo" style="--c:${color}"><i class="sw"></i><span><b>${esc(scopeName(sc))}</b></span><span>${scopeActive().length} standing</span><span>·</span><span style="color:var(--hist)">${hist} historical</span>${node && (node.polygons || []).length === 0 && sc.kind !== 'all' ? `<span class="notdrawn" title="This place has no border drawn yet — draw one in the Map workspace">NOT DRAWN YET</span>` : ''}</div>`;
+  $('#rail-end').innerHTML = `<div class="rinfo" style="--c:${color}"><i class="sw"></i><span><b>${esc(scopeName(sc))}</b></span><span>${scopeActive().length} standing</span><span>·</span><span style="color:var(--hist)">${hist} historical</span>${node && (node.polygons || []).length === 0 && sc.kind !== 'all' ? `<span class="notdrawn" title="This place has no border drawn yet — draw one on the map (Edit)">NOT DRAWN YET</span>` : ''}</div>`;
+  const se = $('#side-end'); if (se) se.innerHTML = `<button class="clawson" data-act="clawson-toggle" aria-pressed="${typeof CLAW !== 'undefined' && CLAW.open}" title="Clawson — ask about the city, get proposals, draft a newsletter (C)">${icon('chat')}<span>Clawson</span></button>${typeof OS !== 'undefined' ? OS.tileHTML() : ''}`;
   // scope button
   const btn = $('#scope-btn'); btn.style.setProperty('--c', color);
   const crumbs = sc.kind === 'all' ? [] : sc.kind === 'region' ? ancestorsOf(node) : sc.kind === 'district' ? [...ancestorsOf(node)] : [...ancestorsOf(districtById(node?.districtId)), districtById(node?.districtId)].filter(Boolean);

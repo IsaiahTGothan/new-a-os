@@ -179,6 +179,11 @@ async function openDataModal() {
           <div class="list snaps">${snaps.length ? snaps.map(s => `<div class="li" style="grid-template-columns:1fr auto"><div><div class="t">${fmtDate(new Date(s.ts).toISOString())}${s.label ? ` <span class="tag seed" style="margin-left:6px">${esc(s.label)}</span>` : ''}</div><div class="s">${s.buildings} buildings · schema ${s.schema}</div></div><div class="acts"><button class="btn sm" data-act="restore-snap" data-key="${s.key}">Restore</button></div></div>`).join('') : `<div class="li empty">No snapshots yet — they appear as you work.</div>`}</div>
         </div>
         <div class="dcard">
+          <h4>BASEMAP — THE RENDERED CITY UNDER THE MAP</h4>
+          <p>${(S.settings.basemaps || []).length ? `${S.settings.basemaps.length} image${S.settings.basemaps.length === 1 ? '' : 's'} on file: ${S.settings.basemaps.map(b => esc(b.name)).join(', ')}.` : 'No basemap yet.'} A JourneyMap export, the Chronicle's render or a screenshot of the in-game map, placed by its top-left X/Z and blocks-per-pixel. Toggle it with the Satellite chip on the map.</p>
+          <div class="acts"><button class="btn primary" data-act="basemap-open">${icon('sat')} Manage basemaps</button></div>
+        </div>
+        <div class="dcard">
           <h4>DISPLAY</h4>
           <div class="settings-row"><div><div>Scanlines</div><div class="d">CRT overlay across the interface</div></div><label class="switch"><input type="checkbox" data-set="scanlines" ${S.settings.scanlines ? 'checked' : ''}></label></div>
           <div class="settings-row"><div><div>Motion</div><div class="d">Transitions, count-ups, smooth playback</div></div><label class="switch"><input type="checkbox" data-set="motion" ${S.settings.motion ? 'checked' : ''}></label></div>

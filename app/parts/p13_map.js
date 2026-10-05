@@ -5,7 +5,7 @@
    ===================================================================== */
 const MAPW = {
   cam: { x: 0, z: 0, k: 1 }, w: 0, h: 0, canvas: null, ctx: null, mounted: false,
-  mode: 'select', dock: 'inspector', dockOpen: true,
+  mode: 'select', dock: 'inspector', dockOpen: true, edit: false, route: null, picking: null, anim: null,
   sel: null, hover: null, draft: null, drag: null, pointer: null, shift: false,
   snapGrid: false, snapVertex: true, gridStep: 1, junctions: true, freehand: false,
   undo: [], redo: [], fitted: false, fitPending: true, highlight: null, preview: null, pending: null, borderTarget: null, marker: null, streetsQ: '', streetsAll: false,
@@ -27,9 +27,10 @@ const s2w = (sx, sy) => projFor(MAPW.cam, MAPW.w, MAPW.h).w(sx, sy);
 
 /* ---- page ---- */
 function renderMapWorkspace() {
-  return `<div class="mapws ${MAPW.dockOpen ? '' : 'nodock'}">
+  return `<div class="mapws ${MAPW.edit ? 'edit' : 'explore'} ${MAPW.dockOpen && MAPW.edit ? '' : 'nodock'}">
     <div class="mapstage mode-${MAPW.mode}" id="mapstage">
       <canvas id="mapcanvas" aria-label="Map of ${esc(scopeName())}" role="img"></canvas>
+      ${exploreChromeHTML()}
       <div class="map-tools" role="toolbar" aria-label="Map modes">${MODES.map((m, i) => `${i === 2 ? '<div class="sep"></div>' : ''}<button data-mode="${m.id}" aria-pressed="${MAPW.mode === m.id}" title="${esc(m.label)} (${m.key}) — ${esc(m.hint)}">${icon(m.icon)}<kbd>${m.key}</kbd></button>`).join('')}<div class="sep"></div><button data-act="map-undo" title="Undo (⌘/Ctrl+Z)" ${MAPW.undo.length ? '' : 'disabled'}>${icon('undo')}</button><button data-act="map-redo" title="Redo (⌘/Ctrl+Shift+Z)" ${MAPW.redo.length ? '' : 'disabled'}>${icon('redo')}</button></div>
       <div id="map-instr"></div>
       <div class="map-search"><div class="search" role="search">${icon('search')}<input id="map-q" placeholder="Find anything, or go to X, Z…" autocomplete="off" spellcheck="false" aria-label="Search the map"><div id="map-palette" class="palette" hidden></div></div><button class="btn icon" data-act="map-dock-toggle" title="${MAPW.dockOpen ? 'Hide' : 'Show'} the side panel">${icon('layers')}</button></div>
@@ -42,7 +43,7 @@ function renderMapWorkspace() {
         <div class="grp scale" id="map-scale"><span id="map-scale-t">—</span><i id="map-scale-i"></i></div>
       </div>
     </div>
-    ${MAPW.dockOpen ? `<aside class="dock" id="dock">
+    ${MAPW.dockOpen && MAPW.edit ? `<aside class="dock" id="dock">
       <div class="dock-tabs" role="tablist">${[['inspector', 'Inspector', 'cursor'], ['layers', 'Layers', 'layers'], ['streets', 'Streets', 'road'], ['assistant', 'Assistant', 'spark']].map(([id, l, ic]) => `<button role="tab" data-dock="${id}" aria-selected="${MAPW.dock === id}">${icon(ic)}${l}${id === 'streets' ? ` <span class="cnt">${S.roads.length}</span>` : ''}</button>`).join('')}</div>
       <div class="dock-body" id="dock-body"></div>
     </aside>` : ''}
@@ -58,7 +59,16 @@ function mapMount() {
   c.addEventListener('dblclick', mapDblClick);
   c.addEventListener('contextmenu', e => { e.preventDefault(); if (MAPW.draft) mapFinishDraft(); });
   if (!MAPW.resizeBound) { window.addEventListener('resize', () => { if ($('#mapcanvas') && UI.nav === 'map') { mapResize(); mapDraw(); } }); MAPW.resizeBound = true; }
-  wireMapSearch(); renderMapInstr(); renderDock(); mapDraw();
+  wireMapSearch(); renderMapInstr(); renderDock(); wireExplore(); renderPlaceCard(); mapDraw();
+}
+/* smooth camera flight to an extent (respects reduced motion) */
+function mapFlyTo(ext, { pad = 70, maxK = 6 } = {}) {
+  if (!ext) return; const w = Math.max(60, ext.x2 - ext.x1), h = Math.max(60, ext.z2 - ext.z1);
+  const to = { k: clamp(Math.min((MAPW.w - pad * 2) / w, (MAPW.h - pad * 2) / h), 0.02, maxK), x: (ext.x1 + ext.x2) / 2, z: (ext.z1 + ext.z2) / 2 };
+  if (!motionOn()) { MAPW.cam = to; mapDraw(); return; }
+  const from = { ...MAPW.cam }; const t0 = performance.now(); const dur = 520; MAPW.anim = { from, to };
+  const step = t => { if (MAPW.anim?.to !== to) return; const p = easeOut((t - t0) / dur); MAPW.cam = { x: from.x + (to.x - from.x) * p, z: from.z + (to.z - from.z) * p, k: from.k * Math.pow(to.k / from.k, p) }; mapDraw(); if (p < 1) requestAnimationFrame(step); else { MAPW.cam = { ...to }; MAPW.anim = null; mapDraw(); } };
+  requestAnimationFrame(step);
 }
 function mapLeave() { MAPW.draft = null; MAPW.drag = null; MAPW.marker = null; MAPW.mounted = false; if (MAPW.mode === 'footprint') MAPW.mode = 'select'; MAPW.pending = null; }
 function mapResize() { const c = MAPW.canvas, r = c.parentElement.getBoundingClientRect(), dpr = Math.min(2, devicePixelRatio || 1); MAPW.w = Math.max(10, r.width); MAPW.h = Math.max(10, r.height); c.width = MAPW.w * dpr; c.height = MAPW.h * dpr; MAPW.ctx.setTransform(dpr, 0, 0, dpr, 0, 0); }
@@ -125,6 +135,7 @@ function refreshTools() { $$('.map-tools [data-act="map-undo"]').forEach(b => b.
 
 /* ---- modes & instructions ---- */
 function setMapMode(mode, opts = {}) {
+  if (!MAPW.edit && mode !== 'select' && mode !== 'pan') { setMapEdit(true, { keepMode: true }); }
   if (MAPW.draft && mode !== MAPW.mode && !opts.keepDraft) MAPW.draft = null;
   MAPW.mode = mode; if (mode !== 'footprint' && mode !== 'place') MAPW.pending = opts.pending || null; else if (opts.pending) MAPW.pending = opts.pending;
   if (mode === 'border') { MAPW.borderTarget = opts.target || MAPW.borderTarget || (['region', 'district', 'hood'].includes(UI.scope.kind) ? { kind: UI.scope.kind, id: UI.scope.id } : null); }
@@ -153,6 +164,7 @@ function mapPointerDown(e) {
   const c = MAPW.canvas; c.setPointerCapture(e.pointerId); const raw = s2w(e.offsetX, e.offsetY); MAPW.shift = e.shiftKey;
   if (MAPW.mode === 'pan' || e.button === 1) { MAPW.drag = { kind: 'pan', sx: e.offsetX, sy: e.offsetY, cx: MAPW.cam.x, cz: MAPW.cam.z, moved: false }; $('#mapstage').classList.add('panning'); return; }
   if (e.button !== 0) return;
+  if (!MAPW.edit && EXPLORE.picking) { const hit = hitTest(e.offsetX, e.offsetY); MAPW.drag = { kind: 'pan', sx: e.offsetX, sy: e.offsetY, cx: MAPW.cam.x, cz: MAPW.cam.z, moved: false, clickHit: hit || { kind: 'point', pt: roundPt(raw) } }; $('#mapstage').classList.add('panning'); return; }
   if (MAPW.mode === 'select') {
     const vh = hitVertex(e.offsetX, e.offsetY);
     if (vh) { mapPushUndo(); MAPW.drag = { kind: 'vertex', ...vh, moved: false }; MAPW.sel = { ...MAPW.sel, vertex: vh.index, part: vh.part }; return; }
@@ -172,8 +184,9 @@ function mapPointerMove(e) {
   if (MAPW.drag?.kind === 'free' && MAPW.draft) { const last = MAPW.draft.pts[MAPW.draft.pts.length - 1]; if (dist2(last, raw) >= 1.5 / MAPW.cam.k) MAPW.draft.pts.push(roundPt(raw)); mapDraw(); return; }
   if (MAPW.draft) { let p = snapPoint(raw).p; if (MAPW.shift && MAPW.draft.pts.length) p = roundPt(snap45(MAPW.draft.pts[MAPW.draft.pts.length - 1], p)); MAPW.draft.cursor = p; MAPW.draft.snapped = snapPoint(raw).snapped; renderMapInstr(); mapDraw(); return; }
   if (MAPW.mode === 'select') {
-    const vh = hitVertex(e.offsetX, e.offsetY); const st = $('#mapstage'); st.classList.toggle('over-handle', !!vh);
+    const vh = MAPW.edit ? hitVertex(e.offsetX, e.offsetY) : null; const st = $('#mapstage'); st.classList.toggle('over-handle', !!vh);
     const hit = vh ? null : hitTest(e.offsetX, e.offsetY); st.classList.toggle('over-hit', !!hit);
+    st.classList.toggle('explore-hit', !MAPW.edit && !!hit);
     const key = hit ? hit.kind + ':' + hit.id : null, prev = MAPW.hover ? MAPW.hover.kind + ':' + MAPW.hover.id : null;
     if (key !== prev) { MAPW.hover = hit; mapDraw(); if (hit && (hit.kind === 'building' || ['road', 'station', 'line', 'business'].includes(hit.kind))) showHover(hit.kind === 'building' ? hit.id : hit.kind + ':' + hit.id, e.clientX, e.clientY); else hideHover(); } else if (hit) positionHover(e.clientX, e.clientY);
   } else if (['station', 'place'].includes(MAPW.mode)) { mapDraw(); }
@@ -296,7 +309,7 @@ function hitTest(sx, sy) {
   if (L.buildings) { let best = null, bd = 11; for (const b of mapBuildings()) { const [x, y] = w2s(b.x, b.z); const d = Math.hypot(x - sx, y - sy); if (d < bd) { bd = d; best = b; } } if (best) return { kind: 'building', id: best.id }; }
   if (L.roads && MAPW.junctions && MAPW.cam.k > 1.5) for (const j of cachedJunctions()) if (j.kind !== 'separated' && Math.hypot(w2s(j.x, j.z)[0] - sx, w2s(j.x, j.z)[1] - sy) < 7) return { kind: 'junction', id: `${j.a}|${j.b}|${Math.round(j.x)}|${Math.round(j.z)}`, j };
   if (L.transit) { let best = null, bd = tol; for (const l of visibleLines()) for (const g of lineGeometries(l)) { const c = polylineClosest(p, g); if (c && c.d < bd) { bd = c.d; best = l; } } if (best) return { kind: 'line', id: best.id }; }
-  if (L.roads) { let best = null, bd = tol; for (const r of visibleRoads()) { const c = polylineClosest(p, r.geometry); if (c && c.d < Math.max(bd, (r.width || 5) / 2)) { bd = c.d; best = r; } } if (best) return { kind: 'road', id: best.id }; }
+  if (L.roads) { let best = null, bd = tol, bq = null; for (const r of visibleRoads()) { const c = polylineClosest(p, r.geometry); if (c && c.d < Math.max(bd, (r.width || 5) / 2)) { bd = c.d; best = r; bq = c.q; } } if (best) return { kind: 'road', id: best.id, pt: bq ? roundPt(bq) : null }; }
   if (L.footprints) for (const b of mapBuildings()) if (b.footprint && pointInPoly(p, b.footprint) !== 'out') return { kind: 'building', id: b.id };
   const polyHit = (list, kind) => { let best = null, ba = Infinity; for (const n of list) for (const poly of n.polygons || []) if (poly.length >= 3 && pointInPoly(p, poly) !== 'out') { const a = polyArea(poly); if (a < ba) { ba = a; best = n; } } return best ? { kind, id: best.id } : null; };
   if (L.hoods) { const h = polyHit(visibleHoods(), 'hood'); if (h) return h; }
@@ -304,16 +317,21 @@ function hitTest(sx, sy) {
   if (L.regions) { const r = polyHit(S.regions, 'region'); if (r) return r; }
   return null;
 }
-function mapSelect(hit) { MAPW.sel = hit ? { kind: hit.kind, id: hit.id, j: hit.j } : null; MAPW.dock = 'inspector'; renderDock(); refreshTools(); mapDraw(); }
+function mapSelect(hit) {
+  if (!MAPW.edit && EXPLORE.picking) { if (explorePickAt(hit)) return; }
+  MAPW.sel = hit ? { kind: hit.kind, id: hit.id, j: hit.j } : null; MAPW.dock = 'inspector';
+  if (MAPW.edit) renderDock(); else renderPlaceCard();
+  refreshTools(); mapDraw();
+}
 /* locate anything on the map: select, frame, highlight */
 function mapLocate(ref) {
   if (UI.nav !== 'map') { setNav('map'); }
   const run = () => {
-    if (ref.kind === 'business') { const z = bizById(ref.id); const bs = bizBuildings(z || { id: null }).filter(b => b.x != null); if (!bs.length) { toast(`${z ? bizLabel(z) : 'That business'} has no located building yet`, 'warn'); openRecord('business', ref.id); return; } MAPW.sel = { kind: 'building', id: bs[0].id }; mapFit(bboxOf(bs.map(b => [b.x, b.z]))); MAPW.highlight = { ids: new Set(bs.map(b => b.id)), until: Date.now() + 2500 }; renderDock(); mapDraw(); return; }
+    if (ref.kind === 'business') { const z = bizById(ref.id); const bs = bizBuildings(z || { id: null }).filter(b => b.x != null); if (!bs.length) { toast(`${z ? bizLabel(z) : 'That business'} has no located building yet`, 'warn'); openRecord('business', ref.id); return; } MAPW.sel = { kind: 'business', id: z.id }; mapFlyTo(bboxOf(bs.map(b => [b.x, b.z]))); MAPW.highlight = { ids: new Set(bs.map(b => b.id)), until: Date.now() + 2500 }; if (MAPW.edit) { MAPW.sel = { kind: 'building', id: bs[0].id }; renderDock(); } else renderPlaceCard(); mapDraw(); return; }
     MAPW.sel = { kind: ref.kind, id: ref.id }; const ext = selExtent(MAPW.sel);
-    if (ext) mapFit(ext); else toast(`${ref.kind === 'building' ? byId(ref.id)?.reg || 'That record' : 'That record'} has no coordinates yet`, 'warn');
+    if (ext) mapFlyTo(ext); else toast(`${ref.kind === 'building' ? byId(ref.id)?.reg || 'That record' : 'That record'} has no coordinates yet`, 'warn');
     if (['region', 'district', 'hood'].includes(ref.kind) && !ext) { const node = nodeById(ref.id); const bs = ref.kind === 'hood' ? S.buildings.filter(b => b.neighborhoodId === ref.id && b.x != null) : scopeBuildings({ kind: ref.kind, id: ref.id }).filter(b => b.x != null); const bx = bboxOf(bs.map(b => [b.x, b.z])); if (bx) mapFit(bx); if (node) toast(`${node.name}: border not drawn yet — switch to Border mode to draw it`, ''); }
-    MAPW.highlight = { ids: new Set([ref.id]), until: Date.now() + 2500 }; MAPW.dock = 'inspector'; renderDock(); refreshTools(); mapDraw();
+    MAPW.highlight = { ids: new Set([ref.id]), until: Date.now() + 2500 }; MAPW.dock = 'inspector'; if (MAPW.edit) renderDock(); else renderPlaceCard(); refreshTools(); mapDraw();
     const tick = () => { if (MAPW.highlight && Date.now() < MAPW.highlight.until && UI.nav === 'map') { mapDraw(); requestAnimationFrame(tick); } else { MAPW.highlight = null; mapDraw(); } }; if (motionOn()) requestAnimationFrame(tick);
   };
   if (MAPW.mounted) run(); else setTimeout(run, 30);
@@ -356,6 +374,7 @@ function drawScene(R) {
   const { ctx, W, H, cam } = R; const k = cam.k; const P = projFor(cam, W, H); const L = R.layers; const hy = R.hy; const sel = R.sel, hov = R.hover;
   const anim = R.anim || null;      // { from, to, t } for playback transitions
   ctx.clearRect(0, 0, W, H); ctx.fillStyle = '#05090D'; ctx.fillRect(0, 0, W, H);
+  if (L.basemap !== false && typeof drawBasemap === 'function') drawBasemap(ctx, P, W, H, R);
   const labels = []; const placed = []; const pushLabel = (x, y, text, font, color, prio, pad = 3) => labels.push({ x, y, text, font, color, prio, pad });
   // grid
   if (L.grid) {
@@ -382,8 +401,9 @@ function drawScene(R) {
   if (L.regions) for (const r of S.regions) if (regionVisibleAt(r)) drawNode(r, 'region', regionColor(r), regionMark(r), 0.035, r.placement !== 'verified', 1, '600 12px Chakra Petch, sans-serif');
   if (L.districts) for (const d of (R.districts || S.districts)) drawNode(d, 'district', distColor(d), distMark(d), 0.06, d.placement === 'conflict' || d.placement === 'unverified', 2, '600 11px Chakra Petch, sans-serif');
   if (L.hoods) for (const h of (R.hoods || S.neighborhoods)) { const d = districtById(h.districtId); drawNode(h, 'hood', hexA(distColor(d), .85), distMark(d), 0.09, false, 3, '600 10px Chakra Petch, sans-serif'); }
-  // footprints
+  // footprints (drawn outlines) and, at street zoom, lot-sized blocks for buildings that only have frontage × depth
   if (L.footprints && k > 0.8) for (const b of (R.buildings || mapBuildings())) { if (!b.footprint || !onScreen(b.footprint)) continue; if (hy != null && stateAtHY(b, hy, { projection: R.projection }) !== 'standing') continue; tracePoly(b.footprint); ctx.fillStyle = hexA(dotColor(b), .22); ctx.fill(); ctx.strokeStyle = hexA(dotColor(b), .8); ctx.lineWidth = 1; ctx.stroke(); }
+  if (L.lots !== false && k > 1.6) for (const b of (R.buildings || mapBuildings())) { if (b.footprint || b.x == null) continue; const fr = num(b.lotFront), dp = num(b.lotDepth); if (!fr || !dp) continue; if (hy != null && stateAtHY(b, hy, { projection: R.projection }) !== 'standing') continue; const [cx, cy] = P.s(b.x, b.z); const w = fr * k, h = dp * k; if (cx + w < -20 || cy + h < -20 || cx - w > W + 20 || cy - h > H + 20) continue; const col = isHist(b) ? '#FF7A59' : dotColor(b); ctx.fillStyle = hexA(col, .14); ctx.fillRect(cx - w / 2, cy - h / 2, w, h); ctx.strokeStyle = hexA(col, .45); ctx.lineWidth = 1; ctx.strokeRect(cx - w / 2 + .5, cy - h / 2 + .5, w - 1, h - 1); }
   // roads
   if (L.roads) {
     const roads = R.roads || visibleRoads();
@@ -397,7 +417,7 @@ function drawScene(R) {
       if (g === 'bridge' || g === 'elevated') { tracePath(r.geometry); ctx.lineWidth = wpx + 4; ctx.strokeStyle = hexA('#E0C63A', .55 * alpha); ctx.setLineDash([]); ctx.stroke(); }
       tracePath(r.geometry); ctx.lineWidth = s || hl ? wpx + 3 : wpx; ctx.strokeStyle = s || hl ? '#FFFFFF' : hexA(h ? '#DCE9F0' : col, alpha); ctx.setLineDash(g === 'tunnel' ? [8, 6] : dashed ? [6, 6] : []); ctx.stroke(); ctx.setLineDash([]);
       if (s || hl) { tracePath(r.geometry); ctx.lineWidth = Math.max(1, wpx - 1); ctx.strokeStyle = hexA(col, alpha); ctx.stroke(); }
-      if (L.labels && (k > 1.1 || s) && r.name) { let bi = 0, bl = 0; for (let i = 1; i < r.geometry.length; i++) { const a = P.s(...r.geometry[i - 1]), b = P.s(...r.geometry[i]); const l = Math.hypot(b[0] - a[0], b[1] - a[1]); if (l > bl) { bl = l; bi = i; } } if (bl > r.name.length * 6 + 8 || s) { const a = P.s(...r.geometry[bi - 1]), b = P.s(...r.geometry[bi]); labels.push({ x: (a[0] + b[0]) / 2, y: (a[1] + b[1]) / 2, text: r.name, font: '500 10.5px JetBrains Mono, monospace', color: s ? '#fff' : hexA('#C9D6E0', alpha), prio: 5, angle: Math.atan2(b[1] - a[1], b[0] - a[0]), pad: 2 }); } }
+      if (L.labels && (k > 1.1 || s) && r.name) { const need = r.name.length * 6.6 + 10; let since = 1e9; for (let i = 1; i < r.geometry.length; i++) { const a = P.s(...r.geometry[i - 1]), b = P.s(...r.geometry[i]); const l = Math.hypot(b[0] - a[0], b[1] - a[1]); if (l < need && !s) { since += l; continue; } const reps = Math.max(1, Math.floor(l / 420)); for (let j = 0; j < reps; j++) { const t = (j + 0.5) / reps; if (since < 260 && j === 0 && !s) { since += l; continue; } labels.push({ x: a[0] + (b[0] - a[0]) * t, y: a[1] + (b[1] - a[1]) * t, text: r.name, font: `${s ? '600' : '500'} ${k > 2.5 ? 11 : 10.5}px Bricolage Grotesque, JetBrains Mono, sans-serif`, color: s ? '#fff' : hexA('#D7E3EC', alpha * .92), prio: 5, angle: Math.atan2(b[1] - a[1], b[0] - a[0]), pad: 3 }); since = 0; } since += l; if (!s && !(l >= need)) since += 0; } }
     }
     if (R.showJunctions && k > 1.5) for (const j of cachedJunctions()) { const [x, y] = P.s(j.x, j.z); if (x < -10 || y < -10 || x > W + 10 || y > H + 10) continue; if (j.kind === 'separated') { ctx.beginPath(); ctx.arc(x, y, 4, 0, Math.PI * 2); ctx.strokeStyle = 'rgba(224,198,58,.8)'; ctx.setLineDash([2, 2]); ctx.lineWidth = 1.2; ctx.stroke(); ctx.setLineDash([]); } else { ctx.beginPath(); ctx.arc(x, y, j.kind === 'junction' ? 3.2 : 2.6, 0, Math.PI * 2); ctx.fillStyle = sel?.kind === 'junction' && sel.j && Math.round(sel.j.x) === Math.round(j.x) && Math.round(sel.j.z) === Math.round(j.z) ? '#FFFFFF' : 'rgba(220,233,240,.85)'; ctx.fill(); } }
   }
@@ -454,7 +474,7 @@ function drawScene(R) {
       else if (state === 'construction') { ctx.beginPath(); ctx.arc(x, y, Math.max(1, r), 0, Math.PI * 2); ctx.fillStyle = hexA('#FFD166', .25 * alpha); ctx.fill(); ctx.setLineDash([3, 2]); ctx.strokeStyle = hexA('#FFD166', .95 * alpha); ctx.lineWidth = 1.6; ctx.stroke(); ctx.setLineDash([]); }
       else { ctx.beginPath(); ctx.arc(x, y, Math.max(0.5, r), 0, Math.PI * 2); ctx.fillStyle = hexA(hy != null && b.physical === 'vacant-lot' ? '#6F8494' : dotColor(b), alpha); ctx.fill(); ctx.lineWidth = 2; ctx.strokeStyle = '#05090D'; ctx.stroke(); if (b.landmark && k > 1.2) { ctx.fillStyle = hexA('#E7C36A', alpha); ctx.font = `${Math.max(8, r * 1.4)}px sans-serif`; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillText('✦', x, y + 0.5); } }
       if (ring && state !== 'gone') { ctx.beginPath(); ctx.arc(x, y, r0 + ring, 0, Math.PI * 2); ctx.strokeStyle = hexA('#4FE3FF', .9 * (1 - ring / 14)); ctx.lineWidth = 1.5; ctx.stroke(); }
-      if (s || hl) { ctx.beginPath(); ctx.arc(x, y, r0 + 7, 0, Math.PI * 2); ctx.strokeStyle = '#FFFFFF'; ctx.lineWidth = 2; ctx.stroke(); }
+      if (s || hl) { ctx.beginPath(); ctx.arc(x, y, r0 + 7, 0, Math.PI * 2); ctx.strokeStyle = '#FFFFFF'; ctx.lineWidth = 2; ctx.stroke(); if (s && R.halo) { const ph = (Date.now() % 1600) / 1600; ctx.beginPath(); ctx.arc(x, y, r0 + 9 + ph * 16, 0, Math.PI * 2); ctx.strokeStyle = hexA('#4FE3FF', (1 - ph) * .7); ctx.lineWidth = 1.5; ctx.stroke(); } }
       else if (h) { ctx.beginPath(); ctx.arc(x, y, r0 + 6, 0, Math.PI * 2); ctx.strokeStyle = isHist(b) ? '#FF7A59' : '#4FE3FF'; ctx.lineWidth = 1.5; ctx.stroke(); }
       if (L.businesses && currentTenanciesAt(b).length && state === 'standing') { ctx.beginPath(); ctx.moveTo(x + r0 + 2, y - r0 - 2); ctx.lineTo(x + r0 + 6, y - r0 - 6); ctx.lineTo(x + r0 + 2, y - r0 - 10); ctx.lineTo(x + r0 - 2, y - r0 - 6); ctx.closePath(); ctx.fillStyle = '#5FE38E'; ctx.fill(); }
       if (L.labels && (k > 2.5 || s || h || hl) && state !== 'gone') pushLabel(x + r0 + 6, y, b.name || addressOf(b) || b.reg, s || h ? '600 12px Chakra Petch, sans-serif' : '11px JetBrains Mono, monospace', s || h ? '#FFFFFF' : 'rgba(220,233,240,.85)', s || h ? 0 : 6, 2, 'left');
@@ -462,6 +482,8 @@ function drawScene(R) {
     }
     if (R.connector) { const c = R.connector; const [ax, ay] = P.s(...c.from), [bx, by] = P.s(...c.to); ctx.beginPath(); ctx.moveTo(ax, ay); ctx.lineTo(bx, by); ctx.strokeStyle = 'rgba(255,180,84,.9)'; ctx.setLineDash([4, 3]); ctx.lineWidth = 1.5; ctx.stroke(); ctx.setLineDash([]); ctx.beginPath(); ctx.arc(bx, by, 4, 0, Math.PI * 2); ctx.fillStyle = '#FFB454'; ctx.fill(); }
   }
+  // route (explore mode directions)
+  if (R.route && typeof drawRoute === 'function') drawRoute(ctx, P, R.route, k);
   // selected geometry handles
   if (R.handles && sel) { const geoms = selGeometries(sel) || []; for (const g of geoms) g.pts.forEach((pt, i) => { const [x, y] = P.s(...pt); const act = sel.vertex === i && (sel.part || 0) === g.part; ctx.beginPath(); ctx.rect(x - (act ? 5 : 4), y - (act ? 5 : 4), act ? 10 : 8, act ? 10 : 8); ctx.fillStyle = act ? '#4FE3FF' : '#05090D'; ctx.fill(); ctx.strokeStyle = act ? '#FFFFFF' : '#4FE3FF'; ctx.lineWidth = 1.5; ctx.stroke(); }); }
   // draft
@@ -492,7 +514,8 @@ function drawScene(R) {
 }
 function mapDraw() {
   if (!MAPW.ctx || UI.nav !== 'map') return;
-  drawScene({ ctx: MAPW.ctx, W: MAPW.w, H: MAPW.h, cam: MAPW.cam, layers: UI.layers, hy: null, sel: MAPW.sel, hover: MAPW.hover, draft: MAPW.draft, handles: MAPW.mode === 'select', highlight: MAPW.highlight, preview: MAPW.preview, marker: MAPW.marker, showJunctions: MAPW.junctions, connector: inspectorConnector(), cursorMark: ['station', 'place'].includes(MAPW.mode) && MAPW.pointer ? snapPoint(MAPW.pointer).p : null, districts: visibleDistricts(), hoods: visibleHoods() });
+  drawScene({ ctx: MAPW.ctx, W: MAPW.w, H: MAPW.h, cam: MAPW.cam, layers: UI.layers, hy: null, sel: MAPW.sel, hover: MAPW.hover, draft: MAPW.draft, handles: MAPW.edit && MAPW.mode === 'select', highlight: MAPW.highlight, preview: MAPW.preview, marker: MAPW.marker, showJunctions: MAPW.edit && MAPW.junctions, connector: MAPW.edit ? inspectorConnector() : null, cursorMark: ['station', 'place'].includes(MAPW.mode) && MAPW.pointer ? snapPoint(MAPW.pointer).p : null, districts: visibleDistricts(), hoods: visibleHoods(), route: MAPW.route, halo: !MAPW.edit });
+  if (!MAPW.edit) { const zt = $('#gm-coord'); if (zt && MAPW.pointer) zt.innerHTML = `X <b>${Math.round(MAPW.pointer[0])}</b> · Z <b>${Math.round(MAPW.pointer[1])}</b>`; }
   const step = GRID_STEPS.find(s => s * MAPW.cam.k >= 70) || 10000; const t = $('#map-scale-t'), i = $('#map-scale-i'); if (t) t.textContent = `${step} blocks`; if (i) i.style.setProperty('--w', (step * MAPW.cam.k) + 'px');
   const zt = $('#map-zoom-t'); if (zt) zt.textContent = `${MAPW.cam.k.toFixed(2)} px/blk`;
 }

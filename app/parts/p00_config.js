@@ -7,7 +7,7 @@
 /* =====================================================================
    §0  CONFIG
    ===================================================================== */
-const APP = { name: 'New A Land Registry', version: '2.5.0', schema: 3, site: 'zays.us/new-a', newsSite: 'https://newa-site.vercel.app', feedUrl: 'https://newa-site.vercel.app/feed.xml', marketsUrl: 'https://newa-site.vercel.app/api/markets' };
+const APP = { name: 'New A OS', version: '3.0.0', schema: 3, site: 'zays.us/new-a', newsSite: 'https://newa-site.vercel.app', feedUrl: 'https://newa-site.vercel.app/feed.xml', marketsUrl: 'https://newa-site.vercel.app/api/markets' };
 const FOUNDED_YEAR = 2013;                       // Jan 27, 2013 — the timeline starts here
 const CURRENT_YEAR = new Date().getFullYear();   // the "present" end of the timeline
 const CURRENT_HALF = new Date().getMonth() < 6 ? 'E' : 'L';
@@ -129,10 +129,10 @@ const LISTING_KINDS = [['sale', 'For sale'], ['lease', 'For lease']];
 
 /* ---- navigation ---- */
 const NAV = [
-  { id: 'overview', label: 'Overview', icon: 'db', key: 'O', title: 'Scope overview — tiles, charts, league tables (O)' },
+  { id: 'overview', label: 'Home', icon: 'home', key: 'O', title: 'Home — city health, the scope at a glance, charts, league tables (O)' },
+  { id: 'map', label: 'Map', icon: 'map', key: 'M', title: 'Map — explore like Google Maps, or switch to Edit to draw borders, roads, transit and buildings (M)' },
   { id: 'registry', label: 'Registry', icon: 'rows', key: 'R', title: 'Every building in the scope (R)' },
-  { id: 'map', label: 'Map', icon: 'map', key: 'M', title: 'Map workspace — borders, roads, transit, buildings (M)' },
   { id: 'transit', label: 'Transit', icon: 'transit', key: 'T', title: 'Transit dashboard — lines, stations, status (T)' },
-  { id: 'businesses', label: 'Businesses', icon: 'biz', key: 'B', title: 'Businesses — operators, tenants, listings, revenue (B)' },
+  { id: 'businesses', label: 'Business', icon: 'biz', key: 'B', title: 'Businesses — operators, tenants, listings, revenue (B)' },
   { id: 'history', label: 'History', icon: 'hist', key: 'H', title: 'History — playback, demolished records, chronicle, statistics (H)' },
 ];

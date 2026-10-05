@@ -370,6 +370,72 @@ const FEED = (extra = '') => `<?xml version="1.0"?><rss version="2.0"><channel><
   const insp = await page.evaluate(() => !!$('#dock-body [data-act="link-by-name"]')); ok(insp, 'the road inspector shows "Link N buildings on Mill Street"');
   noErrors('fixes');
 
+  // ---------- N · V3 explore map: wordmark, search → place card, directions along roads, basemap, edit toggle ----------
+  console.log('\nN · V3 explore map');
+  await page.setViewportSize({ width: 1440, height: 900 }); await page.evaluate(() => { closeDrawer(true); setMapEdit(false); setNav('map'); }); await page.waitForTimeout(400);
+  const chrome = await page.evaluate(() => ({ explore: !!$('.mapws.explore'), word: $('.gm-word')?.textContent, maps: $('.gm-maps')?.textContent, parody: $('.gm-parody')?.textContent, font: getComputedStyle($('.gm-word')).fontFamily, colors: $$('.gm-word b').map(b => getComputedStyle(b).color), tools: getComputedStyle($('.map-tools')).display, dock: !!$('#dock'), chips: $$('#gm-chips [data-gmlayer]').length, editBtn: $('.gm-edit')?.textContent.trim() }));
+  ok(chrome.explore && chrome.word === 'GOOGLE' && chrome.maps === 'Maps' && /PARODY/.test(chrome.parody) && /Silkscreen/i.test(chrome.font), `explore mode shows the GOOGLE Maps parody wordmark in ${chrome.font.split(',')[0]} (${chrome.word} ${chrome.maps})`);
+  ok(new Set(chrome.colors).size >= 4 && chrome.tools === 'none' && !chrome.dock && chrome.chips >= 9, `wordmark uses Google's four colours; edit tools and dock are hidden; ${chrome.chips} layer chips`);
+  // search in the panel → a place card
+  await page.fill('#map-q', 'Empire'); await page.waitForTimeout(250);
+  const results = await page.evaluate(() => ({ hidden: $('#map-palette').hidden, n: $$('#map-palette .pi').length })); ok(!results.hidden && results.n >= 1, `typing in the map search lists ${results.n} result(s) under the box`);
+  await page.keyboard.press('Enter'); await page.waitForTimeout(700);
+  const card = await page.evaluate(() => ({ sel: MAPW.sel, h2: $('#gm-card h2')?.textContent, acts: $$('#gm-card .pc-acts button').map(b => b.dataset.act), facts: $$('#gm-card .facts .k').map(k => k.textContent), k: MAPW.cam.k }));
+  ok(card.sel?.kind === 'building' && /Empire State/.test(card.h2) && card.acts.includes('gm-directions-to') && card.acts.includes('pc-open') && card.facts.includes('COMPLETED'), `Enter opens a place card for ${card.h2} with Directions / Record / History / Edit`);
+  ok(card.k > 1.5, `the camera flew in to the building (zoom ${card.k.toFixed(2)} px/blk)`);
+  await page.screenshot({ path: path.join(SHOTS, 'N-place-card.png') });
+  // click a building on the canvas in explore mode → card follows
+  const dot = await page.evaluate(() => { const b = S.buildings.find(x => x.reg === 'MA-0006'); const [sx, sy] = w2s(b.x, b.z); const r = MAPW.canvas.getBoundingClientRect(); return { x: r.left + sx, y: r.top + sy, id: b.id }; });
+  await page.mouse.click(dot.x, dot.y); await page.waitForTimeout(200);
+  const clicked = await page.evaluate(() => ({ id: MAPW.sel?.id, h2: $('#gm-card h2')?.textContent })); ok(clicked.id === dot.id && /Bank of America/.test(clicked.h2), 'clicking a building on the map opens its card');
+  // directions: along the drawn roads (Harbor Way + Cross Street exist from section D)
+  const route = await page.evaluate(() => {
+    // a connector from Harbor Way's corner down to Mill Street and Decoy Lane (New BK), so the two networks join
+    const link = newRoad(S); link.name = 'Link Road'; link.geometry = [[-40, 470], [-10, 330], [-10, 304]]; S.roads.push(link); JUNCTION_CACHE.key = ''; commit();
+    const a = S.buildings.find(b => b.reg === 'MA-0012'), b = S.buildings.find(x => x.reg === 'BK-0037'); EXPLORE.from = { kind: 'building', id: a.id }; EXPLORE.to = { kind: 'building', id: b.id }; EXPLORE.dir = true; computeRoute();
+    const r = MAPW.route; return { ok: !!r, dist: Math.round(r.dist), straight: Math.round(r.straight), roads: r.roads.map(id => roadById(id)?.name), steps: r.steps.map(s => s.text), pts: r.pts.length, sum: $('#gm-card .rt-sum')?.textContent, stepRows: $$('#gm-card .rt-steps .st').length, noRoads: !!r.noRoads, disconnected: !!r.disconnected };
+  });
+  ok(route.ok && route.pts >= 4 && route.dist >= route.straight && !route.noRoads && !route.disconnected && route.roads.length >= 3, `route from First Tower to 1427 Mill Street: ${route.dist} blocks via ${route.roads.join(' → ')} (${route.straight} direct), ${route.pts} points`);
+  ok(route.steps.length >= 4 && /Walk to/.test(route.steps[0]) && route.steps.some(t => /Turn onto/.test(t)) && route.stepRows === route.steps.length + 1 && /blocks/.test(route.sum), `turn-by-turn steps rendered: ${route.steps.join(' · ')}`);
+  await page.screenshot({ path: path.join(SHOTS, 'N-directions.png') });
+  const graph = await page.evaluate(() => { const G = roadGraph(); const deg = [...G.nodes.values()].map(n => n.adj.length); return { nodes: G.nodes.size, maxDeg: Math.max(...deg), crossing: [...G.nodes.values()].some(n => n.adj.length >= 3) }; });
+  ok(graph.nodes >= 6 && graph.crossing, `road graph: ${graph.nodes} nodes, a junction node with ${graph.maxDeg} edges (roads connect at crossings)`);
+  const noRoad = await page.evaluate(() => { const r = routeBetween({ kind: 'point', pt: [5000, 5000] }, { kind: 'point', pt: [5100, 5100] }); return { d: Math.round(r.dist), note: r.note || '', line: r.noRoads || r.disconnected }; });
+  ok(noRoad.line && noRoad.d === 141 && noRoad.note.length > 10, `far from every road the route is an honest straight line (${noRoad.d} blk) with a note`);
+  await page.evaluate(() => closeDirections());
+  const closed = await page.evaluate(() => ({ route: MAPW.route, dir: EXPLORE.dir })); ok(!closed.route && !closed.dir, 'closing directions clears the route');
+  // picking endpoints by clicking the map
+  await page.evaluate(() => { EXPLORE.from = null; EXPLORE.to = null; openDirections({ kind: 'building', id: S.buildings.find(b => b.reg === 'MA-0004').id }); });
+  const picking = await page.evaluate(() => ({ picking: EXPLORE.picking, cls: $('#mapstage').classList.contains('picking') })); ok(picking.picking === 'from' && picking.cls, 'Directions from a card asks for the start with a crosshair');
+  await page.waitForTimeout(650); await page.evaluate(id => { const b = byId(id); MAPW.anim = null; MAPW.cam = { x: b.x, z: b.z, k: 3 }; mapDraw(); }, dot.id);
+  const dot2 = await page.evaluate(id => { const b = byId(id); const [sx, sy] = w2s(b.x, b.z); const r = MAPW.canvas.getBoundingClientRect(); const el = document.elementFromPoint(r.left + sx, r.top + sy); return { x: r.left + sx, y: r.top + sy, el: el?.id || el?.className, mode: MAPW.mode, edit: MAPW.edit }; }, dot.id);
+  await page.mouse.click(dot2.x, dot2.y); await page.waitForTimeout(300);
+  const picked = await page.evaluate(() => ({ from: EXPLORE.from, route: !!MAPW.route, picking: EXPLORE.picking, sel: MAPW.sel })); ok(picked.from?.id === dot.id && picked.route && !picked.picking, 'clicking a building on the map sets the start and routes' + (picked.from?.id === dot.id ? '' : ` → ${JSON.stringify({ dot2, picked })}`));
+  await page.evaluate(() => closeDirections());
+  // basemap: a generated image placed by top-left X/Z and blocks per pixel
+  const bm = await page.evaluate(async () => { const c = document.createElement('canvas'); c.width = 200; c.height = 100; const g = c.getContext('2d'); g.fillStyle = '#226'; g.fillRect(0, 0, 200, 100); g.fillStyle = '#4FE3FF'; g.fillRect(0, 0, 100, 50); const blob = await new Promise(r => c.toBlob(r, 'image/png')); const file = new File([blob], 'render.png', { type: 'image/png' }); const bm = await basemapAdd(file); bm.x = -200; bm.z = 400; bm.scale = 2; bm.opacity = 1; commit(); await new Promise(r => setTimeout(r, 300)); return { n: S.settings.basemaps.length, w: bm.w, h: bm.h, loaded: !!BASEMAP_IMG.get(bm.id)?.complete, id: bm.id, keys: (await idbKeys('images')).filter(k => String(k).startsWith('basemap:')).length }; });
+  ok(bm.n === 1 && bm.w === 200 && bm.h === 100 && bm.loaded && bm.keys === 1, 'a basemap image is stored, measured (200×100 px) and loaded');
+  const pix = await page.evaluate(id => { const bm = S.settings.basemaps.find(b => b.id === id); MAPW.cam = { x: -100, z: 425, k: 2 }; UI.layers.basemap = true; mapDraw(); const ctx = MAPW.ctx; const [sx, sy] = w2s(-150, 412); const d = ctx.getImageData(Math.round(sx * Math.min(2, devicePixelRatio || 1)), Math.round(sy * Math.min(2, devicePixelRatio || 1)), 1, 1).data; const cover = { x2: bm.x + bm.w * bm.scale, z2: bm.z + bm.h * bm.scale }; return { px: [...d].slice(0, 3), cover }; }, bm.id);
+  ok(pix.cover.x2 === 200 && pix.cover.z2 === 600 && pix.px[2] > 150 && pix.px[0] < 140, `the image covers X −200→200 · Z 400→600 at 2 blocks/px and shows through under the data (sampled rgb ${pix.px.join(',')})`);
+  await page.screenshot({ path: path.join(SHOTS, 'N-basemap.png') });
+  await page.evaluate(async id => { await basemapRemove(id); UI.layers.basemap = false; MAPW.sel = null; renderPlaceCard(); mapFit(); }, bm.id);
+  // edit toggle keeps every 2.5 tool
+  await page.evaluate(() => setMapEdit(true)); await page.waitForTimeout(300);
+  const edit = await page.evaluate(() => ({ edit: !!$('.mapws.edit'), tools: $$('.map-tools [data-mode]').length, dock: !!$('#dock'), gm: getComputedStyle($('.gm-panel')).display }));
+  ok(edit.edit && edit.tools === 7 && edit.dock && edit.gm === 'none', 'Edit map brings back the 7 drawing modes and the inspector dock; the explore panel hides');
+  await page.screenshot({ path: path.join(SHOTS, 'N-edit-mode.png') });
+  await page.evaluate(() => { setMapMode('select'); setMapEdit(false); }); await page.waitForTimeout(200);
+  const back = await page.evaluate(() => ({ explore: !!$('.mapws.explore'), word: !!$('.gm-word') })); ok(back.explore && back.word, 'and back to exploring');
+  // the viewer camera hint from a place card
+  const hint = await page.evaluate(() => { const b = S.buildings.find(x => x.reg === 'MA-0004'); HV.camHint = { x: b.x, z: b.z }; openHistoryViewer({ year: 2020 }); const r = { x: HV.cam.x, z: HV.cam.z, k: HV.cam.k }; closeHistoryViewer(); return { ...r, bx: b.x, bz: b.z }; });
+  ok(hint.x === hint.bx && hint.z === hint.bz && hint.k >= 3, 'History from a place card opens playback centred on the building');
+  // typography: the app title, pixel kickers, display headings
+  await page.evaluate(() => setNav('overview')); await page.waitForTimeout(300);
+  const fonts = await page.evaluate(() => ({ title: document.title, brand: getComputedStyle($('.brand h1 .px')).fontFamily, h2: getComputedStyle($('.hero .title h2')).fontFamily, tile: getComputedStyle($('.tile .val')).fontFamily, nav: $$('#side .tab.nav .lbl').map(l => l.textContent), navCol: getComputedStyle($('#side')).gridColumn || '' }));
+  ok(fonts.title === 'NEW A OS' && /Silkscreen/i.test(fonts.brand) && /Bricolage/i.test(fonts.h2) && /Silkscreen/i.test(fonts.tile), `V3 typography: Silkscreen brand + tiles, Bricolage Grotesque display (title “${fonts.title}”)`);
+  ok(fonts.nav.join() === 'Home,Map,Registry,Transit,Business,History', 'left navigation: ' + fonts.nav.join(' · '));
+  noErrors('explore');
+
   await ctx.close(); await browser.close();
   console.log(`\n${checks - failures}/${checks} checks passed${failures ? ` · ${failures} FAILED` : ''}`);
   process.exit(failures ? 1 : 0);

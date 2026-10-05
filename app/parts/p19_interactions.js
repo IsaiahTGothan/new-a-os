@@ -81,7 +81,23 @@ document.addEventListener('click', async e => {
     case 'vault-write-now': SAVE.dirtyImages = new Set(imageOwners().filter(b => b.image).map(b => b.id)); commit({ now: true }); toast('Writing to the vault…'); break;
     case 'modal-close': closeModal(); break;
     // map
-    case 'map-fit': mapFit(); break;
+    case 'map-fit': mapFlyTo(scopeExtent()); break;
+    case 'map-edit-toggle': setMapEdit(!MAPW.edit); break;
+    case 'gm-close': MAPW.sel = null; renderPlaceCard(); mapDraw(); break;
+    case 'gm-clear': { const i = $('#map-q'); if (i) { i.value = ''; i.dispatchEvent(new Event('input')); i.focus(); } break; }
+    case 'gm-directions': if (EXPLORE.dir) closeDirections(); else openDirections(MAPW.sel && ['building', 'station', 'business'].includes(MAPW.sel.kind) ? { kind: MAPW.sel.kind, id: MAPW.sel.id } : null); break;
+    case 'gm-directions-to': openDirections(MAPW.sel ? { kind: MAPW.sel.kind, id: MAPW.sel.id } : null); break;
+    case 'gm-dir-close': closeDirections(); break;
+    case 'rt-swap': { const f = EXPLORE.from; EXPLORE.from = EXPLORE.to; EXPLORE.to = f; computeRoute(); break; }
+    case 'rt-mode': EXPLORE.mode = t.dataset.mode; renderPlaceCard(); break;
+    case 'pc-open': if (MAPW.sel) openRecord(MAPW.sel.kind === 'junction' ? 'road' : MAPW.sel.kind, MAPW.sel.kind === 'junction' ? MAPW.sel.j?.a : MAPW.sel.id); break;
+    case 'pc-edit': { const sel = MAPW.sel; setMapEdit(true); MAPW.sel = sel; if (sel && ['region', 'district', 'hood'].includes(sel.kind) && !(nodeById(sel.id)?.polygons || []).length) setMapMode('border', { target: { kind: sel.kind, id: sel.id } }); renderDock(); mapDraw(); break; }
+    case 'pc-fit': { const ext = selExtent(MAPW.sel); if (ext) mapFlyTo(ext); break; }
+    case 'pc-look': if (MAPW.sel) setScope({ kind: MAPW.sel.kind, id: MAPW.sel.id }); break;
+    case 'pc-select': MAPW.sel = { kind: t.dataset.kind, id: t.dataset.id }; { const ext = selExtent(MAPW.sel); if (ext) mapFlyTo(ext, { maxK: 5 }); } renderPlaceCard(); mapDraw(); break;
+    case 'pc-history': { const b = MAPW.sel ? byId(MAPW.sel.id) : null; const y = t.dataset.year ? +t.dataset.year : null; if (b?.x != null) { HV.camHint = { x: b.x, z: b.z }; } openHistoryViewer(y ? { year: y } : { index: 0 }); break; }
+    case 'pc-hv': { const b = MAPW.sel ? byId(MAPW.sel.id) : null; if (b?.x != null) HV.camHint = { x: b.x, z: b.z }; openHistoryViewer({ index: +t.dataset.i }); break; }
+    case 'basemap-open': openBasemapModal(); break;
     case 'map-fit-sel': { const ext = selExtent(MAPW.sel); if (ext) mapFit(ext); else toast('The selection has no coordinates', 'warn'); break; }
     case 'map-zoom': mapZoomAt(t.dataset.dir === '1' ? 1.6 : 1 / 1.6, MAPW.w / 2, MAPW.h / 2); break;
     case 'map-snap-grid': MAPW.snapGrid = !MAPW.snapGrid; t.setAttribute('aria-pressed', MAPW.snapGrid); if (MAPW.dock === 'layers') renderDock(); break;
@@ -229,8 +245,9 @@ document.addEventListener('keydown', e => {
     if (DR.id && HV.open) { closeDrawer(); return; }
     if (HV.open) { closeHistoryViewer(); return; }
     if (UI.nav === 'map' && (MAPW.draft || MAPW.pending)) { mapCancel(); return; }
+    if (UI.nav === 'map' && !MAPW.edit && (EXPLORE.picking || EXPLORE.dir)) { closeDirections(); return; }
     if (DR.id) { closeDrawer(); return; }
-    if (UI.nav === 'map' && MAPW.sel) { MAPW.sel = null; renderDock(); mapDraw(); return; }
+    if (UI.nav === 'map' && MAPW.sel) { MAPW.sel = null; if (MAPW.edit) renderDock(); else renderPlaceCard(); mapDraw(); return; }
     if (inField && e.target.id === 'q') { e.target.value = ''; UI.q = ''; refreshRegistry(); e.target.blur(); }
     return;
   }
@@ -248,7 +265,8 @@ document.addEventListener('keydown', e => {
     if (k === 'Backspace' && MAPW.draft) { e.preventDefault(); mapDraftUndo(); return; }
     if ((k === 'Delete' || k === 'Backspace') && MAPW.sel?.vertex != null) { e.preventDefault(); deleteSelectedVertex(); return; }
     const modeKey = { s: 'select', p: 'pan', b: 'border', d: 'road', l: 'transit', x: 'station', a: 'place' }[k.toLowerCase()];
-    if (modeKey && !e.shiftKey) { setMapMode(modeKey); return; }
+    if (modeKey && !e.shiftKey && MAPW.edit) { setMapMode(modeKey); return; }
+    if ((k === 'e' || k === 'E') && !DR.id) { setMapEdit(!MAPW.edit); return; }
   }
   if (k === '/') { e.preventDefault(); $('#q').focus(); $('#q').select(); }
   else if (k === '?') openShortcuts();
