@@ -5,7 +5,7 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 P = lambda *a: os.path.join(HERE, 'parts', *a)
 JS_PARTS = ['p00_config.js', 'p01_refdata.js', 'p02_utils.js', 'p03_state.js', 'p04_persist.js', 'p05_shell.js', 'p06_charts.js', 'p07_engine.js',
             'p08_overview.js', 'p09_registry.js', 'p10_drawer.js', 'p11_records.js', 'p12_modals.js', 'p13_map.js', 'p14_history.js', 'p15_transit.js',
-            'p16_business.js', 'p17_news.js', 'p18_assistant.js', 'p19_interactions.js', 'p19a_explore.js', 'p21_civic.js', 'p22_service.js', 'p23_city.js', 'p24_clawson.js', 'p20_boot.js']
+            'p16_business.js', 'p17_news.js', 'p18_assistant.js', 'p19_interactions.js', 'p19a_explore.js', 'p21_civic.js', 'p22_service.js', 'p23_city.js', 'p24_clawson.js', 'p25_os.js', 'p20_boot.js']
 head = '''<!doctype html>
 <html lang="en">
 <head>

@@ -419,3 +419,6 @@ table.reg th{ font-family:var(--font-pixel); font-size:8.5px; letter-spacing:.04
 .chip button { background: none; border: 0; color: inherit; margin-left: 4px; cursor: pointer; font-size: 13px; }
 @media (max-width: 1500px) { .health { grid-template-columns: repeat(4, 1fr); } }
 @media (max-width: 1100px) { .health { grid-template-columns: repeat(2, 1fr); } .svcrows .svc { grid-template-columns: 140px 1fr 54px; } .svcrows .svc .d { grid-column: 1 / -1; } }
+
+#side .side-end .osdot span b{ color:var(--ink-2); } #side .side-end .osdot{ background:none; border:0; cursor:pointer; width:100%; } #side .side-end .osdot:hover span{ color:var(--ink); }
+#status .it i.bad{ background:var(--bad); box-shadow:0 0 6px var(--bad); }

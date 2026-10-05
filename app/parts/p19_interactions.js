@@ -204,6 +204,16 @@ document.addEventListener('click', async e => {
     case 'markets-import': $('#file-markets').click(); break;
     case 'markets-refresh': marketsRefresh({ source: 'live' }); break;
     case 'markets-vault': marketsRefresh({ source: 'vault' }); break;
+    // OS bridge
+    case 'os-open': openDataModal(); break;
+    case 'os-poll': await OS.poll(); openDataModal(); break;
+    case 'os-backup': await OS.backupRun('auto'); openDataModal(); break;
+    case 'os-backup-full': await OS.backupRun('full'); openDataModal(); break;
+    case 'os-verify': await OS.backupVerify(); break;
+    case 'os-restore-test': await OS.restoreTest(); openDataModal(); break;
+    case 'os-scan': closeModal(); openWorldScanModal(); break;
+    case 'os-scan-inbox': { const n = OS.scanToInbox(); if (n) { closeModal(); toast(`${n} proposal${n === 1 ? '' : 's'} added to the inbox — nothing changes until you apply them`, 'good', { label: 'OPEN INBOX', fn: openNewsInbox }); } break; }
+    case 'os-scan-basemap': { const bm = await OS.scanBasemap(); if (bm) { closeModal(); toast(`Basemap “${bm.name}” added — dated ${hyLabel(bm.year, bm.half)}`, 'good'); } break; }
     // clawson · drafts
     case 'clawson-toggle': clawToggle(); break;
     case 'claw-send': { const inp = $('#claw-q'); const q = inp?.value; if (inp) inp.value = ''; clawRun(q); break; }

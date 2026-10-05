@@ -1763,6 +1763,9 @@ table.reg th{ font-family:var(--font-pixel); font-size:8.5px; letter-spacing:.04
 @media (max-width: 1500px) { .health { grid-template-columns: repeat(4, 1fr); } }
 @media (max-width: 1100px) { .health { grid-template-columns: repeat(2, 1fr); } .svcrows .svc { grid-template-columns: 140px 1fr 54px; } .svcrows .svc .d { grid-column: 1 / -1; } }
 
+#side .side-end .osdot span b{ color:var(--ink-2); } #side .side-end .osdot{ background:none; border:0; cursor:pointer; width:100%; } #side .side-end .osdot:hover span{ color:var(--ink); }
+#status .it i.bad{ background:var(--bad); box-shadow:0 0 6px var(--bad); }
+
 </style>
 </head>
 <body>
@@ -5675,6 +5678,7 @@ async function openDataModal() {
           <div class="settings-row"><div><div>Compact rows</div><div class="d">Denser registry table</div></div><label class="switch"><input type="checkbox" data-set="compact" ${S.settings.density === 'compact' ? 'checked' : ''}></label></div>
           <div class="settings-row" style="border:0"><div><div>Original fabric cut-off</div><div class="d">“Original fabric” = buildings completed by this year</div></div><label class="field" style="height:30px"><select data-set="fabricYear">${FABRIC_YEARS.map(y => `<option value="${y}" ${(S.settings.fabricYear || 2016) === y ? 'selected' : ''}>≤ ${y}</option>`).join('')}</select></label></div>
         </div>
+        ${osCardHTML()}
         <div class="dcard" style="grid-column:span 2">
           <h4>VALUATION FACTORS &amp; PUBLISHING</h4>
           <p>Every estimated value is the assessed total (or a per-block comparable) adjusted by these percentages. Change them here and every record explains itself with the new figures; recorded valuation history keeps the version it was made with.</p>
@@ -5703,6 +5707,7 @@ async function openDataModal() {
         if (k === 'compact') S.settings.density = cb.checked ? 'compact' : 'comfortable'; else if (k === 'fabricYear') S.settings.fabricYear = +cb.value; else if (k === 'aiEnabled') S.settings.ai.enabled = cb.checked; else S.settings[k] = cb.checked;
         applySettings(); commit({ silentRender: true }); if (k === 'fabricYear') renderView(false); if (k === 'compatFile') toast(cb.checked ? 'NewA.json will be written alongside Registry.json' : 'Only Registry.json will be written from now on', '');
       }));
+      m.querySelectorAll('[data-os]').forEach(el => el.addEventListener('change', async () => { const k = el.dataset.os; S.world.backups.schedule ??= {}; if (k === 'url') { S.settings.os = { ...(S.settings.os || {}), url: el.value.trim() || OS.url }; commit({ silentRender: true }); await OS.poll(); openDataModal(); return; } if (k === 'retain') S.world.backups.schedule.retain = num(el.value) || 30; else if (k === 'mirror') S.world.backups.schedule.mirror = el.value.trim(); else S.world.backups.schedule[k] = el.checked; commit({ silentRender: true }); OS.configPush(); }));
       m.querySelector('#markets-url')?.addEventListener('change', e => { S.settings.marketsUrl = e.target.value.trim(); commit({ silentRender: true }); });
       m.querySelector('#ai-provider').addEventListener('change', e => { const prov = e.target.value; const defs = prov === 'anthropic' ? ['https://api.anthropic.com/v1/messages', 'claude-sonnet-5-5'] : ['https://api.openai.com/v1/chat/completions', 'gpt-4o-mini']; const other = prov === 'anthropic' ? ['https://api.openai.com/v1/chat/completions', 'gpt-4o-mini'] : ['https://api.anthropic.com/v1/messages', 'claude-sonnet-5-5']; S.settings.ai.provider = prov; if (!S.settings.ai.endpoint || S.settings.ai.endpoint === other[0]) S.settings.ai.endpoint = defs[0]; if (!S.settings.ai.model || S.settings.ai.model === other[1] || S.settings.ai.model === 'claude-sonnet-4-5') S.settings.ai.model = defs[1]; commit({ silentRender: true }); openDataModal(); });
       m.querySelector('#ai-endpoint').addEventListener('change', e => { S.settings.ai.endpoint = e.target.value.trim(); commit({ silentRender: true }); });
@@ -7208,9 +7213,9 @@ function extractCandidates(item) {
   for (const c of out) if (c.kind !== 'mention') c.conflict = candidateConflict(c);
   return out;
 }
-function candidateEntity(c) { if (c.create && !c.entityId) return null; return c.entityKind === 'building' ? byId(c.entityId) : c.entityKind === 'business' ? bizById(c.entityId) : c.entityKind === 'line' ? lineById(c.entityId) : c.entityKind === 'station' ? stationById(c.entityId) : c.entityKind === 'region' ? regionById(c.entityId) : districtById(c.entityId); }
+function candidateEntity(c) { if (c.create && !c.entityId) return null; return c.entityKind === 'building' ? byId(c.entityId) : c.entityKind === 'business' ? bizById(c.entityId) : c.entityKind === 'line' ? lineById(c.entityId) : c.entityKind === 'station' ? stationById(c.entityId) : c.entityKind === 'road' ? roadById(c.entityId) : c.entityKind === 'region' ? regionById(c.entityId) : districtById(c.entityId); }
 function candidateConflict(c) {
-  if (c.create && !c.entityId) { const dup = S.businesses.find(z => (c.create.ticker && z.ticker && z.ticker.toUpperCase() === c.create.ticker.toUpperCase()) || norm(z.name) === norm(c.create.name) || (z.aliases || []).some(a => norm(a) === norm(c.create.name))); return dup ? 'already' : null; }
+  if (c.create && !c.entityId) { if (c.entityKind !== 'business') return null; const dup = S.businesses.find(z => (c.create.ticker && z.ticker && z.ticker.toUpperCase() === c.create.ticker.toUpperCase()) || norm(z.name) === norm(c.create.name) || (z.aliases || []).some(a => norm(a) === norm(c.create.name))); return dup ? 'already' : null; }
   const rec = candidateEntity(c); if (!rec) return 'The record no longer exists.';
   const same = Object.entries(c.after || {}).every(([k, v]) => k === 'notes' || k === 'transactions' ? false : JSON.stringify(rec[k] ?? null) === JSON.stringify(v ?? null));
   if (same) return 'already';
@@ -7221,7 +7226,19 @@ function candidateConflict(c) {
 }
 function applyCandidate(c, { auto = false } = {}) {
   if (c.create && !c.entityId) {
-    if (c.entityKind !== 'business') { toast('Only business records can be created from a proposal', 'warn'); return false; }
+    if (c.entityKind === 'building') {
+      const cr = c.create; const p = cr.x != null && cr.z != null ? placeSuggest(cr.x, cr.z) : null; const districtId = p?.districts?.[0]?.d?.id || (UI.scope.kind === 'district' ? UI.scope.id : UI.scope.kind === 'hood' ? hoodById(UI.scope.id)?.districtId : null) || coreDistricts()[0]?.id || S.districts[0]?.id;
+      if (!districtId) { toast('Add a borough or district first', 'warn'); return false; }
+      const b = newBuilding(S, districtId); const { id, reg, ...fields } = cr; Object.assign(b, fields, { districtId, created: now(), updated: now() }); const h = cr.x != null ? hoodAtPoint([cr.x, cr.z], districtId) : null; if (h) b.neighborhoodId = h.id; b.status = summaryStatus(b); S.buildings.push(b);
+      const log = { id: uid('nl'), at: now(), candId: c.id, kind: c.kind, entityKind: 'building', entityId: b.id, label: `${b.reg} · ${titleOf(b)}`, before: null, after: fields, created: b.id, source: { guid: c.itemGuid, link: c.link, title: c.title, published: c.published }, auto };
+      S.news.log.unshift(log); S.news.decisions[c.id] = { status: 'applied', at: now(), logId: log.id, auto, createdId: b.id }; commit(); return true;
+    }
+    if (c.entityKind === 'road') {
+      const r = newRoad(S); const { id, reg, ...fields } = c.create; Object.assign(r, fields, { created: now(), updated: now() }); S.roads.push(r); if (typeof JUNCTION_CACHE !== 'undefined') JUNCTION_CACHE.key = ''; if (typeof ROAD_GRAPH !== 'undefined') ROAD_GRAPH.key = '';
+      const log = { id: uid('nl'), at: now(), candId: c.id, kind: c.kind, entityKind: 'road', entityId: r.id, label: `${r.reg} · ${roadLabel(r)}`, before: null, after: fields, created: r.id, source: { guid: c.itemGuid, link: c.link, title: c.title, published: c.published }, auto };
+      S.news.log.unshift(log); S.news.decisions[c.id] = { status: 'applied', at: now(), logId: log.id, auto, createdId: r.id }; commit(); return true;
+    }
+    if (c.entityKind !== 'business') { toast('Only building, road and business records can be created from a proposal', 'warn'); return false; }
     const z = newBusiness(S); Object.assign(z, c.create, { id: z.id, reg: z.reg, created: now(), updated: now() }); S.businesses.push(z);
     const log = { id: uid('nl'), at: now(), candId: c.id, kind: c.kind, entityKind: 'business', entityId: z.id, label: c.label, before: null, after: c.create, created: z.id, source: { guid: c.itemGuid, link: c.link, title: c.title, published: c.published }, auto };
     S.news.log.unshift(log); S.news.decisions[c.id] = { status: 'applied', at: now(), logId: log.id, auto, createdId: z.id }; commit(); return true;
@@ -7236,6 +7253,16 @@ function applyCandidate(c, { auto = false } = {}) {
 }
 function undoLog(logId) {
   const log = S.news.log.find(l => l.id === logId); if (!log || log.undone) return;
+  if (log.created && log.entityKind === 'building') {
+    const b = byId(log.created); if (!b) { toast('The created record is already gone', 'warn'); return; }
+    if ((b.relations || []).length || tenanciesAt(b).length || b.image || b.civic || officialsOf(b).length || (b.updated || '') > (log.at || '')) { toast(`${b.reg} has been worked on since — not removed; delete it by hand if you mean to`, 'warn'); return; }
+    S.buildings = S.buildings.filter(x => x.id !== b.id); log.undone = now(); S.news.decisions[log.candId] = { status: 'undone', at: now(), logId }; commit(); toast(`${b.reg} removed again — the proposal stays in the inbox`, 'good'); return;
+  }
+  if (log.created && log.entityKind === 'road') {
+    const r = roadById(log.created); if (!r) { toast('The created road is already gone', 'warn'); return; }
+    if (buildingsOnRoad(r).length || S.lines.some(l => (l.roadIds || []).includes(r.id)) || (r.updated || '') > (log.at || '')) { toast(`${r.reg} has been worked on since — not removed`, 'warn'); return; }
+    S.roads = S.roads.filter(x => x.id !== r.id); if (typeof JUNCTION_CACHE !== 'undefined') JUNCTION_CACHE.key = ''; if (typeof ROAD_GRAPH !== 'undefined') ROAD_GRAPH.key = ''; log.undone = now(); S.news.decisions[log.candId] = { status: 'undone', at: now(), logId }; commit(); toast(`${r.reg} removed again`, 'good'); return;
+  }
   if (log.created) {
     const z = bizById(log.created); if (!z) { toast('The created record is already gone', 'warn'); return; }
     if (tenanciesOf(z).length || (z.revenue || []).length || childBusinesses(z).length) { toast('The business has been worked on since (locations, revenue or branches) — not removed; delete it by hand if you mean to', 'warn'); return; }
@@ -7264,10 +7291,10 @@ function openNewsInbox() {
   const pending = newsPendingCount(); const err = S.news.lastError;
   const candHTML = (c, it) => {
     const dec = S.news.decisions[c.id]; const rec = candidateEntity(c); const conflict = c.conflict && c.conflict !== 'already' ? c.conflict : null; const already = c.conflict === 'already';
-    const kindLabel = { completion: 'COMPLETION', partial: 'PARTIAL · NOTE', start: 'CONSTRUCTION START', demolition: 'DEMOLITION', landmark: 'LANDMARK', listing: 'LISTING / SALE', 'biz-open': 'BUSINESS OPENS', 'biz-close': 'BUSINESS CLOSES', 'biz-new': 'NEW BUSINESS · MARKET', 'biz-market': 'MARKET UPDATE', transit: 'TRANSIT OPENING', jurisdiction: 'JURISDICTION', mention: 'MENTION' }[c.kind] || c.kind.toUpperCase();
+    const kindLabel = { completion: 'COMPLETION', partial: 'PARTIAL · NOTE', start: 'CONSTRUCTION START', demolition: 'DEMOLITION', landmark: 'LANDMARK', listing: 'LISTING / SALE', 'biz-open': 'BUSINESS OPENS', 'biz-close': 'BUSINESS CLOSES', 'biz-new': 'NEW BUSINESS · MARKET', 'biz-market': 'MARKET UPDATE', transit: 'TRANSIT OPENING', jurisdiction: 'JURISDICTION', mention: 'MENTION', 'world-new': 'WORLD · NEW BUILDING', 'world-update': 'WORLD · UPDATE', 'world-road': 'WORLD · NEW ROAD', clawson: 'CLAWSON' }[c.kind] || c.kind.toUpperCase();
     const fmtV = v => v == null ? '—' : Array.isArray(v) ? (v.length ? v.map(x => typeof x === 'object' && x ? Object.entries(x).filter(([k]) => !['id', 'at'].includes(k)).map(([k, y]) => `${k} ${y}`).join(' ') : String(x)).join('; ') : '—') : typeof v === 'object' ? JSON.stringify(v) : String(v);
     const diff = c.create && !c.entityId ? Object.entries(c.create).filter(([k, v]) => v != null && v !== '' && !(Array.isArray(v) && !v.length) && !['source', 'sourceType', 'confidence'].includes(k)).map(([k, v]) => `<span><span class="muted">${esc(k)}</span> <span class="after">${esc(fmtV(v))}</span></span>`).join('') : Object.entries(c.after || {}).filter(([k]) => k !== 'transactions').map(([k, v]) => `<span><span class="muted">${esc(k)}</span> <span class="before">${esc(fmtV((c.before || {})[k]))}</span><span class="arr">→</span><span class="after">${esc(fmtV(v))}</span></span>`).join('');
-    const openAttr = c.entityKind === 'building' ? `data-open="${c.entityId}"` : ['business', 'line', 'station'].includes(c.entityKind) ? `data-open="${c.entityKind}:${c.entityId}"` : '';
+    const openAttr = c.entityKind === 'building' && c.entityId ? `data-open="${c.entityId}"` : ['business', 'line', 'station', 'road'].includes(c.entityKind) && c.entityId ? `data-open="${c.entityKind}:${c.entityId}"` : '';
     return `<div class="cand"><div><div class="ct"><span class="kind ${dec?.status === 'applied' ? 'applied' : dec?.status === 'rejected' || dec?.status === 'undone' ? 'rejected' : conflict ? 'conflict' : c.kind === 'mention' ? 'mention' : ''}">${kindLabel}</span><b ${openAttr} style="${openAttr ? 'cursor:pointer' : ''}">${esc(c.label)}</b>${!rec && !(c.create && !c.entityId) ? '<span class="mk bad">RECORD GONE</span>' : ''}${c.basis === 'simulated' ? '<span class="mk" title="Prices from the site are a simulation — never recorded revenue">SIMULATED</span>' : ''}${c.eventYear ? `<span class="mk">${esc(hyLabel(c.eventYear, c.eventHalf))}${c.dateFromText ? '' : ' · from publication date'}</span>` : ''}</div>${c.kind !== 'mention' ? `<div class="diff">${diff}</div>` : ''}<div class="ev"><q>${esc(c.excerpt)}</q></div>${c.note ? `<div class="why">${esc(c.note)}</div>` : ''}${conflict ? `<div class="why">⚠ ${esc(conflict)}</div>` : ''}${already ? `<div class="why" style="color:var(--ink-3)">Already matches the record — nothing to apply.</div>` : ''}</div>
       <div class="acts">${c.kind === 'mention' ? '<span class="done">no change proposed</span>' : dec?.status === 'applied' ? `<span class="done">applied ${fmtDay(dec.at)}${dec.auto ? ' · by rule' : ''}</span><button class="btn sm" data-act="news-undo" data-log="${dec.logId}">${icon('undo')} Undo</button>` : dec?.status === 'rejected' ? `<span class="done">rejected</span><button class="btn sm ghost" data-act="news-reopen" data-cand="${c.id}">Reopen</button>` : dec?.status === 'undone' ? `<span class="done">undone</span><button class="btn sm ghost" data-act="news-reopen" data-cand="${c.id}">Reopen</button>` : already ? `<button class="btn sm ghost" data-act="news-reject" data-cand="${c.id}">Dismiss</button>` : `<button class="btn sm primary" data-act="news-apply" data-cand="${c.id}" ${rec || (c.create && !c.entityId) ? '' : 'disabled'}>${icon('check')} ${c.create && !c.entityId ? 'Create' : 'Apply'}</button><button class="btn sm ghost" data-act="news-reject" data-cand="${c.id}">Reject</button>`}</div></div>`;
   };
@@ -7681,6 +7708,16 @@ document.addEventListener('click', async e => {
     case 'markets-import': $('#file-markets').click(); break;
     case 'markets-refresh': marketsRefresh({ source: 'live' }); break;
     case 'markets-vault': marketsRefresh({ source: 'vault' }); break;
+    // OS bridge
+    case 'os-open': openDataModal(); break;
+    case 'os-poll': await OS.poll(); openDataModal(); break;
+    case 'os-backup': await OS.backupRun('auto'); openDataModal(); break;
+    case 'os-backup-full': await OS.backupRun('full'); openDataModal(); break;
+    case 'os-verify': await OS.backupVerify(); break;
+    case 'os-restore-test': await OS.restoreTest(); openDataModal(); break;
+    case 'os-scan': closeModal(); openWorldScanModal(); break;
+    case 'os-scan-inbox': { const n = OS.scanToInbox(); if (n) { closeModal(); toast(`${n} proposal${n === 1 ? '' : 's'} added to the inbox — nothing changes until you apply them`, 'good', { label: 'OPEN INBOX', fn: openNewsInbox }); } break; }
+    case 'os-scan-basemap': { const bm = await OS.scanBasemap(); if (bm) { closeModal(); toast(`Basemap “${bm.name}” added — dated ${hyLabel(bm.year, bm.half)}`, 'good'); } break; }
     // clawson · drafts
     case 'clawson-toggle': clawToggle(); break;
     case 'claw-send': { const inp = $('#claw-q'); const q = inp?.value; if (inp) inp.value = ''; clawRun(q); break; }
@@ -8933,6 +8970,88 @@ function draftsInboxHTML() {
 
 
 /* =====================================================================
+   §25 OS BRIDGE — the local New A OS server (os/server.js): status, fetch
+       proxy, read-only world scans → Inbox proposals + dated renders,
+       verified incremental backups, health tile and alerts.
+       The world save is never written: the bridge only opens it to read.
+   ===================================================================== */
+const OS = { url: 'http://127.0.0.1:7331', online: false, status: null, health: null, timer: null, lastPoll: null, busy: false, scan: null };
+OS.base = () => ((S && S.settings && S.settings.os && S.settings.os.url) || OS.url).replace(/\/$/, '');
+OS.get = async p => { const r = await fetch(OS.base() + p, { signal: AbortSignal.timeout(8000) }); return r.json(); };
+OS.post = async (p, body, timeoutMs = 600000) => { const r = await fetch(OS.base() + p, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body || {}), signal: AbortSignal.timeout(timeoutMs) }); return r.json(); };
+const ageText = iso => { if (!iso) return 'never'; const h = (Date.now() - new Date(iso)) / 36e5; return h < 1 ? 'just now' : h < 24 ? `${Math.round(h)} h ago` : `${Math.round(h / 24)} d ago`; };
+OS.poll = async () => {
+  const was = OS.online;
+  try { const st = await OS.get('/api/status'); OS.online = !!st.ok; OS.status = st; OS.health = await OS.get('/api/health').catch(() => null); OS.lastPoll = now(); }
+  catch { OS.online = false; OS.status = null; OS.health = null; }
+  if (!was && OS.online) { toast('New A OS bridge connected', 'good'); const bad = (OS.health?.alerts || []).filter(a => a.level === 'bad'); if (bad.length) toast(bad[0].text, 'bad', { label: 'VAULT & BACKUPS', fn: openDataModal }); }
+  OS.renderStatus(); return OS.online;
+};
+OS.start = () => { clearInterval(OS.timer); OS.poll(); OS.timer = setInterval(OS.poll, 30000); window.addEventListener('pagehide', OS.afterSession); document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'hidden') OS.afterSession(); }); };
+/* after-session backup: a beacon that survives the tab closing; at most once per 10 minutes */
+OS.afterSession = () => { try { if (!OS.online || !OS.status?.vaultOk || !(S.world?.backups?.schedule?.afterSession ?? true)) return; const key = 'newa-os-last-session-backup'; const last = +(sessionStorage.getItem(key) || 0); if (Date.now() - last < 10 * 60e3) return; sessionStorage.setItem(key, String(Date.now())); navigator.sendBeacon(OS.base() + '/api/backup/run', '{}'); } catch { } };
+OS.renderStatus = () => { const el = $('#st-os'), t = $('#st-os-t'); if (!el) return; const h = OS.health; const bad = (h?.alerts || []).some(a => a.level === 'bad'), warn = (h?.alerts || []).some(a => a.level === 'warn'); el.className = OS.online ? (bad ? 'bad' : warn ? 'warn' : '') : 'off'; t.textContent = OS.online ? `OS bridge · online · backup ${ageText(h?.lastVerified)}` : 'OS bridge · offline'; const se = $('#side-end .osdot'); if (se) se.outerHTML = OS.tileHTML(); };
+OS.tileHTML = () => { const h = OS.health; const alerts = h?.alerts || []; const worst = alerts.some(a => a.level === 'bad') ? 'bad' : alerts.some(a => a.level === 'warn') ? 'warn' : ''; return `<button class="osdot ${OS.online ? 'on' : ''} ${worst}" data-act="os-open" title="${OS.online ? 'New A OS bridge online — backups, world scans, live feeds. Open Vault & backups.' : 'New A OS bridge offline — start it with: node os/server.js --vault <folder> --world <save>'}"><i></i><span><b>OS</b> ${OS.online ? (h?.lastVerified ? `backup ${ageText(h.lastVerified)}` : 'no backup yet') : 'offline'}${OS.online && alerts.length ? ` · ${alerts.length} alert${alerts.length === 1 ? '' : 's'}` : ''}</span></button>`; };
+OS.proxyFetch = async (url, opts = {}) => { const r = await OS.post('/api/fetch', { url, method: opts.method || 'GET', headers: opts.headers || {}, body: opts.body ?? null }, 60000); if (r.status == null) throw new Error(r.error || 'bridge fetch failed'); return { ok: r.ok, status: r.status, headers: { get: k => (r.headers || {})[k.toLowerCase()] }, text: async () => r.body, json: async () => JSON.parse(r.body) }; };
+/* ---- backups ---- */
+OS.backupRun = async (kind = 'auto') => { if (!OS.online) { toast('The bridge is offline', 'warn'); return null; } OS.busy = true; try { const r = await OS.post('/api/backup/run', { kind }); if (r.ok) { S.world.backups.history = [{ ...r.backup }, ...(S.world.backups.history || [])].slice(0, 50); if (r.backup.verified) S.world.backups.lastVerified = r.backup.at; commit({ silentRender: true }); toast(`Backup ${r.backup.kind} · ${r.backup.changed} file${r.backup.changed === 1 ? '' : 's'} · verified`, 'good'); } else toast('Backup failed: ' + (r.error || r.backup?.error || 'unknown'), 'bad'); await OS.poll(); return r; } finally { OS.busy = false; } };
+OS.backupVerify = async () => { const r = await OS.post('/api/backup/verify', {}); const v = r.result; if (v?.ok) toast(`Verified ${v.checked} file${v.checked === 1 ? '' : 's'} in ${v.id}`, 'good'); else toast('Verify failed: ' + (v?.bad?.join('; ') || v?.error || 'unknown'), 'bad'); return v; };
+OS.restoreTest = async () => { const r = await OS.post('/api/backup/restore-test', {}); const v = r.result; if (v?.ok) { S.world.backups.lastRestoreTest = v.at; commit({ silentRender: true }); toast(`Restore test passed · ${v.files} files, Registry.json parses`, 'good'); } else toast('Restore test failed: ' + (v?.bad?.join('; ') || v?.error || 'unknown'), 'bad'); await OS.poll(); return v; };
+OS.configPush = async () => { if (!OS.online) return; const sch = S.world.backups.schedule || {}; try { await OS.post('/api/config', { retain: num(sch.retain) || 30, monthlyFull: sch.monthlyFull !== false, afterSession: sch.afterSession !== false, mirrorDir: sch.mirror || '' }); } catch { } };
+/* ---- world scans ---- */
+OS.autoBounds = () => { const pts = S.buildings.filter(b => b.x != null && b.z != null).map(b => [b.x, b.z]); for (const r of S.roads) for (const p of r.geometry || []) pts.push(p); if (!pts.length) return { x1: -512, z1: -512, x2: 511, z2: 511 }; const bb = bboxOf(pts); return { x1: Math.floor(bb.x1 - 150), z1: Math.floor(bb.z1 - 150), x2: Math.ceil(bb.x2 + 150), z2: Math.ceil(bb.z2 + 150) }; };
+OS.registryForScan = () => ({ buildings: S.buildings.map(b => ({ id: b.id, reg: b.reg, name: b.name, x: b.x, z: b.z, height: b.height, floors: b.floors, physical: b.physical, footprint: b.footprint })), roads: S.roads.map(r => ({ id: r.id, reg: r.reg, name: r.name, geometry: r.geometry })) });
+OS.scanRun = async bounds => { if (!OS.online) { toast('The bridge is offline', 'warn'); return null; } OS.busy = true; try { const r = await OS.post('/api/scan', { bounds, registry: OS.registryForScan(), render: true }); if (!r.ok) { toast('Scan failed: ' + r.error, 'bad'); return null; } OS.scan = r; S.world.scans = [{ at: r.at, bounds: r.bounds, summary: r.summary }, ...(S.world.scans || [])].slice(0, 20); commit({ silentRender: true }); return r; } finally { OS.busy = false; } };
+const WORLD_KIND_LABEL = { 'world-new': 'NEW · POSSIBLE BUILDING', 'world-update': 'WORLD · UPDATE', 'world-road': 'NEW · POSSIBLE ROAD', 'world-missing': 'NOT FOUND IN WORLD', 'world-confirm': 'CONFIRMED IN WORLD', 'world-road-confirm': 'ROAD CONFIRMED' };
+/* proposals from a scan → one Inbox item; records are only changed when you apply them there */
+OS.scanToInbox = (scan = OS.scan) => {
+  if (!scan) return 0; const guid = 'world:' + scan.at; if (S.news.items.some(it => it.guid === guid)) { toast('These proposals are already in the inbox', 'warn'); return 0; }
+  const item = { guid, title: `World scan · ${fmtDate(scan.at)}`, link: '', published: scan.at, fetchedAt: now(), source: 'world', excerpt: `${scan.summary.chunks} chunks read · ${scan.summary.clusters} structures · ${scan.summary.roads} road bands · bounds X ${scan.bounds.x1}→${scan.bounds.x2} · Z ${scan.bounds.z1}→${scan.bounds.z2}`, hash: guid, revisions: [], candidates: [], categories: ['world'] };
+  const base = { itemGuid: guid, link: '', title: item.title, published: scan.at, eventYear: +scan.at.slice(0, 4), eventHalf: +scan.at.slice(5, 7) <= 6 ? 'E' : 'L', dateFromText: true };
+  for (const p of scan.proposals) {
+    if (p.kind === 'world-update') { const rec = byId(p.buildingId); if (!rec) continue; const before = {}; for (const k of Object.keys(p.after)) before[k] = JSON.parse(JSON.stringify(rec[k] ?? null)); const c = { ...base, id: uid('cw'), kind: 'world-update', entityKind: 'building', entityId: rec.id, label: `${rec.reg} · ${titleOf(rec)}`, excerpt: p.why, before, after: p.after, note: 'Measured from the world save, read-only. Heights are blocks above the surrounding ground.' }; c.conflict = candidateConflict(c); item.candidates.push(c); }
+    else if (p.kind === 'world-new') item.candidates.push({ ...base, id: uid('cw'), kind: 'world-new', entityKind: 'building', entityId: null, label: p.label, excerpt: p.why, create: p.create, note: 'A new record with middle coordinates; the borough is taken from the drawn borders, or the current scope. Name, class and dates are yours to add.' });
+    else if (p.kind === 'world-road') item.candidates.push({ ...base, id: uid('cw'), kind: 'world-road', entityKind: 'road', entityId: null, label: p.label, excerpt: p.why, create: p.create, note: 'A two-point centreline from the road surface; refine it on the map and name it.' });
+    else item.candidates.push({ ...base, id: uid('cw'), kind: 'mention', entityKind: p.roadId ? 'road' : 'building', entityId: p.buildingId || p.roadId || null, label: `${WORLD_KIND_LABEL[p.kind] || p.kind} · ${p.label}`, excerpt: p.why });
+  }
+  S.news.items.unshift(item); commit({ silentRender: true }); renderStatus(); return item.candidates.filter(c => c.kind !== 'mention').length;
+};
+OS.scanBasemap = async (scan = OS.scan) => {
+  if (!scan?.render?.url) { toast('This scan has no render', 'warn'); return null; }
+  const res = await fetch(OS.base() + scan.render.url); const blob = await res.blob(); const file = new File([blob], `world-render-${scan.at.slice(0, 10)}.png`, { type: 'image/png' });
+  const bm = await basemapAdd(file); if (!bm) return null; bm.name = `World render ${scan.at.slice(0, 10)}`; bm.x = scan.render.x; bm.z = scan.render.z; bm.scale = scan.render.scale; bm.opacity = 0.85; bm.year = +scan.at.slice(0, 4); bm.half = +scan.at.slice(5, 7) <= 6 ? 'E' : 'L'; bm.source = 'world scan'; commit({ silentRender: true }); if (UI.nav === 'map') { refreshChips(); mapDraw(); } return bm;
+};
+function openWorldScanModal() {
+  const b = OS.autoBounds(); const r = OS.scan; const kinds = r?.summary?.byKind || {};
+  openModal({ title: 'Scan the world', kicker: OS.online ? `BRIDGE ONLINE · ${OS.status?.worldOk ? 'WORLD READABLE' : 'WORLD NOT CONFIGURED'}` : 'BRIDGE OFFLINE', cls: 'wide',
+    body: `<p class="muted" style="font-size:12.5px;margin:10px 0">The bridge reads the save folder (never writes it), builds a surface model inside the bounds, finds structures and road surfaces, compares them with the registry and renders a top-down map. Everything it finds becomes a proposal in the Inbox with middle coordinates — nothing is added until you apply it.</p>
+      ${!OS.status?.worldOk ? `<div class="callout">Start the bridge with the save folder: <code>node os/server.js --vault "&lt;vault folder&gt;" --world "&lt;.minecraft/saves/New A&gt;"</code>. The world path is read-only by construction.</div>` : ''}
+      <div class="frow c3" style="margin-top:10px">${[['x1', 'X from', b.x1], ['z1', 'Z from', b.z1], ['x2', 'X to', b.x2], ['z2', 'Z to', b.z2]].map(([k, l, v]) => `<div class="f"><label for="ws-${k}">${l}</label><input id="ws-${k}" class="num" type="number" step="1" value="${v}"></div>`).join('')}<div class="f"><label>&nbsp;</label><button class="btn primary" id="ws-run" ${OS.online && OS.status?.worldOk ? '' : 'disabled'}>${icon('sat')} Scan now</button></div></div>
+      <div class="desc-line">Bounds default to every placed building and road ± 150 blocks. Larger areas take longer (about 1 s per 100 chunks).</div>
+      ${r ? `<div class="secthead" style="margin-top:14px">LAST SCAN · ${esc(fmtDate(r.at))}</div><div class="kv" style="margin:0;border:0">${kvHTML('READ', `${r.summary.chunks}<small>chunks · ${r.summary.regions} regions · ${r.summary.ms} ms</small>`, 'num')}${kvHTML('FOUND', `${r.summary.clusters}<small>structures · ${r.summary.roads} road bands</small>`, 'num')}${kvHTML('PROPOSALS', `${(kinds['world-new'] || 0) + (kinds['world-update'] || 0) + (kinds['world-road'] || 0)}<small>${kinds['world-new'] || 0} new · ${kinds['world-update'] || 0} updates · ${kinds['world-road'] || 0} roads · ${kinds['world-missing'] || 0} not found · ${(kinds['world-confirm'] || 0) + (kinds['world-road-confirm'] || 0)} confirmed</small>`, 'num')}${kvHTML('SKIPPED', `${r.summary.skipped}<small>${r.summary.lz4 ? r.summary.lz4 + ' LZ4 chunks (unsupported)' : 'unfinished chunks'}${r.summary.errors.length ? ' · ' + r.summary.errors.length + ' errors' : ''}</small>`, 'num')}</div>
+      ${r.render ? `<div style="margin:10px 0"><img src="${OS.base() + r.render.url}" alt="render" style="max-width:100%;max-height:260px;border:1px solid var(--line-2);border-radius:6px;image-rendering:pixelated"></div>` : ''}
+      <div class="list" style="max-height:220px;overflow:auto">${r.proposals.slice(0, 40).map(p => `<div class="li"><div><div class="t"><span class="mk ${p.kind === 'world-missing' ? 'warn' : /confirm/.test(p.kind) ? 'good' : 'info'}">${esc(WORLD_KIND_LABEL[p.kind] || p.kind)}</span> ${esc(p.label)}</div><div class="s">${esc(truncate(p.why, 140))}</div></div></div>`).join('')}${r.proposals.length > 40 ? `<div class="desc-line">… and ${r.proposals.length - 40} more</div>` : ''}</div>` : ''}`,
+    foot: `<button class="btn ghost" data-act="modal-close">Close</button><span class="spacer"></span>${r ? `<button class="btn" data-act="os-scan-basemap">${icon('img')} Add render as dated basemap</button><button class="btn primary" data-act="os-scan-inbox">${icon('news')} Send ${r.proposals.filter(p => /new|update|world-road$/.test(p.kind)).length} proposals to the inbox</button>` : ''}`,
+    onOpen: m => { const run = m.querySelector('#ws-run'); if (run) run.onclick = async () => { const g = k => num(m.querySelector('#ws-' + k).value); const bounds = { x1: g('x1'), z1: g('z1'), x2: g('x2'), z2: g('z2') }; if ([bounds.x1, bounds.z1, bounds.x2, bounds.z2].some(v => v == null) || bounds.x2 <= bounds.x1 || bounds.z2 <= bounds.z1) { toast('Check the bounds', 'warn'); return; } run.disabled = true; run.textContent = 'Scanning…'; const res = await OS.scanRun(bounds); if (res) { toast(`Scan done · ${res.summary.clusters} structures · ${res.summary.roads} roads`, 'good'); openWorldScanModal(); } else { run.disabled = false; run.textContent = 'Scan now'; } }; } });
+}
+/* ---- the card inside Vault & settings ---- */
+function osCardHTML() {
+  const h = OS.health; const st = OS.status; const sch = S.world.backups.schedule || {}; const alerts = h?.alerts || []; const hist = (h ? [] : S.world.backups.history || []).slice(0, 5);
+  return `<div class="dcard" style="grid-column:span 2">
+    <h4>NEW A OS BRIDGE <span class="mk ${OS.online ? 'good' : 'muted'}">${OS.online ? 'ONLINE' : 'OFFLINE'}</span></h4>
+    <p>A small local server (<code>os/server.js</code>, Node 18+, no dependencies) that keeps verified incremental backups of the vault, scans the world save read-only, and fetches the site and AI providers for the app. ${OS.online ? `Connected at <b>${esc(OS.base())}</b>${st?.vaultDir ? ` · vault <b>${esc(st.vaultDir)}</b>` : ''}${st?.worldDir ? ` · world <b>${esc(st.worldDir)}</b>${st.worldOk ? '' : ' (no region folder)'}` : ' · no world folder set'}.` : `Start it from the repo folder: <code>node os/server.js --vault "&lt;vault folder&gt;" --world "&lt;save folder&gt;"</code>, then this card fills in.`}</p>
+    <div class="frow c3" style="margin-top:8px"><div class="f"><label>Bridge URL</label><input data-os="url" value="${esc(S.settings.os?.url || OS.url)}" placeholder="${OS.url}"></div><div class="f"><label>Keep backups</label><input data-os="retain" class="num" type="number" min="3" value="${esc(sch.retain ?? 30)}"></div><div class="f"><label>Mirror folder <span class="hint">second disk · optional</span></label><input data-os="mirror" value="${esc(sch.mirror || '')}" placeholder="D:\\NewA-mirror"></div></div>
+    <div class="settings-row"><div><div>Back up after each session</div><div class="d">When the app closes or goes to the background, the bridge runs an incremental backup (at most every 10 minutes)</div></div><label class="switch"><input type="checkbox" data-os="afterSession" ${sch.afterSession !== false ? 'checked' : ''}></label></div>
+    <div class="settings-row"><div><div>Full backup monthly</div><div class="d">A complete copy on the first run of each month; the rest are incremental and verified by hash</div></div><label class="switch"><input type="checkbox" data-os="monthlyFull" ${sch.monthlyFull !== false ? 'checked' : ''}></label></div>
+    <div class="kv" style="margin:10px 0 0;border:0">${kvHTML('LAST VERIFIED BACKUP', h?.lastVerified ? `${ageText(h.lastVerified)}<small>${esc(h.last?.id || '')} · ${h.last?.kind || ''} · ${h.last?.files ?? '?'} files</small>` : (OS.online ? 'none yet' : null), 'num')}${kvHTML('RESTORE TEST', h?.lastRestoreTest ? ageText(h.lastRestoreTest) : (S.world.backups.lastRestoreTest ? ageText(S.world.backups.lastRestoreTest) : (OS.online ? 'never' : null)), 'num')}${kvHTML('BACKUPS ON DISK', h ? `${h.count}<small>${h.disk ? (h.disk.freeBytes / 1e9).toFixed(1) + ' GB free' : ''}</small>` : null, 'num')}${kvHTML('WORLD', h ? (h.world.readable ? `${h.world.regions}<small>region files · read-only</small>` : (h.world.configured ? 'not readable' : 'not set')) : null, 'num')}</div>
+    ${alerts.length ? `<div class="issues-wrap" style="margin:10px 0 0">${alerts.map(a => `<div class="issue ${a.level}">${icon(a.level === 'info' ? 'flag' : 'warn')}<span>${esc(a.text)}</span></div>`).join('')}</div>` : ''}
+    ${hist.length ? `<div class="desc-line" style="margin-top:8px">RECENT · ${hist.map(x => `${esc(x.kind)} ${ageText(x.at)}${x.verified ? ' ✓' : ' ✗'}`).join(' · ')}</div>` : ''}
+    <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:12px"><button class="btn primary sm" data-act="os-backup" ${OS.online ? '' : 'disabled'}>${icon('shield')} Back up now</button><button class="btn sm" data-act="os-backup-full" ${OS.online ? '' : 'disabled'}>Full backup</button><button class="btn sm" data-act="os-verify" ${OS.online ? '' : 'disabled'}>${icon('check')} Verify latest</button><button class="btn sm" data-act="os-restore-test" ${OS.online ? '' : 'disabled'}>${icon('undo')} Restore test</button><span class="spacer"></span><button class="btn sm" data-act="os-scan" ${OS.online ? '' : 'disabled'}>${icon('sat')} Scan the world…</button><button class="btn sm ghost" data-act="os-poll">${icon('redo')} Reconnect</button></div>
+  </div>`;
+}
+
+
+/* =====================================================================
    §20 BOOT
    ===================================================================== */
 async function boot() {
@@ -8959,6 +9078,7 @@ async function boot() {
   if (MIGRATION.minor) { toast(`Registry upgraded to schema ${MIGRATION.minor.to} — civic facilities, officials, projects, service times and valuations are ready; every existing record is unchanged`, 'good'); MIGRATION.minor = null; commit({ now: true }); }
   if (VAULT.status === 'prompt') toast(`Vault “${VAULT.name}” needs a click to reconnect`, 'warn', { label: 'RECONNECT', fn: vaultReconnect });
   newsAutoRefresh();
+  if (typeof OS !== 'undefined') OS.start();
 }
 function playBoot({ stored }) {
   const el = $('#boot');

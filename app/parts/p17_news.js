@@ -118,9 +118,9 @@ function extractCandidates(item) {
   for (const c of out) if (c.kind !== 'mention') c.conflict = candidateConflict(c);
   return out;
 }
-function candidateEntity(c) { if (c.create && !c.entityId) return null; return c.entityKind === 'building' ? byId(c.entityId) : c.entityKind === 'business' ? bizById(c.entityId) : c.entityKind === 'line' ? lineById(c.entityId) : c.entityKind === 'station' ? stationById(c.entityId) : c.entityKind === 'region' ? regionById(c.entityId) : districtById(c.entityId); }
+function candidateEntity(c) { if (c.create && !c.entityId) return null; return c.entityKind === 'building' ? byId(c.entityId) : c.entityKind === 'business' ? bizById(c.entityId) : c.entityKind === 'line' ? lineById(c.entityId) : c.entityKind === 'station' ? stationById(c.entityId) : c.entityKind === 'road' ? roadById(c.entityId) : c.entityKind === 'region' ? regionById(c.entityId) : districtById(c.entityId); }
 function candidateConflict(c) {
-  if (c.create && !c.entityId) { const dup = S.businesses.find(z => (c.create.ticker && z.ticker && z.ticker.toUpperCase() === c.create.ticker.toUpperCase()) || norm(z.name) === norm(c.create.name) || (z.aliases || []).some(a => norm(a) === norm(c.create.name))); return dup ? 'already' : null; }
+  if (c.create && !c.entityId) { if (c.entityKind !== 'business') return null; const dup = S.businesses.find(z => (c.create.ticker && z.ticker && z.ticker.toUpperCase() === c.create.ticker.toUpperCase()) || norm(z.name) === norm(c.create.name) || (z.aliases || []).some(a => norm(a) === norm(c.create.name))); return dup ? 'already' : null; }
   const rec = candidateEntity(c); if (!rec) return 'The record no longer exists.';
   const same = Object.entries(c.after || {}).every(([k, v]) => k === 'notes' || k === 'transactions' ? false : JSON.stringify(rec[k] ?? null) === JSON.stringify(v ?? null));
   if (same) return 'already';
@@ -131,7 +131,19 @@ function candidateConflict(c) {
 }
 function applyCandidate(c, { auto = false } = {}) {
   if (c.create && !c.entityId) {
-    if (c.entityKind !== 'business') { toast('Only business records can be created from a proposal', 'warn'); return false; }
+    if (c.entityKind === 'building') {
+      const cr = c.create; const p = cr.x != null && cr.z != null ? placeSuggest(cr.x, cr.z) : null; const districtId = p?.districts?.[0]?.d?.id || (UI.scope.kind === 'district' ? UI.scope.id : UI.scope.kind === 'hood' ? hoodById(UI.scope.id)?.districtId : null) || coreDistricts()[0]?.id || S.districts[0]?.id;
+      if (!districtId) { toast('Add a borough or district first', 'warn'); return false; }
+      const b = newBuilding(S, districtId); const { id, reg, ...fields } = cr; Object.assign(b, fields, { districtId, created: now(), updated: now() }); const h = cr.x != null ? hoodAtPoint([cr.x, cr.z], districtId) : null; if (h) b.neighborhoodId = h.id; b.status = summaryStatus(b); S.buildings.push(b);
+      const log = { id: uid('nl'), at: now(), candId: c.id, kind: c.kind, entityKind: 'building', entityId: b.id, label: `${b.reg} · ${titleOf(b)}`, before: null, after: fields, created: b.id, source: { guid: c.itemGuid, link: c.link, title: c.title, published: c.published }, auto };
+      S.news.log.unshift(log); S.news.decisions[c.id] = { status: 'applied', at: now(), logId: log.id, auto, createdId: b.id }; commit(); return true;
+    }
+    if (c.entityKind === 'road') {
+      const r = newRoad(S); const { id, reg, ...fields } = c.create; Object.assign(r, fields, { created: now(), updated: now() }); S.roads.push(r); if (typeof JUNCTION_CACHE !== 'undefined') JUNCTION_CACHE.key = ''; if (typeof ROAD_GRAPH !== 'undefined') ROAD_GRAPH.key = '';
+      const log = { id: uid('nl'), at: now(), candId: c.id, kind: c.kind, entityKind: 'road', entityId: r.id, label: `${r.reg} · ${roadLabel(r)}`, before: null, after: fields, created: r.id, source: { guid: c.itemGuid, link: c.link, title: c.title, published: c.published }, auto };
+      S.news.log.unshift(log); S.news.decisions[c.id] = { status: 'applied', at: now(), logId: log.id, auto, createdId: r.id }; commit(); return true;
+    }
+    if (c.entityKind !== 'business') { toast('Only building, road and business records can be created from a proposal', 'warn'); return false; }
     const z = newBusiness(S); Object.assign(z, c.create, { id: z.id, reg: z.reg, created: now(), updated: now() }); S.businesses.push(z);
     const log = { id: uid('nl'), at: now(), candId: c.id, kind: c.kind, entityKind: 'business', entityId: z.id, label: c.label, before: null, after: c.create, created: z.id, source: { guid: c.itemGuid, link: c.link, title: c.title, published: c.published }, auto };
     S.news.log.unshift(log); S.news.decisions[c.id] = { status: 'applied', at: now(), logId: log.id, auto, createdId: z.id }; commit(); return true;
@@ -146,6 +158,16 @@ function applyCandidate(c, { auto = false } = {}) {
 }
 function undoLog(logId) {
   const log = S.news.log.find(l => l.id === logId); if (!log || log.undone) return;
+  if (log.created && log.entityKind === 'building') {
+    const b = byId(log.created); if (!b) { toast('The created record is already gone', 'warn'); return; }
+    if ((b.relations || []).length || tenanciesAt(b).length || b.image || b.civic || officialsOf(b).length || (b.updated || '') > (log.at || '')) { toast(`${b.reg} has been worked on since — not removed; delete it by hand if you mean to`, 'warn'); return; }
+    S.buildings = S.buildings.filter(x => x.id !== b.id); log.undone = now(); S.news.decisions[log.candId] = { status: 'undone', at: now(), logId }; commit(); toast(`${b.reg} removed again — the proposal stays in the inbox`, 'good'); return;
+  }
+  if (log.created && log.entityKind === 'road') {
+    const r = roadById(log.created); if (!r) { toast('The created road is already gone', 'warn'); return; }
+    if (buildingsOnRoad(r).length || S.lines.some(l => (l.roadIds || []).includes(r.id)) || (r.updated || '') > (log.at || '')) { toast(`${r.reg} has been worked on since — not removed`, 'warn'); return; }
+    S.roads = S.roads.filter(x => x.id !== r.id); if (typeof JUNCTION_CACHE !== 'undefined') JUNCTION_CACHE.key = ''; if (typeof ROAD_GRAPH !== 'undefined') ROAD_GRAPH.key = ''; log.undone = now(); S.news.decisions[log.candId] = { status: 'undone', at: now(), logId }; commit(); toast(`${r.reg} removed again`, 'good'); return;
+  }
   if (log.created) {
     const z = bizById(log.created); if (!z) { toast('The created record is already gone', 'warn'); return; }
     if (tenanciesOf(z).length || (z.revenue || []).length || childBusinesses(z).length) { toast('The business has been worked on since (locations, revenue or branches) — not removed; delete it by hand if you mean to', 'warn'); return; }
@@ -174,10 +196,10 @@ function openNewsInbox() {
   const pending = newsPendingCount(); const err = S.news.lastError;
   const candHTML = (c, it) => {
     const dec = S.news.decisions[c.id]; const rec = candidateEntity(c); const conflict = c.conflict && c.conflict !== 'already' ? c.conflict : null; const already = c.conflict === 'already';
-    const kindLabel = { completion: 'COMPLETION', partial: 'PARTIAL · NOTE', start: 'CONSTRUCTION START', demolition: 'DEMOLITION', landmark: 'LANDMARK', listing: 'LISTING / SALE', 'biz-open': 'BUSINESS OPENS', 'biz-close': 'BUSINESS CLOSES', 'biz-new': 'NEW BUSINESS · MARKET', 'biz-market': 'MARKET UPDATE', transit: 'TRANSIT OPENING', jurisdiction: 'JURISDICTION', mention: 'MENTION' }[c.kind] || c.kind.toUpperCase();
+    const kindLabel = { completion: 'COMPLETION', partial: 'PARTIAL · NOTE', start: 'CONSTRUCTION START', demolition: 'DEMOLITION', landmark: 'LANDMARK', listing: 'LISTING / SALE', 'biz-open': 'BUSINESS OPENS', 'biz-close': 'BUSINESS CLOSES', 'biz-new': 'NEW BUSINESS · MARKET', 'biz-market': 'MARKET UPDATE', transit: 'TRANSIT OPENING', jurisdiction: 'JURISDICTION', mention: 'MENTION', 'world-new': 'WORLD · NEW BUILDING', 'world-update': 'WORLD · UPDATE', 'world-road': 'WORLD · NEW ROAD', clawson: 'CLAWSON' }[c.kind] || c.kind.toUpperCase();
     const fmtV = v => v == null ? '—' : Array.isArray(v) ? (v.length ? v.map(x => typeof x === 'object' && x ? Object.entries(x).filter(([k]) => !['id', 'at'].includes(k)).map(([k, y]) => `${k} ${y}`).join(' ') : String(x)).join('; ') : '—') : typeof v === 'object' ? JSON.stringify(v) : String(v);
     const diff = c.create && !c.entityId ? Object.entries(c.create).filter(([k, v]) => v != null && v !== '' && !(Array.isArray(v) && !v.length) && !['source', 'sourceType', 'confidence'].includes(k)).map(([k, v]) => `<span><span class="muted">${esc(k)}</span> <span class="after">${esc(fmtV(v))}</span></span>`).join('') : Object.entries(c.after || {}).filter(([k]) => k !== 'transactions').map(([k, v]) => `<span><span class="muted">${esc(k)}</span> <span class="before">${esc(fmtV((c.before || {})[k]))}</span><span class="arr">→</span><span class="after">${esc(fmtV(v))}</span></span>`).join('');
-    const openAttr = c.entityKind === 'building' ? `data-open="${c.entityId}"` : ['business', 'line', 'station'].includes(c.entityKind) ? `data-open="${c.entityKind}:${c.entityId}"` : '';
+    const openAttr = c.entityKind === 'building' && c.entityId ? `data-open="${c.entityId}"` : ['business', 'line', 'station', 'road'].includes(c.entityKind) && c.entityId ? `data-open="${c.entityKind}:${c.entityId}"` : '';
     return `<div class="cand"><div><div class="ct"><span class="kind ${dec?.status === 'applied' ? 'applied' : dec?.status === 'rejected' || dec?.status === 'undone' ? 'rejected' : conflict ? 'conflict' : c.kind === 'mention' ? 'mention' : ''}">${kindLabel}</span><b ${openAttr} style="${openAttr ? 'cursor:pointer' : ''}">${esc(c.label)}</b>${!rec && !(c.create && !c.entityId) ? '<span class="mk bad">RECORD GONE</span>' : ''}${c.basis === 'simulated' ? '<span class="mk" title="Prices from the site are a simulation — never recorded revenue">SIMULATED</span>' : ''}${c.eventYear ? `<span class="mk">${esc(hyLabel(c.eventYear, c.eventHalf))}${c.dateFromText ? '' : ' · from publication date'}</span>` : ''}</div>${c.kind !== 'mention' ? `<div class="diff">${diff}</div>` : ''}<div class="ev"><q>${esc(c.excerpt)}</q></div>${c.note ? `<div class="why">${esc(c.note)}</div>` : ''}${conflict ? `<div class="why">⚠ ${esc(conflict)}</div>` : ''}${already ? `<div class="why" style="color:var(--ink-3)">Already matches the record — nothing to apply.</div>` : ''}</div>
       <div class="acts">${c.kind === 'mention' ? '<span class="done">no change proposed</span>' : dec?.status === 'applied' ? `<span class="done">applied ${fmtDay(dec.at)}${dec.auto ? ' · by rule' : ''}</span><button class="btn sm" data-act="news-undo" data-log="${dec.logId}">${icon('undo')} Undo</button>` : dec?.status === 'rejected' ? `<span class="done">rejected</span><button class="btn sm ghost" data-act="news-reopen" data-cand="${c.id}">Reopen</button>` : dec?.status === 'undone' ? `<span class="done">undone</span><button class="btn sm ghost" data-act="news-reopen" data-cand="${c.id}">Reopen</button>` : already ? `<button class="btn sm ghost" data-act="news-reject" data-cand="${c.id}">Dismiss</button>` : `<button class="btn sm primary" data-act="news-apply" data-cand="${c.id}" ${rec || (c.create && !c.entityId) ? '' : 'disabled'}>${icon('check')} ${c.create && !c.entityId ? 'Create' : 'Apply'}</button><button class="btn sm ghost" data-act="news-reject" data-cand="${c.id}">Reject</button>`}</div></div>`;
   };

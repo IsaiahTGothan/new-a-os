@@ -603,6 +603,40 @@ const FEED = (extra = '') => `<?xml version="1.0"?><rss version="2.0"><channel><
   await page.keyboard.press('k'); await page.waitForTimeout(100); ok(await page.evaluate(() => CLAW.open), 'K reopens it'); await page.evaluate(() => clawToggle(false));
   noErrors('clawson');
 
+  // ---------- R · OS bridge: live integration against a synthetic world ----------
+  console.log('\nR · OS bridge — scan → inbox → apply/undo, render → dated basemap, verified backup, health');
+  const { createServer: createBridge } = require('../os/server'); const synth = require('../os/test/synth'); const osmod = require('os');
+  const btmp = fs.mkdtempSync(path.join(osmod.tmpdir(), 'newa-bridge-')); synth.makeWorld(path.join(btmp, 'world'), '1.18'); const bvault = path.join(btmp, 'vault'); fs.mkdirSync(bvault); fs.writeFileSync(path.join(bvault, 'Registry.json'), JSON.stringify({ buildings: [] }));
+  const bridge = createBridge({ port: 0, host: '127.0.0.1', vaultDir: bvault, worldDir: path.join(btmp, 'world'), backupDir: path.join(btmp, 'backups'), mirrorDir: '', retain: 30, monthlyFull: true, afterSession: true, allowHosts: ['newa-site.vercel.app'], roadBlocks: null, lastRestoreTest: null });
+  await new Promise(r => bridge.listen(0, '127.0.0.1', r)); const burl = `http://127.0.0.1:${bridge.address().port}`;
+  const onW = await page.evaluate(async url => { S.settings.os = { url }; const ok = await OS.poll(); return { ok, tile: $('#side-end .osdot')?.classList.contains('on'), st: $('#st-os-t').textContent, worldOk: OS.status?.worldOk }; }, burl);
+  ok(onW.ok && onW.tile && /online/.test(onW.st) && onW.worldOk, 'the app connects to the bridge: status bar and rail tile go online, world readable');
+  const scanW = await page.evaluate(async () => { const d = coreDistricts()[0] || S.districts[0]; const b = newBuilding(S, d.id); b.name = 'Scan Tower'; b.x = 34; b.z = 113; S.buildings.push(b); commit({ now: true }); const r = await OS.scanRun({ x1: 0, z1: 0, x2: 175, z2: 175 }); return { ok: !!r, clusters: r?.summary.clusters, roads: r?.summary.roads, kinds: r?.summary.byKind, reg: b.reg, render: !!r?.render?.url, scans: S.world.scans.length }; });
+  ok(scanW.ok && scanW.clusters === 2 && scanW.roads === 1 && scanW.kinds['world-update'] === 1 && scanW.kinds['world-new'] === 1 && scanW.kinds['world-road'] === 1 && scanW.render && scanW.scans === 1, `scan: 2 structures + 1 road — ${scanW.reg} gets an update, one new building, one new road (${JSON.stringify(scanW.kinds)})`);
+  const toInboxW = await page.evaluate(() => { const n0 = newsPendingCount(); const n = OS.scanToInbox(); return { n, n0, n1: newsPendingCount(), cands: S.news.items.find(it => it.source === 'world')?.candidates.length }; });
+  ok(toInboxW.n === 3 && toInboxW.n1 === toInboxW.n0 + 3, `3 proposals land in the inbox; confirmations and not-found are notes (${toInboxW.cands} candidates in the scan item)`);
+  const appliedW = await page.evaluate(reg => { const item = S.news.items.find(it => it.source === 'world'); const upd = item.candidates.find(c => c.kind === 'world-update'); const nw = item.candidates.find(c => c.kind === 'world-new'); const rd = item.candidates.find(c => c.kind === 'world-road'); const nb = S.buildings.length, nr = S.roads.length; const a = applyCandidate(upd), b2 = applyCandidate(nw), c = applyCandidate(rd); const tower = S.buildings.find(x => x.reg === reg); const created = S.buildings[S.buildings.length - 1]; const road = S.roads[S.roads.length - 1]; return { a, b2, c, height: tower.height, fp: !!tower.footprint, nb: S.buildings.length - nb, nr: S.roads.length - nr, created: { reg: created.reg, x: created.x, z: created.z, district: created.districtId, src: created.sourceType, notes: created.notes.slice(0, 40) }, road: { reg: road.reg, pts: road.geometry.length, width: road.width, type: road.type } }; }, scanW.reg);
+  ok(appliedW.a && appliedW.height === 12 && appliedW.fp, `applying the update sets ${scanW.reg} height 12 and a footprint measured from the save`);
+  ok(appliedW.b2 && appliedW.nb === 1 && appliedW.created.x === 63 && appliedW.created.z === 115 && appliedW.created.district && appliedW.created.src === 'world' && /Detected in the world scan/.test(appliedW.created.notes), `applying the new-building proposal creates ${appliedW.created.reg} at middle coordinates X 63 · Z 115 (${appliedW.created.district})`);
+  ok(appliedW.c && appliedW.nr === 1 && appliedW.road.pts === 2 && appliedW.road.width === 5 && appliedW.road.type === 'street', `applying the road proposal creates ${appliedW.road.reg}, 5 wide, two-point centreline`);
+  const undoneWW = await page.evaluate(() => { const nb = S.buildings.length, nr = S.roads.length; const logs = S.news.log.slice(0, 3); for (const l of logs) undoLog(l.id); return { nb: nb - S.buildings.length, nr: nr - S.roads.length, undone: logs.every(l => l.undone) }; });
+  ok(undoneWW.nb === 1 && undoneWW.nr === 1 && undoneWW.undone, 'all three can be undone from the log: created records removed, the update reverted');
+  const bmW = await page.evaluate(async () => { const b = await OS.scanBasemap(); return b ? { x: b.x, z: b.z, scale: b.scale, year: b.year, w: b.w, h: b.h, name: b.name } : null; });
+  ok(bmW && bmW.x === 0 && bmW.z === 0 && bmW.scale === 1 && bmW.year === new Date().getFullYear() && bmW.w === 176 && bmW.name.startsWith('World render'), `the render becomes a dated basemap at X 0 · Z 0, 1 block/px, ${bmW && bmW.w}×${bmW && bmW.h}`);
+  const bkW = await page.evaluate(async () => { const r = await OS.backupRun(); return { ok: r?.ok, kind: r?.backup?.kind, verified: r?.backup?.verified, hist: S.world.backups.history.length, tile: $('#side-end .osdot span').textContent, st: $('#st-os-t').textContent }; });
+  ok(bkW.ok && bkW.kind === 'full' && bkW.verified && bkW.hist === 1 && /backup just now/.test(bkW.tile) && /backup just now/.test(bkW.st), 'a backup from the app is verified; the rail tile and status bar show it');
+  const rt2W = await page.evaluate(async () => { const v = await OS.restoreTest(); return { ok: v?.ok, parses: v?.registryParses, last: !!S.world.backups.lastRestoreTest }; });
+  ok(rt2W.ok && rt2W.parses && rt2W.last, 'restore test from the app passes and is recorded');
+  await page.evaluate(() => openDataModal()); const cardW = await page.evaluate(() => ({ online: /BRIDGE.*ONLINE/.test($('#modal-root .modal').textContent), scanBtn: !!$('[data-act="os-scan"]:not([disabled])') })); ok(cardW.online && cardW.scanBtn, 'Vault & settings shows the bridge card online with the scan button'); await page.evaluate(() => closeModal());
+  await page.evaluate(() => openWorldScanModal()); await page.waitForTimeout(150); const wsmW = await page.evaluate(() => ({ modal: !!$('#modal-root .modal'), last: /LAST SCAN/.test($('#modal-root .modal').textContent), img: !!$('#modal-root img') })); ok(wsmW.modal && wsmW.last && wsmW.img, 'the world-scan modal shows the last scan and its render');
+  await page.screenshot({ path: path.join(SHOTS, 'R-bridge.png') }); await page.evaluate(() => closeModal());
+  const proxiedW = await page.evaluate(async () => { try { const r = await OS.proxyFetch('https://evil.example.com/x'); return { status: r.status }; } catch (e) { return { err: e.message }; } });
+  ok(proxiedW.err && /allowHosts/.test(proxiedW.err), 'the proxy refuses hosts outside the bridge allowlist');
+  await page.evaluate(() => { S.settings.os = { url: 'http://127.0.0.1:1' }; }); const offW = await page.evaluate(async () => { await OS.poll(); return { online: OS.online, st: $('#st-os-t').textContent }; }); ok(!offW.online && /offline/.test(offW.st), 'when the bridge goes away the app shows offline and nothing breaks');
+  await page.evaluate(() => { delete S.settings.os; });
+  bridge.close(); fs.rmSync(btmp, { recursive: true, force: true });
+  noErrors('bridge');
+
   await ctx.close(); await browser.close();
   console.log(`\n${checks - failures}/${checks} checks passed${failures ? ` · ${failures} FAILED` : ''}`);
   process.exit(failures ? 1 : 0);

@@ -1,0 +1,14 @@
+{
+  "name": "new-a-os-bridge",
+  "version": "3.0.0",
+  "private": true,
+  "description": "New A OS local bridge: read-only world scanner, verified incremental backups, vault access and a fetch proxy for the single-file app. No dependencies.",
+  "main": "server.js",
+  "bin": { "new-a-os": "./server.js" },
+  "scripts": {
+    "start": "node server.js",
+    "test": "node test/run.js"
+  },
+  "engines": { "node": ">=18" },
+  "license": "UNLICENSED"
+}

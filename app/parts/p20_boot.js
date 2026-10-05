@@ -25,6 +25,7 @@ async function boot() {
   if (MIGRATION.minor) { toast(`Registry upgraded to schema ${MIGRATION.minor.to} — civic facilities, officials, projects, service times and valuations are ready; every existing record is unchanged`, 'good'); MIGRATION.minor = null; commit({ now: true }); }
   if (VAULT.status === 'prompt') toast(`Vault “${VAULT.name}” needs a click to reconnect`, 'warn', { label: 'RECONNECT', fn: vaultReconnect });
   newsAutoRefresh();
+  if (typeof OS !== 'undefined') OS.start();
 }
 function playBoot({ stored }) {
   const el = $('#boot');
