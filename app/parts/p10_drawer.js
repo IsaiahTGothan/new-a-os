@@ -49,7 +49,7 @@ async function leaveEditor() {
 function drawerBack() { const prev = DR.stack.pop(); if (!prev) return; openRecord(prev.kind, prev.id, 'view', { keepStack: true }); }
 function formDirty() {
   if (!DR.draft) return false;
-  const cur = recordById(DR.kind, DR.id); if (!cur) return true;
+  const cur = recordById(DR.kind, DR.id); if (!cur) { if (!DR.pristine || DR.pristineFor !== DR.id) return true; readAnyFormInto(DR.draft, false); return JSON.stringify(cleanRecord(DR.draft)) !== DR.pristine; }
   readAnyFormInto(DR.draft, false); return JSON.stringify(cleanRecord(DR.draft)) !== JSON.stringify(cleanRecord(cur));
 }
 const cleanRecord = b => { const { updated, ...rest } = b; return rest; };
@@ -66,6 +66,7 @@ function renderDrawer() {
     if (DR.mode !== 'edit') drawMiniMapFor(DR.kind, rec);
   }
   wireDrawer();
+  if (DR.mode === 'edit' && DR.isNew && DR.draft && DR.pristineFor !== DR.id) { try { readAnyFormInto(DR.draft, false); DR.pristine = JSON.stringify(cleanRecord(DR.draft)); DR.pristineFor = DR.id; } catch { } }
 }
 const backBtn = () => DR.stack.length ? `<button class="btn sm ghost" data-act="dr-back" title="Back to the previous record">${icon('back')} Back</button>` : '';
 const placePath = (d, h) => { const parts = []; if (d) { for (const r of ancestorsOf(d)) if (r.id !== 'union') parts.push(r.name); parts.push(d.name); } if (h) parts.push(h.name); return parts; };
@@ -308,6 +309,7 @@ function renderEditor(b) {
           ${f('lotRotated', 'Lot orientation', `<select id="f-lotRotated"><option value="" ${!b.lotRotated ? 'selected' : ''}>Frontage along X</option><option value="1" ${b.lotRotated ? 'selected' : ''}>Frontage along Z</option></select>`, 'on the map')}
           ${f('lotArea', 'Total lot size', numI('lotArea', b.lotArea, 'placeholder="auto" min="0"'), 'blocks² · auto = front × depth')}
         </div>
+        <div class="fieldnote lotnote" style="margin-top:8px">Lot outline: ${lotOutline(b) ? lotSectionHTML(b) + ` <button type="button" class="rowlink" data-act="lot-draw" style="font:inherit">redraw</button> · <button type="button" class="rowlink" data-act="lot-clear" style="font:inherit">clear</button>${b.lotSource === 'manual' ? ' · <span class="mk warn">TYPED VALUES KEPT</span> <button type="button" class="rowlink" data-act="lot-remeasure" style="font:inherit">use the measured ones</button>' : ''}` : `not drawn — <button type="button" class="rowlink" data-act="lot-draw" style="font:inherit">draw the lot on the map</button> (any shape; area, frontage and depth fill in)`}</div>
         <div class="fieldnote" style="margin-top:8px">Footprint: ${b.footprint ? `<b>${fmtInt(footprintAreaOf(b))} blk²</b> measured from ${b.footprint.length} vertices` : 'not drawn'} · <button type="button" class="rowlink" data-act="footprint-draw" style="font:inherit">${b.footprint ? 'redraw on the map' : 'draw on the map'}</button>${b.footprint ? ` · <button type="button" class="rowlink" data-act="footprint-clear" style="font:inherit">clear</button>` : ''}</div>
       </div>
       ${civicEditorHTML(b)}
@@ -434,7 +436,7 @@ function readFormInto(b, strict = true) {
   b.dateStarted = g('dateStarted'); b.dateBuilt = g('dateBuilt'); b.dateDemolished = g('dateDemolished');
   b.floors = num(g('floors')); b.height = num(g('height')); b.owner = g('owner').trim();
   b.unitsRes = num(g('unitsRes')); b.unitsCom = num(g('unitsCom')); b.floorArea = num(g('floorArea'));
-  b.lotFront = num(g('lotFront')); b.lotDepth = num(g('lotDepth')); b.lotArea = num(g('lotArea')); b.lotRotated = $('#f-lotRotated')?.value === '1'; b.unnamed = !!$('#f-unnamed')?.checked;
+  { const nf = num(g('lotFront')), nd = num(g('lotDepth')), na = num(g('lotArea')); if (lotOutline(b) && (nf !== b.lotFront || nd !== b.lotDepth || na !== b.lotArea)) b.lotSource = 'manual'; b.lotFront = nf; b.lotDepth = nd; b.lotArea = na; } b.lotRotated = $('#f-lotRotated')?.value === '1'; b.unnamed = !!$('#f-unnamed')?.checked;
   b.assessLand = num(g('assessLand')); b.assessBuilding = num(g('assessBuilding')); b.assessTotal = num(g('assessTotal')); b.assessYear = num(g('assessYear')); b.valuationBasis = g('valuationBasis'); b.listPrice = num(g('listPrice'));
   b.tags = g('tags').split(/[\s,]+/).map(t => t.trim().toLowerCase()).filter(Boolean);
   b.notes = g('notes'); readCivicForm(b); readValuationForm(b);
@@ -456,7 +458,7 @@ function readFormInto(b, strict = true) {
 function saveDrawer() {
   if (DR.kind !== 'building') return saveOtherDrawer();
   const err = readFormInto(DR.draft, true);
-  if (err) { toast(err, 'warn'); return; }
+  if (err) { toast(err, 'warn'); focusFieldFor(err); return; }
   const d = DR.draft; d.updated = now(); const hist = isHist(d);
   let afterSave = null;
   if (DR.isNew) { d.reg = hist ? nextHistReg(S, d.districtId) : nextReg(S, d.districtId); d.created = now(); S.buildings.push(d); UI.selected = d.id; toast(`${d.reg} added to ${districtById(d.districtId)?.name}${hist ? ' as a historical record' : ''}`, 'good'); }
@@ -516,6 +518,7 @@ function stepRecord(dir) {
 /* ---- drawer wiring ---- */
 function wireDrawer() {
   const el = $('#drawer');
+  if (DR.mode !== 'edit') wireShapeTimelines(el);
   $$('.combo', el).forEach(wireCombo);
   const photo = $('#photo', el);
   if (photo) {
@@ -603,7 +606,7 @@ function pickerDialog({ title, kicker, label, placeholder, items, extra = '', ok
         list.addEventListener('mousedown', e => { const o = e.target.closest('.opt'); if (!o) return; e.preventDefault(); select(o); });
         list.addEventListener('dblclick', e => { const o = e.target.closest('.opt'); if (o) { select(o); done('ok'); } });
         m.querySelectorAll('[data-r]').forEach(b => b.onclick = () => done(b.dataset.r));
-        m.querySelector('[data-act=modal-close]').onclick = () => done('cancel'); m.parentElement.querySelector('.shade').onclick = () => done('cancel');
+        m.querySelector('[data-act=modal-close]').onclick = () => done('cancel'); m.parentElement.querySelector('.shade').onclick = () => done('cancel'); MODAL.onCancel = () => done('cancel');
         show(); input.focus();
       } });
   });
@@ -652,7 +655,7 @@ function hyPromptDialog({ title, body = '', ok = 'OK', year = CURRENT_YEAR, half
         const done = r => { const y = num(m.querySelector('#hyp-y').value); const h = m.querySelector('#hyp-h').value; closeModal(); res(r === 'ok' ? { year: y, half: ['E', 'L'].includes(h) && y != null ? h : '' } : null); };
         m.querySelectorAll('[data-r]').forEach(b => b.onclick = () => done(b.dataset.r));
         m.querySelector('#hyp-y').addEventListener('keydown', e => { if (e.key === 'Enter') done('ok'); });
-        m.querySelector('[data-act=modal-close]').onclick = () => done('cancel'); m.parentElement.querySelector('.shade').onclick = () => done('cancel');
+        m.querySelector('[data-act=modal-close]').onclick = () => done('cancel'); m.parentElement.querySelector('.shade').onclick = () => done('cancel'); MODAL.onCancel = () => done('cancel');
       } });
   });
 }
@@ -662,4 +665,11 @@ async function endTenancy(id) {
   if (!r) return;
   t.current = false; t.yearTo = r.year ?? CURRENT_YEAR; t.halfTo = r.half;
   commit(); renderDrawer(); renderView(false); toast('Tenancy ended — kept in history', 'good');
+}
+
+/* after a validation error, put the cursor on the field it is about */
+function focusFieldFor(err) {
+  const map = [[/completed year|built/i, 'f-built-y'], [/demolish/i, 'f-demolished-y'], [/started/i, 'f-started-y'], [/expected/i, 'f-expected-y'], [/district|borough/i, 'f-district'], [/name/i, 'f-name'], [/number|street|address/i, 'f-number'], [/x and z|coordinates/i, 'f-x'], [/floor/i, 'f-floors'], [/closed before/i, 'f-closed-y'], [/opened/i, 'f-opened-y']];
+  const hit = map.find(([re]) => re.test(err)); const el = hit ? $('#' + hit[1]) : null; if (!el) return;
+  el.scrollIntoView({ block: 'center', behavior: motionOn() ? 'smooth' : 'auto' }); el.focus(); el.classList.add('err'); setTimeout(() => el.classList.remove('err'), 2500);
 }

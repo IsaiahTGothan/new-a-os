@@ -74,6 +74,14 @@ const snapshot = dir => { const out = {}; for (const rel of backup.listFiles(dir
   const hl = await call('GET', '/api/health'); ok(hl.status === 200 && hl.body.last && hl.body.world.readable && hl.body.world.regions === 1 && Array.isArray(hl.body.alerts), 'GET /api/health reports backups, world and alerts');
   const cf = await call('POST', '/api/config', { retain: 12 }); ok(cf.body.config.retain === 12 && cfg.retain === 12, 'POST /api/config updates safe keys');
   const worldAfter = snapshot(path.join(tmp, 'world-1.18')); ok(Object.keys(worldAfter).length === 2, 'server scan left the world folder as it was');
+  // item maps → one stitched PNG, placed from each map's own centre (os/tools/mcmaps.js)
+  { const { readMaps, stitch } = require('../tools/mcmaps'); const zlib = require('zlib'); const nbt = require('../lib/nbt'); const md = path.join(tmp, 'mcmaps', 'data'); fs.mkdirSync(md, { recursive: true });
+    const mk = (id, xc, zc, scale, fill, dim) => fs.writeFileSync(path.join(md, `map_${id}.dat`), zlib.gzipSync(nbt.write('', { data: { scale: nbt.tag(nbt.T.BYTE, scale), dimension: dim, xCenter: xc, zCenter: zc, colors: Buffer.alloc(16384, fill) } })));
+    mk(0, 64, 64, 0, 6, 'minecraft:overworld'); mk(1, 0, 0, 1, 50, 0); mk(2, 64, 64, 0, 118, 'minecraft:the_nether');
+    const before = snapshot(path.join(tmp, 'mcmaps')); const maps = readMaps(path.join(tmp, 'mcmaps')); const st = stitch(maps); const at = (x, z) => { const o = ((z - st.z) * st.w + (x - st.x)) * 4; return [st.rgba[o], st.rgba[o + 1], st.rgba[o + 2]].join(); };
+    ok(maps.length === 2 && st.x === -128 && st.z === -128 && st.w === 256 && st.h === 256 && st.scale === 1, `mcmaps: 2 overworld maps (nether skipped), scale-1 map spans -128…127 (${st.x}, ${st.z}, ${st.w}×${st.h})`);
+    ok(at(10, 10) === '127,178,56' && at(-100, -100) === '64,64,255', `mcmaps: finer map drawn over the coarser one, exact colours (${at(10, 10)} over ${at(-100, -100)})`);
+    ok(JSON.stringify(snapshot(path.join(tmp, 'mcmaps'))) === JSON.stringify(before), 'mcmaps reads the map files without writing to the folder'); }
   server.close();
   fs.rmSync(tmp, { recursive: true, force: true });
   console.log(`\n${checks - failures}/${checks} checks passed${failures ? ` · ${failures} FAILED` : ''}`);

@@ -13,10 +13,10 @@ newa-site-patch/  the one CORS header for the site's feed
 
 ```
 cd app
-python3 build.py            # parts/p00…p25 + css → NewA-Land-Registry.html (node --check on the bundle)
-node test.js                # 240 checks in headless Chromium on the real schema-2 data (sections A–S)
+python3 build.py            # parts/p00…p29 + css → NewA-Land-Registry.html (node --check on the bundle)
+node test.js                # 264 checks in headless Chromium on the real schema-2 data (sections A–T)
 node smoke.js               # every page, tab and modal with zero console errors
-cd ../os && node test/run.js   # 61 bridge checks (NBT, region formats, scans, backups, routes)
+cd ../os && node test/run.js   # 70 bridge checks (NBT, region formats, scans, backups, routes, item maps)
 ```
 
 Playwright's Chromium is expected at `/opt/pw-browsers/chromium` (edit the path at the top of the harness files otherwise).
@@ -47,6 +47,17 @@ The world folder is only ever read. See `os/README.md`.
 * **OS bridge** — status tile, after-session and monthly backups verified by hash, restore tests, read-only world scans that propose buildings with middle coordinates, roads, updates, and a 1 block/pixel render as a dated basemap. With the bridge online and no folder linked, autosave writes the vault through it (no reconnect click).
 * **Basemaps** — JourneyMap tile folders or export ZIPs are stitched and placed from their tile names, so 0,0 is derived, never calibrated; single images still work with a typed top-left corner.
 * **Records** — dated road and track shapes for playback, an Unnamed switch for buildings, roads and lines, lot orientation with Rotate lot, Centre on footprint and Snap to street, an auto-estimate in the editor from nearby comparables and transit, and a Location map that opens the building in Maps.
+
+## Round 3 (Oct 2026)
+
+* **Transit, rebuilt** — draw a line and its stops in one go: click an existing station to stop there (that makes it a transfer), `Alt`-click or **Stop at every click** (`T`) to drop new stops. Station mode (`X`) puts a station on every line whose track it touches and slots it into each line in order. Line inspector: inline stop names, *Order along track*, hours, width; station inspector: lines here, transfers to stations within 80 blk, status (now incl. **Partly open**), hours (**24/7**, daytime, rush hours, custom), grade, construction dates, cost. Lines are drawn thicker with a dark casing; the Transit chip still hides them on the live map.
+* **Train dashboard** — Transit opens on **Board**: simulated departures (headway, hours, stop times; labelled simulated), line status, a trip planner that changes lines, and what is coming. **Projects**: stations and lines under construction or planned with progress and cost (recorded, else an editable cost model), plus a new-project calculator.
+* **Values** — a station under construction lifts nearby values by 35 % of an open one, planned 10 %, part-time 60 %; 24/7 service adds +6 % on top (all editable in the valuation settings).
+* **Dated shapes** — every road and track has a shape history: 2013 E – 2018 E one shape, 2018 E – 2020 L the next, gaps for “removed, rebuilt later”. Edit the dates inline, *New shape from…*, *Removed in…*, *Rebuilt in…*. The map has a **viewing date** (bottom bar, `[` `]`): the city as it was, the old maps for that date under it, and anything you draw gets that date; dragging a road edits the shape in force then.
+* **Lots** — *Draw lot* traces any shape; area, frontage (edges facing the street, corner lots flagged) and mean depth fill in. The Lots layer (Layers panel and the Lots chip) now really hides them.
+* **Playback** — the slider glides (six speeds, a year per 20 s to two years per second), shows the month, and roads grow, lines extend, stations appear and buildings rise or fall the moment the playhead crosses the date. Ghosts fade within a year.
+* **Old maps** — Minecraft's own `map_#.dat` files (from the world's or a backup's `data` folder) are read in the browser, placed from their centres and scale, dated early/late (or by file date) and stacked oldest → newest under playback, with an opacity slider. `node os/tools/mcmaps.js <world> --out maps.png` does the same from the command line.
+* **Usability** — 20 audited fixes (Pick on the map fills the editor, shortcut keys never discard work, pickers return to their form, inbox keeps its place, validation focuses the field, phone layout without sideways scroll…). Ideas for what next: `docs/IDEAS.md`.
 
 ## Rules the code keeps
 

@@ -20,9 +20,7 @@ function valueEstimate(b) {
   let base, baseBasis, perBlock;
   if (num(b.assessTotal)) { base = num(b.assessTotal); baseBasis = `assessed total${b.assessYear ? ' (' + b.assessYear + ')' : ''}`; perBlock = base / area; }
   else { const pb = basePerBlock(b); perBlock = pb.perBlock; base = perBlock * area; baseBasis = `${fmtMoney(Math.round(perBlock))} per blk² (${pb.basis}${pb.n ? ' of ' + pb.n + ' assessed' : ''}) × ${fmtInt(area)} blk² ${areaBasis}`; }
-  const sv = b.x != null ? buildingService(b) : null;
-  if (!sv || !sv.near) add('transit', 'Transit', V.transitNone, 'no open station reachable on file');
-  else { const d = sv.near.d, nm = sv.near.s.name || sv.near.s.reg; if (d <= SERVICE_WALK_FULL) add('transit', 'Transit', V.transitNear, `${nm} ${Math.round(d)} blk away (${fmtMins(sv.walkSec)} walk)`); else if (d <= SERVICE_REACH) add('transit', 'Transit', V.transitMid, `${nm} ${Math.round(d)} blk away (${fmtMins(sv.walkSec)} walk)`); else if (d <= SERVICE_WALK_ZERO) add('transit', 'Transit', V.transitFar, `${nm} ${Math.round(d)} blk away`); else add('transit', 'Transit', V.transitNone, `nearest station ${Math.round(d)} blk away`); }
+  for (const f of transitValueFactors(b, V)) add(...f);
   if (b.x != null) {
     const pt = [b.x, b.z]; let svc = 0;
     for (const t of ESSENTIAL_CIVIC) { const n = nearestCivic(pt, t); if (n && n.d <= COVERAGE_RADIUS[t]) { svc += V[t]; add(t, civicTypeLabel(t), V[t], `${n.b.name || titleOf(n.b)} ${Math.round(n.d)} blk`); } }

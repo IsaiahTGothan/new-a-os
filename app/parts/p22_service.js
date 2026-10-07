@@ -27,12 +27,12 @@ function lineSegments(l) {
 function lineTimetable(l) { const segs = lineSegments(l); let t = 0, known = true; return stationsOf(l).map((s, i) => { const seg = i > 0 ? segs[i - 1] : null; if (seg) { if (seg.sec == null) known = false; else t += seg.sec; } return { s, t: known ? t : null, seg }; }); }
 function lineJourneyTime(l, fromId, toId) { const stops = stationsOf(l); const a = stops.findIndex(s => s.id === fromId), b = stops.findIndex(s => s.id === toId); if (a < 0 || b < 0 || a === b) return null; const [i, j] = a < b ? [a, b] : [b, a]; const segs = lineSegments(l).slice(i, j); if (segs.some(s => s.sec == null)) return null; return { sec: segs.reduce((acc, s) => acc + s.sec, 0), stops: j - i, basis: segs.every(s => s.basis === 'measured') ? 'measured' : segs.some(s => s.basis === 'measured') ? 'mixed' : 'estimated', dist: segs.reduce((acc, s) => acc + (s.dist || 0), 0) }; }
 const lineEndToEnd = l => { const tt = lineTimetable(l); const last = tt[tt.length - 1]; return last && last.t != null && tt.length > 1 ? last.t : null; };
-const tphOf = l => 60 / lineService(l).headwayMin;
+const tphOf = l => 60 / lineService(l).headwayMin * (l.status === 'partial' ? 0.5 : 1);
 function stationService(s) { const lines = linesAtStation(s).filter(l => l.status === 'open'); const tph = lines.reduce((a, l) => a + tphOf(l), 0); return { lines, tph, minHeadway: lines.length ? Math.min(...lines.map(l => lineService(l).headwayMin)) : null, transfer: lines.length > 1 }; }
 /* a building's service: nearest open station, walk, trains per hour within reach, distinct lines */
 function buildingService(b, { sandbox = false } = {}) {
   if (b.x == null || b.z == null) return null; const pt = [b.x, b.z];
-  const cands = S.stations.filter(s => s.x != null && s.status !== 'closed' && linesAtStation(s).some(l => l.status === 'open')).map(s => ({ s, d: dist2(pt, [s.x, s.z]), lines: linesAtStation(s).filter(l => l.status === 'open') }));
+  const cands = S.stations.filter(s => s.x != null && ['open', 'partial'].includes(effectiveStationStatus(s))).map(s => ({ s, d: dist2(pt, [s.x, s.z]), lines: linesAtStation(s).filter(l => ['open', 'partial'].includes(l.status)) }));
   if (sandbox) for (const x of S.sandbox.stations || []) if (x.x != null) cands.push({ s: x, d: dist2(pt, [x.x, x.z]), lines: x.lineId && lineById(x.lineId) ? [lineById(x.lineId)] : [{ id: 'sandbox:' + x.id, service: { headwayMin: num(x.headwayMin) || 5 }, mode: 'subway', status: 'open' }], sandbox: true });
   cands.sort((a, b) => a.d - b.d); const near = cands[0];
   if (!near) return { score: 0, near: null, walkSec: null, tph: 0, lines: 0, walkScore: 0, freqScore: 0, connScore: 0 };
@@ -108,9 +108,9 @@ function sandboxAdd() { const g = id => $('#f-' + id)?.value ?? ''; const x = nu
 function sandboxRemove(id) { S.sandbox.stations = (S.sandbox.stations || []).filter(x => x.id !== id); commit({ silentRender: true }); renderView(false); }
 async function sandboxPromote(id) {
   const x = (S.sandbox.stations || []).find(s => s.id === id); if (!x) return;
-  const r = await confirmDialog({ title: `Create a planned station at X ${x.x} · Z ${x.z}?`, body: `<p>A real station record is created with status <b>planned</b>${x.lineId && lineById(x.lineId) ? ` and added as the last stop of ${esc(lineLabel(lineById(x.lineId)))}` : ''}. The sandbox entry is removed.</p>`, ok: 'Create station' }); if (r !== 'ok') return;
+  const r = await confirmDialog({ title: `Create a planned station at X ${x.x} · Z ${x.z}?`, body: `<p>A real station record is created with status <b>planned</b>${x.lineId && lineById(x.lineId) ? ` and added in order as a stop of ${esc(lineLabel(lineById(x.lineId)))}` : ''}. The sandbox entry is removed.</p>`, ok: 'Create station' }); if (r !== 'ok') return;
   const s = newStation(S); s.name = x.name || `Station at ${x.x}, ${x.z}`; s.x = x.x; s.z = x.z; s.status = 'planned'; s.source = 'planning sandbox'; S.stations.push(s);
-  if (x.lineId && lineById(x.lineId)) { const l = lineById(x.lineId); l.stopIds = [...l.stopIds, s.id]; l.updated = now(); }
+  if (x.lineId && lineById(x.lineId)) addStopOrdered(lineById(x.lineId), s.id);
   S.sandbox.stations = S.sandbox.stations.filter(y => y.id !== id); commit(); renderView(false); toast(`${s.reg} created as a planned station`, 'good');
 }
 /* ---- line editor & record ---- */

@@ -3,7 +3,7 @@
    ===================================================================== */
 document.addEventListener('click', async e => {
   const t = e.target.closest('[data-act],[data-nav],[data-scope-kind],[data-open],[data-open-h],[data-arch],[data-arch-year],[data-sort],[data-hsort],[data-view],[data-f-toggle],[data-tf-toggle],[data-bf-toggle],[data-cseg],[data-cf-toggle],[data-hood],[data-fdistrict],[data-hseg],[data-tseg],[data-mode],[data-dock],[data-pi],[data-add]');
-  if (!t) return;
+  if (!t || !t.isConnected) return;   // its own handler already replaced it (e.g. × of a dialog that reopened its parent)
   if (t.dataset.pi !== undefined && t.closest('#palette')) { openSearchHit(UI.palette.items[+t.dataset.pi]); return; }
   if (t.dataset.nav) { setNav(t.dataset.nav); return; }
   if (t.dataset.scopeKind !== undefined) { const k = t.dataset.scopeKind; setScope(k === 'all' ? { kind: 'all', id: null } : { kind: k, id: t.dataset.scopeId }); return; }
@@ -34,6 +34,9 @@ document.addEventListener('click', async e => {
   if (t.dataset.dock) { MAPW.dock = t.dataset.dock; renderDock(); return; }
   const act = t.dataset.act; if (!act) return;
   if (act.startsWith('insp-')) { inspectorAction(act, t); return; }
+  if (act.startsWith('per-')) { shapeTimelineAction(act, t); return; }
+  if (act === 'map-when-step') { const base = MAPW.when ?? hyIndex(CURRENT_YEAR, CURRENT_HALF); setMapWhen(base + (+t.dataset.dir)); return; }
+  if (act === 'map-when-clear') { setMapWhen(null); return; }
   switch (act) {
     // creation
     case 'new': newBuildingFlow(t.dataset.district || null); break;
@@ -52,7 +55,7 @@ document.addEventListener('click', async e => {
     case 'manage-hoods': openHoodsModal(t.dataset.id || UI.scope.id); break;
     case 'hood-edit': openHoodsModal(t.dataset.district, t.dataset.id || null); break;
     case 'hood-delete': deleteHood(t.dataset.id, t.dataset.district); break;
-    case 'border-draw': startBorderDraw(t.dataset.kind, t.dataset.id); break;
+    case 'border-draw': { const sv = $('#modal-root #r-save, #modal-root #d-save'); if (sv) { sv.click(); if (modalOpen()) break; } startBorderDraw(t.dataset.kind, t.dataset.id); break; }
     case 'scope-close': closeScopePop(); break;
     case 'open-history-records': UI.hseg = 'records'; setNav('history'); break;
     case 'open-playback': openHistoryViewer({ index: 0 }); break;
@@ -109,6 +112,8 @@ document.addEventListener('click', async e => {
     case 'map-undo': mapUndo(); break;
     case 'map-redo': mapRedo(); break;
     case 'map-finish': mapFinishDraft(); break;
+    case 'mcmap-import': MAPIMPORT = null; openMapImportModal(); break;
+    case 'map-stopmode': MAPW.stopMode = !MAPW.stopMode; renderMapInstr(); break;
     case 'map-cancel': mapCancel(); break;
     case 'map-cancel-pending': mapCancel(); break;
     case 'map-draft-undo': mapDraftUndo(); break;
@@ -177,6 +182,9 @@ document.addEventListener('click', async e => {
     case 'entrance-set': { const id = DR.id; const stack = DR.stack.slice(); closeDrawer(true); if (UI.nav !== 'map') setNav('map'); const go = () => { MAPW.pending = { kind: 'place-building', buildingId: id, field: 'entrance', label: `Click where you walk into ${byId(id)?.reg || 'the building'}`, resume: () => { openBuilding(id, 'view'); DR.stack = stack; } }; setMapMode('place', { pending: MAPW.pending }); const b = byId(id); if (b?.x != null) { MAPW.cam.x = b.x; MAPW.cam.z = b.z; if (MAPW.cam.k < 2) MAPW.cam.k = 3; mapDraw(); } }; if (MAPW.mounted) go(); else setTimeout(go, 40); break; }
     case 'place-on-map': pickPointForDraft('xz'); break;
     case 'footprint-draw': drawFootprintForDraft(); break;
+    case 'lot-draw': { if (!DR.draft) break; readFormInto(DR.draft, false); startLotDraw(DR.draft.id, { draft: DR.draft }); break; }
+    case 'lot-clear': { if (!DR.draft) break; readFormInto(DR.draft, false); DR.draft.lot = null; DR.draft.lotSource = ''; rerenderEditor(); toast('Lot outline cleared — the typed frontage, depth and area stay', ''); break; }
+    case 'lot-remeasure': { if (!DR.draft) break; readFormInto(DR.draft, false); applyLotMetrics(DR.draft); rerenderEditor(); toast('Measured lot values restored', 'good'); break; }
     case 'footprint-clear': readFormInto(DR.draft, false); DR.draft.footprint = null; rerenderEditor(); break;
     case 'place-accept': { const sel = $('#f-district'); if (sel) { sel.value = t.dataset.district; sel.dispatchEvent(new Event('change')); } break; }
     case 'listing-add': { readFormInto(DR.draft, false); const v = await listingDialog({ title: 'Add a listing' }); if (!v) break; DR.draft.listings = [...(DR.draft.listings || []), v]; if (!DR.draft.market) DR.draft.market = v.kind === 'lease' ? 'for-lease' : 'for-sale'; if (num(DR.draft.listPrice) == null && v.price != null) DR.draft.listPrice = v.price; rerenderEditor(); break; }
@@ -189,6 +197,9 @@ document.addEventListener('click', async e => {
     case 'geom-map': { const kind = DR.kind, id = DR.id, isNew = DR.isNew; if (DR.mode === 'edit' && !isNew) { if (!(await leaveEditor())) break; } if (isNew) { toast('Save the record first, then draw it on the map', 'warn'); break; } closeDrawer(true); if (kind === 'station') { if (UI.nav !== 'map') setNav('map'); const go = () => { MAPW.sel = { kind: 'station', id }; MAPW.pending = { kind: 'move-station', id, label: `Click the position of ${stationById(id)?.name || 'the station'}` }; setMapMode('station', { pending: MAPW.pending }); renderDock(); }; if (MAPW.mounted) go(); else setTimeout(go, 40); } else if (kind === 'line' && !lineGeometries(lineById(id) || { trackIds: [], roadIds: [] }).length) { if (UI.nav !== 'map') setNav('map'); const go = () => { MAPW.sel = { kind: 'line', id }; setMapMode('transit'); renderDock(); toast('Draw the alignment — it becomes this line\'s first track', ''); }; if (MAPW.mounted) go(); else setTimeout(go, 40); } else if (kind === 'road' && !(roadById(id)?.geometry?.length)) { if (UI.nav !== 'map') setNav('map'); const go = () => { MAPW.sel = { kind: 'road', id }; MAPW.draft = null; setMapMode('road'); renderDock(); toast('Draw the road — the new geometry is attached to this record', ''); MAPW.attachRoadId = id; }; if (MAPW.mounted) go(); else setTimeout(go, 40); } else mapLocate({ kind, id }); break; }
     case 'stop-add': { const l = lineById(t.dataset.line || DR.id); if (l) await addStopDialog(l); break; }
     case 'stop-new-map': { const id = DR.id; closeDrawer(true); if (UI.nav !== 'map') setNav('map'); const go = () => { MAPW.sel = { kind: 'line', id }; setMapMode('station'); renderDock(); }; if (MAPW.mounted) go(); else setTimeout(go, 40); break; }
+    case 'line-sort-stops': { const l = lineById(t.dataset.id || DR.id); if (!l) break; if (UI.nav === 'map') mapPushUndo(); const ch = sortStopsAlong(l); l.updated = now(); commit(); if (DR.id) renderDrawer(); if (UI.nav === 'map') { renderDock(); mapDraw(); } toast(ch ? 'Stops put in order along the track' : 'Stops were already in order (stops more than 40 blk from the track keep their place)', ch ? 'good' : ''); break; }
+    case 'xfer-link': { const a = stationById(t.dataset.a), b = stationById(t.dataset.b); if (!a || !b) break; if (UI.nav === 'map') mapPushUndo(); linkTransfer(a, b); commit(); if (DR.id) renderDrawer(); if (UI.nav === 'map') { renderDock(); mapDraw(); } toast(`Transfer: ${a.name || a.reg} ↔ ${b.name || b.reg}`, 'good'); break; }
+    case 'xfer-unlink': { const a = stationById(t.dataset.a), b = stationById(t.dataset.b); if (!a || !b) break; if (UI.nav === 'map') mapPushUndo(); unlinkTransfer(a, b); commit(); if (DR.id) renderDrawer(); if (UI.nav === 'map') { renderDock(); mapDraw(); } toast('Transfer removed', ''); break; }
     case 'stop-move': moveStop(t.dataset.line || DR.id, +t.dataset.i, +t.dataset.dir); if (DR.id) renderDrawer(); if (UI.nav === 'map') { renderDock(); mapDraw(); } break;
     case 'stop-remove': removeStop(t.dataset.line || DR.id, t.dataset.id); if (DR.id) renderDrawer(); if (UI.nav === 'map') { renderDock(); mapDraw(); } break;
     case 'biz-add-location': { const z = bizById(DR.id); if (!z) break; const bid = await buildingPickDialog([], `Where is ${bizLabel(z)}?`, 'Link'); if (!bid) break; const role = await (async () => new Promise(res => openModal({ title: 'In what role?', cls: 'narrow', body: `<div class="frow" style="margin-top:10px"><div class="f span"><label>Role</label><select id="role-sel">${TENANCY_ROLES.map(([id, l]) => `<option value="${id}">${esc(l)}</option>`).join('')}</select></div><div class="f span"><label>Since (optional)</label><div class="hy"><select id="role-h">${HALVES.map(h => `<option value="${h.id}">${h.label}</option>`).join('')}</select><input id="role-y" type="number" placeholder="year" min="1990" max="2200"></div></div></div>`, foot: `<button class="btn ghost" data-r="cancel">Cancel</button><span class="spacer"></span><button class="btn primary" data-r="ok">Link</button>`, onOpen: m => { const done = r => { const v = { role: m.querySelector('#role-sel').value, year: num(m.querySelector('#role-y').value), half: m.querySelector('#role-h').value }; closeModal(); res(r === 'ok' ? v : null); }; m.querySelectorAll('[data-r]').forEach(b => b.onclick = () => done(b.dataset.r)); m.querySelector('[data-act=modal-close]').onclick = () => done('cancel'); } })))(); if (!role) break; const tn = newTenancy(z.id, bid, role.role); tn.yearFrom = role.year; tn.halfFrom = role.year != null && ['E', 'L'].includes(role.half) ? role.half : ''; S.tenancies.push(tn); commit(); renderDrawer(); renderView(false); toast('Location linked', 'good'); break; }
@@ -239,7 +250,7 @@ document.addEventListener('click', async e => {
     case 'draft-delete': { const d = (S.news.drafts || []).find(x => x.id === t.dataset.id); if (!d) break; const r = await confirmDialog({ title: 'Delete this draft?', body: '<p>The text is removed from the registry. Nothing on the site is affected.</p>', ok: 'Delete', danger: true }); if (r !== 'ok') break; S.news.drafts = S.news.drafts.filter(x => x.id !== d.id); commit({ silentRender: true }); closeModal(); clawRender(); toast('Draft deleted', 'warn'); break; }
     // civic · service · city
     case 'civic-map': UI.layers.civic = true; UI.layers.buildings = true; setNav('map'); break;
-    case 'civic-new': { const bid = await buildingPickDialog([], 'Which building is the civic facility?', 'Open to edit'); if (bid) openBuilding(bid, 'edit'); break; }
+    case 'civic-new': { const bid = await buildingPickDialog([], 'Which building is the civic facility?', 'Open to edit'); if (bid) { openBuilding(bid, 'edit'); setTimeout(() => { const el = $('#f-civicType'); if (el) { el.scrollIntoView({ block: 'center' }); el.focus(); } }, 150); } break; }
     case 'official-new': openOfficialModal(null); break;
     case 'official-edit': openOfficialModal(t.dataset.id); break;
     case 'official-delete': deleteOfficial(t.dataset.id); break;
@@ -268,6 +279,11 @@ document.addEventListener('change', e => {
   if (el.dataset.hf) { UI.hf[el.dataset.hf] = el.value; if (el.dataset.hf === 'district') UI.hf.hood = ''; renderView(false); return; }
   if (el.dataset.tf) { UI.tf[el.dataset.tf] = el.value; renderView(false); return; }
   if (el.dataset.cf) { UI.cf[el.dataset.cf] = el.value; renderView(false); return; }
+  if (el.dataset.jfrom !== undefined) { UI.jfrom = el.value || null; renderView(false); return; }
+  if (el.dataset.jto !== undefined) { UI.jto = el.value || null; renderView(false); return; }
+  if (el.dataset.boardStation !== undefined) { UI.boardStation = el.value; renderView(false); return; }
+  if (el.closest?.('#calcform')) { const g = id => $('#f-' + id)?.value; UI.calc = { mode: g('cmode'), grade: g('cgrade'), blocks: num(g('cblocks')) || 0, stations: num(g('cstations')) || 0, stationGrade: g('csgrade') }; renderView(false); return; }
+  if (el.dataset.tcost !== undefined) { const v = num(el.value); if (v == null || v < 0) return; S.settings.transitCost = { ...TC(), [el.dataset.tcost]: v }; commit({ silentRender: true }); renderView(false); toast('Cost model updated', 'good'); return; }
   if (el.dataset.tline !== undefined) { UI.tline = el.value; UI.tfrom = null; UI.tto = null; renderView(false); return; }
   if (el.dataset.tfrom !== undefined) { UI.tfrom = el.value || null; renderView(false); return; }
   if (el.dataset.tto !== undefined) { UI.tto = el.value || null; renderView(false); return; }
@@ -311,7 +327,7 @@ document.addEventListener('keydown', e => {
     if (SCOPE_POP.open) { closeScopePop(); return; }
     if (!$('#addmenu').hidden) { $('#addmenu').hidden = true; return; }
     if (CLAW.open && !isModal && !DR.id && !HV.open) { clawToggle(false); return; }
-    if (isModal) { if (ARCH.editing) { archiveCancel(); return; } ARCH.viewing = null; closeModal(); return; }
+    if (isModal) { if (MODAL.onCancel) { MODAL.onCancel(); return; } if (ARCH.editing) { archiveCancel(); return; } ARCH.viewing = null; closeModal(); return; }
     if (DR.id && HV.open) { closeDrawer(); return; }
     if (HV.open) { closeHistoryViewer(); return; }
     if (UI.nav === 'map' && (MAPW.draft || MAPW.pending)) { mapCancel(); return; }
@@ -334,10 +350,14 @@ document.addEventListener('keydown', e => {
     if (k === 'Enter' && MAPW.draft) { e.preventDefault(); mapFinishDraft(); return; }
     if (k === 'Backspace' && MAPW.draft) { e.preventDefault(); mapDraftUndo(); return; }
     if ((k === 'Delete' || k === 'Backspace') && MAPW.sel?.vertex != null) { e.preventDefault(); deleteSelectedVertex(); return; }
+    if ((k === 't' || k === 'T') && MAPW.mode === 'transit') { MAPW.stopMode = !MAPW.stopMode; renderMapInstr(); toast(MAPW.stopMode ? 'Every click places a stop' : 'Clicks place track points (Alt-click for a stop)', ''); return; }
+    if ((k === '[' || k === ']') && MAPW.edit) { e.preventDefault(); setMapWhen((MAPW.when ?? hyIndex(CURRENT_YEAR, CURRENT_HALF)) + (k === ']' ? 1 : -1)); return; }
     const modeKey = { s: 'select', p: 'pan', b: 'border', d: 'road', l: 'transit', x: 'station', a: 'place' }[k.toLowerCase()];
-    if (modeKey && !e.shiftKey && MAPW.edit) { setMapMode(modeKey); return; }
+    if (modeKey && !e.shiftKey && MAPW.edit) { if (MAPW.draft?.pts?.length && modeKey !== MAPW.mode) { toast('Finish the drawing (Enter) or cancel it (Esc) first', 'warn'); return; } setMapMode(modeKey); return; }
     if ((k === 'e' || k === 'E') && !DR.id) { setMapEdit(!MAPW.edit); return; }
   }
+  if (DR.id && DR.mode === 'edit' && k !== '/' && k !== '?') return;   // never throw away an open editor from the keyboard
+  if (UI.nav === 'map' && MAPW.draft?.pts?.length && k.length === 1 && k !== '/' && k !== '?') { toast('Finish the drawing (Enter) or cancel it (Esc) first', 'warn'); return; }
   if (k === '/') { e.preventDefault(); $('#q').focus(); $('#q').select(); }
   else if (k === '?') openShortcuts();
   else if (k === 'g' || k === 'G') { e.preventDefault(); toggleScopePop(); }
@@ -349,8 +369,8 @@ document.addEventListener('keydown', e => {
   else if (k === 'r' || k === 'R') setNav('registry');
   else if (k === 'm' || k === 'M') setNav('map');
   else if (k === 't' || k === 'T') setNav('transit');
-  else if ((k === 'b' || k === 'B') && !onMap) setNav('businesses');
-  else if ((k === 'c' || k === 'C') && !onMap) setNav('civic');
+  else if ((k === 'b' || k === 'B') && !(onMap && MAPW.edit)) setNav('businesses');
+  else if ((k === 'c' || k === 'C') && !(onMap && MAPW.edit)) setNav('civic');
   else if (k === 'k' || k === 'K') clawToggle();
   else if (k === 'h' || k === 'H') setNav('history');
   else if (k === 'e' || k === 'E') { if (DR.id && DR.mode === 'view') openRecord(DR.kind, DR.id, 'edit', { keepStack: true }); }

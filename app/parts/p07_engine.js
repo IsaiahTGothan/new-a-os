@@ -251,14 +251,15 @@ function hyEvents(rows, i, { projection = false, scopeDistrictSet = null } = {})
     if (projection && ei === i && bi == null && isUnderWay(b)) ev.push({ kind: 'projected', b });
   }
   const inScope = o => true;
-  for (const r of S.roads) { const oi = r.yearOpened != null ? hyIndex(num(r.yearOpened), r.halfOpened) : null, ci = r.yearClosed != null ? hyIndex(num(r.yearClosed), r.halfClosed) : null; if (oi === i && inScope(r)) ev.push({ kind: 'road-open', o: r }); if (ci === i) ev.push({ kind: 'road-close', o: r }); }
-  for (const l of S.lines) { const oi = l.yearOpened != null ? hyIndex(num(l.yearOpened), l.halfOpened) : null, ci = l.yearClosed != null ? hyIndex(num(l.yearClosed), l.halfClosed) : null; if (oi === i) ev.push({ kind: 'line-open', o: l }); if (ci === i) ev.push({ kind: 'line-close', o: l }); }
-  for (const s of S.stations) { const oi = s.yearOpened != null ? hyIndex(num(s.yearOpened), s.halfOpened) : null; if (oi === i) ev.push({ kind: 'station-open', o: s }); }
+  const SK = { opened: 'open', removed: 'close', reshaped: 'change', rebuilt: 'rebuilt' };
+  for (const r of S.roads) for (const e of shapeEvents(r, 'road')) if (e.at === i) ev.push({ kind: 'road-' + SK[e.kind.split('-')[1]], o: r, note: e.note || '' });
+  for (const l of S.lines) { const oi = l.yearOpened != null ? hyIndex(num(l.yearOpened), l.halfOpened) : null, ci = l.yearClosed != null ? hyIndex(num(l.yearClosed), l.halfClosed) : null, si = hyOf(l.yearStarted, l.halfStarted); if (si === i) ev.push({ kind: 'line-started', o: l }); if (oi === i) ev.push({ kind: 'line-open', o: l }); if (ci === i) ev.push({ kind: 'line-close', o: l }); for (const t of lineTracks(l)) for (const e of shapeEvents(t, 'track')) if (e.at === i && !/opened/.test(e.kind) && !(/removed/.test(e.kind) && ci === i)) ev.push({ kind: /removed/.test(e.kind) ? 'line-cut' : /rebuilt/.test(e.kind) ? 'line-rebuilt' : 'line-change', o: l, note: e.note || '' }); }
+  for (const s of S.stations) { const oi = s.yearOpened != null ? hyIndex(num(s.yearOpened), s.halfOpened) : null, ci = hyOf(s.yearClosed, s.halfClosed), si = hyOf(s.yearStarted, s.halfStarted); if (si === i) ev.push({ kind: 'station-started', o: s }); if (oi === i) ev.push({ kind: 'station-open', o: s }); if (ci === i) ev.push({ kind: 'station-close', o: s }); }
   for (const z of S.businesses) { const oi = z.yearOpened != null ? hyIndex(num(z.yearOpened), z.halfOpened) : null, ci = z.yearClosed != null ? hyIndex(num(z.yearClosed), z.halfClosed) : null; if (oi === i) ev.push({ kind: 'biz-open', o: z }); if (ci === i) ev.push({ kind: 'biz-close', o: z }); }
   for (const r of S.regions) if (r.effectiveYear != null && hyIndex(num(r.effectiveYear), r.effectiveHalf) === i) ev.push({ kind: 'region', o: r });
   return ev;
 }
-const HY_EVENT_LABEL = { started: ['Construction started', 's'], built: ['Completed', '+'], lot: ['Lot registered', '·'], demolished: ['Demolished', '−'], projected: ['Expected completion (projection)', '?'], 'road-open': ['Road opened', 'i'], 'road-close': ['Road closed', 'i'], 'line-open': ['Line opened', 'i'], 'line-close': ['Line closed', 'i'], 'station-open': ['Station opened', 'i'], 'biz-open': ['Business opened', 'b'], 'biz-close': ['Business closed', 'b'], region: ['Jurisdiction change', 'i'] };
+const HY_EVENT_LABEL = { started: ['Construction started', 's'], built: ['Completed', '+'], lot: ['Lot registered', '·'], demolished: ['Demolished', '−'], projected: ['Expected completion (projection)', '?'], 'road-open': ['Road opened', 'i'], 'road-close': ['Road removed', 'i'], 'road-change': ['Road reshaped', 'i'], 'road-rebuilt': ['Road rebuilt', 'i'], 'line-started': ['Line construction started', 'i'], 'line-change': ['Line realigned', 'i'], 'line-cut': ['Line section removed', 'i'], 'line-rebuilt': ['Line section rebuilt', 'i'], 'station-started': ['Station construction started', 'i'], 'station-close': ['Station closed', 'i'], 'line-open': ['Line opened', 'i'], 'line-close': ['Line closed', 'i'], 'station-open': ['Station opened', 'i'], 'biz-open': ['Business opened', 'b'], 'biz-close': ['Business closed', 'b'], region: ['Jurisdiction change', 'i'] };
 
 /* ---- geography validation ---- */
 function polygonIssues(polys) {
@@ -336,22 +337,6 @@ function allIssues(sc = UI.scope) {
   return out.sort((a, b) => LEVEL_RANK[a.level] - LEVEL_RANK[b.level]);
 }
 
-/* ---- dated shapes: a road or track keeps earlier geometries as versions; the current shape applies from geometryFrom ---- */
-function geometryAt(o, hy) {
-  const vs = (o.versions || []).filter(v => Array.isArray(v.geometry) && v.geometry.length >= 2 && v.year != null);
-  if (hy == null || !vs.length) return { geometry: o.geometry, width: o.width, version: null };
-  const list = vs.map(v => ({ v, idx: hyIndex(v.year, v.half || '') })).sort((a, b) => a.idx - b.idx);
-  const afterLast = list[list.length - 1].idx + 1; const curIdx = o.geometryFromYear != null ? Math.max(hyIndex(o.geometryFromYear, o.geometryFromHalf || ''), afterLast) : afterLast;
-  list.push({ v: null, idx: curIdx }); list.sort((a, b) => a.idx - b.idx);
-  let pick = null; for (const e of list) if (e.idx <= hy) pick = e; if (!pick) pick = list[0];
-  return pick.v ? { geometry: pick.v.geometry, width: pick.v.width ?? o.width, version: pick.v } : { geometry: o.geometry, width: o.width, version: null };
-}
-function saveShapeVersion(o, year, half, note = '') {
-  const v = { id: uid('gv'), year, half: half || '', geometry: JSON.parse(JSON.stringify(o.geometry || [])), width: o.width ?? null, note, saved: now() };
-  o.versions = [...(o.versions || []), v].sort((a, b) => hyIndex(a.year, a.half || '') - hyIndex(b.year, b.half || ''));
-  const vi = hyIndex(year, half || 'E'); if (o.geometryFromYear == null || hyIndex(o.geometryFromYear, o.geometryFromHalf || '') <= vi) { const n = hyFromIndex(vi + 1); o.geometryFromYear = n.year; o.geometryFromHalf = n.half; }
-  o.updated = now(); return v;
-}
 /* ---- lots: frontage runs along X unless the lot is rotated; snapping to the serving road sets the side and the orientation ---- */
 function lotRect(b) { const fr = num(b.lotFront), dp = num(b.lotDepth); if (!fr || !dp || b.x == null || b.z == null) return null; const w = b.lotRotated ? dp : fr, h = b.lotRotated ? fr : dp; return { x1: b.x - w / 2, z1: b.z - h / 2, x2: b.x + w / 2, z2: b.z + h / 2, w, h }; }
 function snapToStreet(b, road = null) {
@@ -360,10 +345,4 @@ function snapToStreet(b, road = null) {
   const alongX = Math.abs(ux) >= Math.abs(uz); const dp = num(b.lotDepth) || num(b.lotFront) || 20;
   const side = Math.sign((b.x - c.q[0]) * -uz + (b.z - c.q[1]) * ux) || 1; const off = (num(r.width) || 5) / 2 + 1 + dp / 2;
   return { x: Math.round(c.q[0] - uz * side * off), z: Math.round(c.q[1] + ux * side * off), lotRotated: !alongX, road: r, d: c.d };
-}
-/* swap a dated shape in as the current one: the current shape is kept, dated from when it applied */
-function swapShapeVersion(o, v) {
-  const vs = (o.versions || []).filter(x => x.id !== v.id); const curIdx = o.geometryFromYear != null ? hyIndex(o.geometryFromYear, o.geometryFromHalf || '') : hyIndex(CURRENT_YEAR, CURRENT_HALF); const cf = hyFromIndex(Math.max(curIdx, hyIndex(v.year, v.half || 'E') + 1));
-  vs.push({ id: uid('gv'), year: cf.year, half: cf.half, geometry: JSON.parse(JSON.stringify(o.geometry || [])), width: o.width ?? null, note: 'previous current shape', saved: now() });
-  o.versions = vs.sort((a, b) => hyIndex(a.year, a.half || '') - hyIndex(b.year, b.half || '')); o.geometry = JSON.parse(JSON.stringify(v.geometry)); if (v.width) o.width = v.width; o.geometryFromYear = v.year; o.geometryFromHalf = v.half || ''; o.updated = now();
 }

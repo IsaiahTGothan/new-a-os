@@ -91,6 +91,20 @@ Commit history (oldest → newest, all on this branch):
 | docs/ | NEW-A-HANDOFF-for-Claude-Code.md (brief; §3 architecture, §6 rules), VERIFICATION.md, ROADMAP.md, this file (untracked, see §1) |
 | newa-site-patch/ | README.md + vercel.json CORS header for /feed.xml and /api/markets; apply to the separate newa-site repo |
 
+## 3b. Round 3 additions (Oct 7)
+
+| Part | What it holds |
+|---|---|
+| `app/parts/p26_periods.js` | Shape periods for roads and tracks (`shapePeriods`, `shapeStateAt`, `geometryAt`, split / rebuild / set dates / remove), road-growth animation (`animatedGeometry`, `clipPath`), playback events derived from periods, the map's viewing date (`MAPW.when`, `setMapWhen`, `editableShape`, `stampWhen`), the timeline UI (`shapeTimelineHTML`) |
+| `app/parts/p27_transit2.js` | Line/station state at a date, service hours, stops in order along tracks (`sortStopsAlong`, `addStopOrdered`), drawing lines with stops (`finishTransitDraft`), smart station placement (`placeStationSmart`), transfers (`transferIds`), inspectors, transit value factors, cost model, departure board, projects tab, trip planner with transfers (`transitJourney`) |
+| `app/parts/p28_lots.js` | Lot outlines (`b.lot`), `lotMetrics` (area, frontage from street-facing edges, mean depth, corner lots), drawing a lot from the inspector or the editor |
+| `app/parts/p29_oldmaps.js` | Browser NBT reader, Minecraft map colours, `readMapDat`, `stitchMaps`, grouping by date, the Old maps import dialog |
+| `os/tools/mcmaps.js` | Same stitching from the command line (read-only) |
+
+Data added (all optional, plain JSON, nothing renamed): road/track `versions[].toYear/toHalf`; line `hours, hoursFrom, hoursTo, yearStarted/halfStarted, yearExpected/halfExpected, costEstimate, costActual`; station the same plus `grade, transferIds`; building `lot, lotSource`; basemap `toYear/toHalf, source:'mcmap', maps, mapIds`; settings `transitCost`, `tlRate`; valuation keys `transit247, transitConstruction, transitPlanned, transitPartial`. Line status gains `partial`.
+
+Playback now keeps a float playhead `HV.pos` (`HV.to = floor(pos)`), a rate in half-years per second (`HV.rate`) and a short effect window `HV.fx = { from, to, t }` set when the playhead crosses a half-year forward; `drawScene` takes `R.pos` and `R.fx` instead of the old `R.anim`.
+
 ## 4. How the app is put together
 
 - Classic script, no modules. All parts share one top-level scope; `const/let` names are globals. Key globals: `APP`, `S` (persisted state), `UI` (transient), `MIGRATION`, `SAVE`, `VAULT`, `DR`, `MAPW`, `HV`, `NEWS`, `ASST`, `CLAW`, `EXPLORE`, `OS`, `JUNCTION_CACHE`, `ROAD_GRAPH`.

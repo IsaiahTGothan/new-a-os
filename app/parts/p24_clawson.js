@@ -11,7 +11,7 @@ const CLAW_KIND_LABEL = { fact: 'FROM THE RECORDS', sugg: 'PROPOSAL · NOT APPLI
 
 function clawToggle(open = !CLAW.open) { CLAW.open = open; clawRender(); const b = $('#side-end .clawson'); if (b) b.setAttribute('aria-pressed', open); if (open) setTimeout(() => $('#claw-q')?.focus(), 30); }
 function clawRender() {
-  const el = $('#clawson'); if (!el) return; el.classList.toggle('on', CLAW.open); if (!CLAW.open) { el.innerHTML = ''; return; }
+  const el = $('#clawson'); if (!el) return; const q0 = $('#claw-q'); const keep = q0 ? { v: q0.value, f: document.activeElement === q0 || el.contains(document.activeElement) } : null; queueMicrotask(() => { const q = $('#claw-q'); if (!q || !keep) return; if (keep.v && !q.value) q.value = keep.v; if (keep.f && CLAW.open && !modalOpen()) q.focus(); }); el.classList.toggle('on', CLAW.open); if (!CLAW.open) { el.innerHTML = ''; return; }
   const ai = S.settings.ai || {};
   el.innerHTML = `<div class="ch"><div><div class="k">CLAWSON</div><div class="s">${ai.enabled ? `records + ${ai.provider === 'openai' ? 'OpenAI-compatible' : 'Anthropic'} provider` : 'answers from the records · no AI provider on'} · proposes, never changes silently</div></div>
     <div class="acts"><button class="btn ghost icon sm" data-act="claw-view" data-view="${CLAW.view === 'chat' ? 'activity' : 'chat'}" title="${CLAW.view === 'chat' ? 'Activity, proposals, drafts and undo' : 'Back to the conversation'}" aria-pressed="${CLAW.view === 'activity'}">${icon(CLAW.view === 'chat' ? 'clock' : 'chat')}</button><button class="btn ghost icon sm" data-act="claw-clear" title="Clear the conversation">${icon('trash')}</button><button class="btn ghost icon sm" data-act="clawson-toggle" title="Close (K)">${icon('x')}</button></div></div>

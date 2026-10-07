@@ -110,7 +110,12 @@ const ROAD_COLORS = { avenue: '#8AA4B8', street: '#6F8494', boulevard: '#9BB3C4'
 const TRANSIT_MODES = [['subway', 'Subway / Metro'], ['rail', 'Rail'], ['bus', 'Bus'], ['tram', 'Tram / light rail'], ['ferry', 'Ferry'], ['cable', 'Cable / gondola'], ['other', 'Other']];
 const MODE_LABEL = Object.fromEntries(TRANSIT_MODES);
 const LINE_STYLES = [['solid', 'Solid'], ['dashed', 'Dashed'], ['dotted', 'Dotted']];
-const LINE_STATUSES = [['planned', 'Planned', 'muted'], ['construction', 'Under construction', 'warn'], ['open', 'Open', 'good'], ['closed', 'Closed', 'bad']];
+const LINE_STATUSES = [['planned', 'Planned', 'muted'], ['construction', 'Under construction', 'warn'], ['partial', 'Partly open', 'info'], ['open', 'Open', 'good'], ['closed', 'Closed', 'bad']];
+/* service hours: regular (not stated) · 24/7 · daytime · rush hours only · custom window */
+const SERVICE_HOURS = [['', 'Regular hours (5 am – 1 am)'], ['24/7', '24/7 — round the clock'], ['day', 'Daytime only (6 am – midnight)'], ['peak', 'Rush hours only (6–10 · 16–20)'], ['custom', 'Custom window']];
+const STATION_GRADES = [['', 'Not recorded'], ['underground', 'Underground'], ['surface', 'At grade'], ['elevated', 'Elevated']];
+/* construction cost model (editable under settings): per station by grade, per block of track by grade, per mode multiplier */
+const TRANSIT_COST_DEFAULTS = { stationUnderground: 450e6, stationSurface: 60e6, stationElevated: 140e6, blockTunnel: 1.1e6, blockSurface: 0.15e6, blockElevated: 0.45e6, blockBridge: 0.9e6, modeSubway: 1, modeRail: 0.8, modeTram: 0.35, modeBus: 0.05, modeOther: 0.5, contingency: 25 };
 const LINE_STATUS = Object.fromEntries(LINE_STATUSES.map(([id, label, tone]) => [id, { id, label, tone }]));
 const STATION_KINDS = [['station', 'Station'], ['complex', 'Station complex'], ['stop', 'Stop'], ['entrance', 'Entrance']];
 const TRANSIT_COLORS = ['#4FE3FF', '#FFB454', '#B99CFF', '#5FE38E', '#FF86CF', '#7FB2FF', '#E0C63A', '#FF8A75', '#5FE0E0', '#C2DE5A', '#F6F6F6', '#9A9A9A'];
@@ -159,6 +164,6 @@ const SERVICE_DEFAULTS = { subway: { speed: 8, headwayMin: 5, dwellSec: 10 }, ra
 const TIME_BASES = [['estimated', 'Estimated', 'muted'], ['measured', 'Measured', 'good'], ['scheduled', 'Scheduled', 'info']];
 const TIME_BASIS = Object.fromEntries(TIME_BASES.map(([id, label, tone]) => [id, { id, label, tone }]));
 /* ---- valuations: every factor is a percentage, editable under Vault & settings ---- */
-const VALUATION_DEFAULTS = { version: 1, fallbackPerBlock: 250000, transitNear: 15, transitMid: 8, transitFar: 3, transitNone: -5, hospital: 4, police: 3, fire: 3, park: 5, school: 2, servicesCap: 12, landmark: 10, floorStep: 2, floorCap: 30, excellent: 8, fair: -8, poor: -20, construction: -20, closed: -15, vacantLot: -65, officeCondo: 10, industrial: -10, defaultArea: 300 };
+const VALUATION_DEFAULTS = { version: 1, fallbackPerBlock: 250000, transitNear: 15, transitMid: 8, transitFar: 3, transitNone: -5, transit247: 6, transitConstruction: 0.35, transitPlanned: 0.1, transitPartial: 0.6, hospital: 4, police: 3, fire: 3, park: 5, school: 2, servicesCap: 12, landmark: 10, floorStep: 2, floorCap: 30, excellent: 8, fair: -8, poor: -20, construction: -20, closed: -15, vacantLot: -65, officeCondo: 10, industrial: -10, defaultArea: 300 };
 const PROJECT_STAGES = [['idea', 'Idea', 'muted'], ['planning', 'Planning', 'info'], ['construction', 'Under construction', 'warn'], ['open', 'Open', 'good'], ['renovation', 'Renovation', 'warn'], ['demolition', 'Demolition', 'bad'], ['done', 'Done', 'good'], ['abandoned', 'Abandoned', 'muted']];
 const PROJECT_STAGE = Object.fromEntries(PROJECT_STAGES.map(([id, label, tone]) => [id, { id, label, tone }]));

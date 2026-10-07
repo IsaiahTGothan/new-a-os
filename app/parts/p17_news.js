@@ -191,7 +191,7 @@ function newsAutoRefresh() {
   NEWS.timer = setInterval(() => { if (document.visibilityState === 'visible') newsRefresh({ source: 'live' }); }, min * 60000);
 }
 /* ---- inbox ---- */
-function openNewsInbox() {
+function openNewsInboxRaw() {
   const items = S.news.items.slice().sort((a, b) => (b.published || '').localeCompare(a.published || ''));
   const pending = newsPendingCount(); const err = S.news.lastError;
   const candHTML = (c, it) => {
@@ -296,3 +296,6 @@ async function marketsRefresh({ source = 'live', text = null, label = '' } = {})
 /* fetch through the New A OS bridge when it runs (no CORS), else straight from the browser */
 async function bridgeFetch(url, opts = {}) { if (typeof OS !== 'undefined' && OS.online) { try { return await OS.proxyFetch(url, opts); } catch (e) { console.warn('bridge fetch failed, falling back', e); } } return fetch(url, { mode: 'cors', cache: 'no-store', ...opts }); }
 $('#file-markets').addEventListener('change', async e => { const f = e.target.files?.[0]; e.target.value = ''; if (!f) return; const text = await f.text(); marketsRefresh({ source: 'file', text, label: f.name }); });
+
+/* reopening the inbox after a decision keeps your place in the list */
+function openNewsInbox() { const m0 = $('#modal-root .modal'); const keep = m0 && m0.getAttribute('aria-label') === 'Inbox' ? m0.scrollTop : null; openNewsInboxRaw(); if (keep != null) { const m = $('#modal-root .modal'); if (m) { m.style.animation = 'none'; m.scrollTop = keep; } } }

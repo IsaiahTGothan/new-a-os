@@ -26,7 +26,7 @@ function renderChrome() {
   const counts = { registry: scopeActive().length, transit: S.lines.length, civic: civicRows().length, businesses: S.businesses.length, history: scopeBuildings().filter(isHist).length };
   $('#tabs').innerHTML = NAV.map(n => `<button class="tab nav ${n.id}" role="tab" data-nav="${n.id}" aria-selected="${UI.nav === n.id}" title="${esc(n.title)}">${icon(n.icon)}<span class="lbl">${esc(n.label)}</span>${counts[n.id] != null && counts[n.id] ? `<span class="cnt">${counts[n.id]}</span>` : ''}<kbd>${n.key}</kbd></button>`).join('');
   const hist = scopeBuildings().filter(isHist).length;
-  $('#rail-end').innerHTML = `<div class="rinfo" style="--c:${color}"><i class="sw"></i><span><b>${esc(scopeName(sc))}</b></span><span>${scopeActive().length} standing</span><span>·</span><span style="color:var(--hist)">${hist} historical</span>${node && (node.polygons || []).length === 0 && sc.kind !== 'all' ? `<span class="notdrawn" title="This place has no border drawn yet — draw one on the map (Edit)">NOT DRAWN YET</span>` : ''}</div>`;
+  $('#rail-end').innerHTML = `<div class="rinfo" style="--c:${color}"><i class="sw"></i><span><b>${esc(scopeName(sc))}</b></span><span title="Active records: standing, under construction, planned and vacant lots">${scopeActive().length} on file</span><span>·</span><span style="color:var(--hist)">${hist} historical</span>${node && (node.polygons || []).length === 0 && sc.kind !== 'all' ? `<span class="notdrawn" title="This place has no border drawn yet — draw one on the map (Edit)">NOT DRAWN YET</span>` : ''}</div>`;
   const se = $('#side-end'); if (se) se.innerHTML = `<button class="clawson" data-act="clawson-toggle" aria-pressed="${typeof CLAW !== 'undefined' && CLAW.open}" title="Clawson — ask about the city, get proposals, draft a newsletter (K)">${icon('chat')}<span>Clawson</span></button>${typeof OS !== 'undefined' ? OS.tileHTML() : ''}`;
   // scope button
   const btn = $('#scope-btn'); btn.style.setProperty('--c', color);
@@ -63,7 +63,7 @@ function renderStatus() {
   else if (VAULT.status === 'unsupported') { v.className = 'off'; vt.textContent = 'vault · unsupported browser (use backups)'; }
   else { v.className = 'off'; vt.innerHTML = `vault · <button data-act="vault-link">link a folder</button>`; }
   const photos = imageOwners().filter(b => b.image).length;
-  $('#st-counts').textContent = `${activeBuildings().length} standing · ${histBuildings().length} historical · ${S.regions.length} regions · ${S.districts.length} districts · ${S.roads.length} roads · ${S.lines.length} lines · ${S.businesses.length} businesses · ${S.archive.length} chronicle · ${photos} photos`;
+  $('#st-counts').textContent = `${activeBuildings().length} active · ${histBuildings().length} historical · ${S.regions.length} regions · ${S.districts.length} districts · ${S.roads.length} roads · ${S.lines.length} lines · ${S.businesses.length} businesses · ${S.archive.length} chronicle · ${photos} photos`;
   const iss = $('#st-issues'); if (iss) { const n = allIssues().length; iss.textContent = n ? `◆ ${n} issue${n === 1 ? '' : 's'}` : '◆ no issues'; iss.style.color = n ? 'var(--warn)' : ''; }
   const nb = $('#news-badge'); if (nb) { const n = newsPendingCount(); nb.hidden = !n; nb.textContent = n > 99 ? '99+' : n; }
 }
@@ -103,14 +103,14 @@ function openModal({ title, body, foot = '', cls = '', onOpen, kicker = '' }) {
   onOpen?.(root.querySelector('.modal'));
   const first = root.querySelector('input:not([type=hidden]):not([type=checkbox]),select,textarea,button:not([data-act=modal-close])'); first?.focus();
 }
-function closeModal() { const root = $('#modal-root'); root.classList.remove('on'); root.innerHTML = ''; MODAL.ctx = null; }
+function closeModal() { const root = $('#modal-root'); root.classList.remove('on'); root.innerHTML = ''; MODAL.ctx = null; MODAL.onCancel = null; }
 const modalOpen = () => $('#modal-root').classList.contains('on');
 /* Promise-based confirm: resolves 'ok' | 'alt' | 'cancel' */
 function confirmDialog({ title, body, ok = 'Confirm', alt, cancel = 'Cancel', danger = false, cls = 'narrow' }) {
   return new Promise(res => {
     openModal({ title, body, cls,
       foot: `<button class="btn ghost" data-r="cancel">${esc(cancel)}</button><span class="spacer"></span>${alt ? `<button class="btn" data-r="alt">${esc(alt)}</button>` : ''}<button class="btn ${danger ? 'danger' : 'primary'}" data-r="ok">${esc(ok)}</button>`,
-      onOpen: m => { m.querySelectorAll('[data-r]').forEach(b => b.onclick = () => { closeModal(); res(b.dataset.r); }); m.querySelector('[data-act=modal-close]').onclick = () => { closeModal(); res('cancel'); }; m.parentElement.querySelector('.shade').onclick = () => { closeModal(); res('cancel'); }; },
+      onOpen: m => { m.querySelectorAll('[data-r]').forEach(b => b.onclick = () => { closeModal(); res(b.dataset.r); }); m.querySelector('[data-act=modal-close]').onclick = () => { closeModal(); res('cancel'); }; m.parentElement.querySelector('.shade').onclick = () => { closeModal(); res('cancel'); }; MODAL.onCancel = () => { closeModal(); res('cancel'); }; },
     });
   });
 }
@@ -122,7 +122,7 @@ function promptDialog({ title, label, placeholder = '', value = '', kicker = '' 
         const done = r => { const v = m.querySelector('#prompt-input').value.trim(); closeModal(); res(r === 'ok' && v ? v : null); };
         m.querySelectorAll('[data-r]').forEach(b => b.onclick = () => done(b.dataset.r));
         m.querySelector('#prompt-input').addEventListener('keydown', e => { if (e.key === 'Enter') done('ok'); });
-        m.querySelector('[data-act=modal-close]').onclick = () => done('cancel'); m.parentElement.querySelector('.shade').onclick = () => done('cancel');
+        m.querySelector('[data-act=modal-close]').onclick = () => done('cancel'); m.parentElement.querySelector('.shade').onclick = () => done('cancel'); MODAL.onCancel = () => done('cancel');
       } });
   });
 }

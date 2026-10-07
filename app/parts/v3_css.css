@@ -432,3 +432,93 @@ table.reg th{ font-family:var(--font-pixel); font-size:8.5px; letter-spacing:.04
 .fieldnote .est{ margin-top:8px; padding:10px 12px; border:1px solid var(--line-2); border-radius:8px; background:var(--bg-2); } .fieldnote .est .big{ font:700 22px/1 Silkscreen, var(--font-mono); color:var(--good); margin-bottom:5px; } .fieldnote .est .why{ font-size:11.5px; color:var(--ink-3); line-height:1.45; } .fieldnote .est .acts{ display:flex; gap:6px; margin-top:8px; flex-wrap:wrap; }
 .rowlist.versions .r .mk{ margin-right:6px; }
 .callout code, .desc-line code{ overflow-wrap:anywhere; }
+
+/* ---- round 3: map date, shape timeline, stops, board, projects ---- */
+.map-hud .grp.when{ gap:4px; padding:3px 6px; color:var(--ink-3); }
+.map-hud .grp.when svg{ width:14px; height:14px; }
+.map-hud .grp.when select, .map-hud .grp.when input{ height:26px; background:var(--bg-2); border:1px solid var(--line-2); color:var(--ink); border-radius:4px; font-family:var(--font-mono); font-size:11px; padding:0 4px; }
+.map-hud .grp.when input{ width:62px; }
+.map-hud .grp.when.on{ border-color:var(--amber); box-shadow:0 0 0 1px rgba(255,180,84,.35); color:var(--amber); }
+.mapstage.dated::after{ content:"VIEWING A PAST DATE — edits apply to the shape in force then"; position:absolute; bottom:60px; left:50%; transform:translateX(-50%); z-index:3; pointer-events:none; font-family:var(--font-mono); font-size:10.5px; letter-spacing:.06em; color:#05090D; background:var(--amber); padding:3px 10px; border-radius:4px; }
+.mapws.explore .mapstage.dated::after{ display:none; }
+.shapetl{ margin-top:8px; }
+.shapetl .bar{ position:relative; height:12px; background:var(--bg-2); border:1px solid var(--line); border-radius:3px; overflow:hidden; }
+.shapetl .bar .seg{ position:absolute; top:1px; bottom:1px; background:var(--c); opacity:.55; border-radius:2px; }
+.shapetl .bar .seg.cur{ opacity:.9; }
+.shapetl .bar .seg.undated{ background:repeating-linear-gradient(45deg, var(--line-2) 0 4px, transparent 4px 8px); opacity:1; }
+.shapetl .bar .now{ position:absolute; top:-2px; bottom:-2px; width:2px; background:var(--amber); }
+.shapetl .yrs{ position:relative; height:14px; font-family:var(--font-mono); font-size:9.5px; color:var(--ink-4); }
+.shapetl .yrs span{ position:absolute; transform:translateX(-2px); }
+.shapetl .pers{ display:flex; flex-direction:column; gap:4px; margin-top:4px; }
+.shapetl .per{ display:grid; grid-template-columns:8px 1fr auto; grid-template-areas:"sw d a" "sw m a"; gap:2px 8px; align-items:center; padding:6px 8px; border:1px solid var(--line); border-radius:5px; background:var(--bg-1); }
+.shapetl .per.cur{ border-color:var(--line-2); }
+.shapetl .per.editing{ border-color:var(--amber); }
+.shapetl .per .sw{ grid-area:sw; align-self:stretch; width:4px; border-radius:2px; background:var(--c); }
+.shapetl .per .d{ grid-area:d; display:flex; align-items:center; gap:4px; flex-wrap:wrap; font-family:var(--font-mono); font-size:11.5px; color:var(--ink-2); }
+.shapetl .per .m{ grid-area:m; font-family:var(--font-mono); font-size:10.5px; color:var(--ink-3); }
+.shapetl .per .a{ grid-area:a; display:flex; gap:2px; }
+.shapetl .hyin{ display:inline-flex; gap:2px; }
+.shapetl .hyin select, .shapetl .hyin input{ height:24px; background:var(--bg-2); border:1px solid var(--line-2); color:var(--ink); border-radius:3px; font-family:var(--font-mono); font-size:11px; padding:0 3px; }
+.shapetl .hyin input{ width:58px; }
+.shapetl .pgap{ font-family:var(--font-mono); font-size:10.5px; color:var(--bad); padding:2px 10px; border-left:2px dashed var(--bad); margin-left:3px; }
+.shapetl .acts{ display:flex; gap:6px; flex-wrap:wrap; margin-top:8px; }
+.stoplist.edit{ margin:8px 0 0; }
+.stoplist.edit .stopname{ width:100%; height:26px; background:transparent; border:1px solid transparent; border-radius:4px; color:var(--ink); font-weight:600; padding:0 6px; }
+.stoplist.edit .stopname:hover{ border-color:var(--line-2); }
+.stoplist.edit .stopname:focus{ border-color:var(--transit); background:var(--bg-2); outline:none; }
+.stoplist.edit .s{ padding-left:6px; display:flex; gap:4px; align-items:center; flex-wrap:wrap; }
+.rchip .x{ margin-left:4px; color:var(--ink-3); padding:0 4px; }
+.rchip .x:hover{ color:var(--bad); }
+.board .bclock{ font-family:var(--font-mono); font-size:22px; color:var(--amber); letter-spacing:.08em; }
+.board .bhead{ padding:12px 14px; background:#000; border:1px solid var(--line-2); border-radius:6px 6px 0 0; }
+.board .bhead .nm{ font-family:var(--font-mono); font-size:20px; color:#FFD166; letter-spacing:.04em; text-transform:uppercase; }
+.board .bhead .sub{ margin-top:4px; display:flex; gap:6px; align-items:center; flex-wrap:wrap; font-size:12px; color:var(--ink-3); }
+.board .brows{ background:#000; border:1px solid var(--line-2); border-top:0; border-radius:0 0 6px 6px; }
+.board .brow{ display:grid; grid-template-columns:32px 1fr auto 120px; gap:10px; align-items:center; padding:10px 14px; border-top:1px solid rgba(255,209,102,.12); font-family:var(--font-mono); font-size:13px; color:#FFD166; }
+.board .brow .to b{ color:#FFE7A8; font-weight:600; }
+.board .brow .t b{ font-size:15px; color:#FFE7A8; }
+.board .brow .m{ font-size:11px; color:var(--ink-3); text-align:right; }
+.board .brow.off{ opacity:.55; }
+.lstatus{ display:flex; flex-direction:column; gap:4px; }
+.lstatus .ls{ display:grid; grid-template-columns:auto 1fr auto; gap:8px; align-items:center; padding:7px 8px; border-radius:5px; background:var(--bg-1); border:1px solid var(--line); cursor:pointer; font-size:12.5px; }
+.lstatus .ls .st{ font-family:var(--font-mono); font-size:11px; color:var(--good); }
+.lstatus .ls.partial .st{ color:var(--info); } .lstatus .ls.construction .st{ color:var(--warn); } .lstatus .ls.planned .st{ color:var(--ink-3); } .lstatus .ls.closed .st{ color:var(--bad); }
+.pbar{ height:6px; background:var(--bg-3); border-radius:3px; overflow:hidden; min-width:90px; } .pbar i{ display:block; height:100%; background:var(--warn); }
+.costgrid{ display:grid; grid-template-columns:repeat(auto-fill, minmax(150px, 1fr)); gap:8px; }
+.costgrid .f{ display:flex; flex-direction:column; gap:3px; font-size:11.5px; color:var(--ink-3); }
+.costgrid input{ height:30px; background:var(--bg-2); border:1px solid var(--line-2); color:var(--ink); border-radius:4px; padding:0 6px; }
+@media (max-width: 720px){ .board .brow{ grid-template-columns:48px 1fr auto; } .board .brow .m{ grid-column:2 / -1; text-align:left; } .map-hud .grp.when input{ width:52px; } }
+.lbullet{ display:inline-flex; align-items:center; justify-content:center; min-width:22px; height:22px; padding:0 5px; border-radius:11px; background:var(--c); color:#05090D; font-family:var(--font-mono); font-weight:700; font-size:11px; line-height:1; flex-shrink:0; }
+.stoplist .lbullet{ min-width:18px; height:18px; font-size:10px; }
+.jlegs{ display:flex; flex-direction:column; gap:4px; margin-top:6px; }
+.jlegs .jl{ display:flex; align-items:center; gap:8px; font-size:12.5px; color:var(--ink-2); padding:5px 8px; background:var(--bg-1); border:1px solid var(--line); border-radius:5px; }
+.jlegs .jl svg{ width:14px; height:14px; } .jlegs .jl.walk{ color:var(--ink-3); }
+.mapws.edit .gm-scale{ display:none; }
+.lotinfo{ font-size:12.5px; color:var(--ink-2); line-height:1.6; }
+.hv-maps{ position:absolute; left:14px; top:132px; z-index:3; display:flex; align-items:center; gap:8px; padding:4px 8px; background:rgba(5,9,13,.82); border:1px solid var(--line-2); border-radius:6px; font-family:var(--font-mono); font-size:10.5px; color:var(--ink-3); max-width:calc(100% - 24px); }
+.hv-maps input[type=range]{ width:90px; accent-color:var(--amber); }
+.hv-maps .n{ color:var(--ink-2); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; max-width:240px; }
+#hv-month{ color:var(--amber); font-weight:600; }
+/* ---- usability fixes (round 3 audit) ---- */
+.mapws.edit .map-instr{ top:58px; }
+.dhead{ grid-template-columns:minmax(0,1fr) auto; }
+.dhead .stats{ flex-wrap:wrap; justify-content:flex-end; }
+.hv{ grid-template-columns:minmax(0,1fr); }
+@media (max-width:760px){
+  .dhead{ grid-template-columns:minmax(0,1fr); } .dhead .stats{ justify-content:flex-start; gap:10px 14px; }
+  .mapws.explore .mapstage{ height:100%; min-height:calc(100dvh - var(--top-h) - var(--status-h) - 120px); }
+  .mapws{ height:100%; }
+  #side .side-end .clawson span, #side .side-end .clawson small{ display:none; }
+  #side .side-end > :not(.clawson){ display:none; }
+  .gm-brandbar .gm-parody{ display:none; }
+  .hv-hd, .hv-ft{ flex-wrap:wrap; }
+  .hv-maps{ top:auto; bottom:52px; }
+}
+@media (max-width:760px){
+  #main .seg{ flex-wrap:wrap; height:auto; }
+  #main .panel, #main .grid > *, #main section > *{ min-width:0; max-width:100%; }
+  #main .panel svg{ max-width:100%; }
+  #main .panel-head{ flex-wrap:wrap; }
+}
+.form input.err, .form select.err{ border-color:var(--bad) !important; box-shadow:0 0 0 2px rgba(255,90,90,.25); }
+@media (max-width:1700px){ #map-save-note{ display:none !important; } }
