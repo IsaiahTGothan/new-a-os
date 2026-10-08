@@ -361,21 +361,25 @@ async function listingDialog({ title, forBusiness = false, kind = 'sale', tx = f
 
 /* ============ new-record flows, saving, deleting ============ */
 function newBusinessFlow(preset = {}) {
+  preset = stampedPreset(preset);
   const z = newBusiness({ meta: { gseq: { ...S.meta.gseq } } }); z.reg = ''; Object.assign(z, preset);
   DR.id = z.id; DR.kind = 'business'; DR.mode = 'edit'; DR.isNew = true; DR.draft = z; DR.stack = []; UI.selected = null;
   renderDrawer(); showDrawer(); setTimeout(() => $('#f-name')?.focus(), 80);
 }
 function newLineFlow(preset = {}) {
+  preset = stampedPreset(preset);
   const l = newLine({ meta: { gseq: { ...S.meta.gseq } }, lines: S.lines }); l.reg = ''; Object.assign(l, preset);
   DR.id = l.id; DR.kind = 'line'; DR.mode = 'edit'; DR.isNew = true; DR.draft = l; DR.stack = []; UI.selected = null;
   renderDrawer(); showDrawer(); setTimeout(() => $('#f-name')?.focus(), 80);
 }
 function newStationFlow(preset = {}) {
+  preset = stampedPreset(preset);
   const s = newStation({ meta: { gseq: { ...S.meta.gseq } } }); s.reg = ''; Object.assign(s, preset);
   DR.id = s.id; DR.kind = 'station'; DR.mode = 'edit'; DR.isNew = true; DR.draft = s; DR.stack = []; UI.selected = null;
   renderDrawer(); showDrawer(); setTimeout(() => $('#f-name')?.focus(), 80);
 }
 function newRoadFlow(preset = {}) {
+  preset = stampedPreset(preset);
   const r = newRoad({ meta: { gseq: { ...S.meta.gseq } } }); r.reg = ''; Object.assign(r, preset);
   DR.id = r.id; DR.kind = 'road'; DR.mode = 'edit'; DR.isNew = true; DR.draft = r; DR.stack = []; UI.selected = null;
   renderDrawer(); showDrawer(); setTimeout(() => $('#f-name')?.focus(), 80);

@@ -14,7 +14,7 @@ newa-site-patch/  the one CORS header for the site's feed
 ```
 cd app
 python3 build.py            # parts/p00…p30 + css → NewA-Land-Registry.html (node --check on the bundle)
-node test.js                # 272 checks in headless Chromium on the real schema-2 data (sections A–U)
+node test.js                # 282 checks in headless Chromium on the real schema-2 data (sections A–V)
 node smoke.js               # every page, tab and modal with zero console errors
 cd ../os && node test/run.js   # 70 bridge checks (NBT, region formats, scans, backups, routes, item maps)
 ```
@@ -58,6 +58,11 @@ The world folder is only ever read. See `os/README.md`.
 * **Playback** — the slider glides (six speeds, a year per 20 s to two years per second), shows the month, and roads grow, lines extend, stations appear and buildings rise or fall the moment the playhead crosses the date. Ghosts fade within a year.
 * **Old maps** — Minecraft's own `map_#.dat` files (from the world's or a backup's `data` folder) are read in the browser, placed from their centres and scale, dated early/late (or by file date) and stacked oldest → newest under playback, with an opacity slider. `node os/tools/mcmaps.js <world> --out maps.png` does the same from the command line.
 * **Usability** — 20 audited fixes (Pick on the map fills the editor, shortcut keys never discard work, pickers return to their form, inbox keeps its place, validation focuses the field, phone layout without sideways scroll…). Ideas for what next: `docs/IDEAS.md`.
+
+## Time button and a vault that stays linked (3.2.1)
+
+* **Go back in time on the map** — the clock button on the map (explore and edit) opens a slider from Early 2013 to today. Slide back and the map is the city as it was: buildings standing then, roads and lines in the shape they had, the old maps for that date. Everything stays editable, and every new record — building, road, line, station, business, chronicle entry — takes the date you are in. An amber chip in the status bar shows the date anywhere in the app and goes back to today; `[` `]` step half a year on the map. A reload starts at today.
+* **The vault folder stays linked** — when Chrome remembers the permission it reconnects silently; otherwise your first click anywhere reconnects it (choose “Allow on every visit” once and it never asks again). If the folder or its drive is not there, the status bar says so, edits keep saving in the browser, and the folder is written again as soon as it is back. It is only forgotten when you unlink it.
 
 ## Site link (3.2.0)
 

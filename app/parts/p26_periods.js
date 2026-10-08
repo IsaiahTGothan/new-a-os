@@ -138,24 +138,46 @@ function animatedGeometry(o, hy, fx) {
   return { ...G, alpha: 1, ghost: { geometry: a, alpha: 1 - t } };
 }
 
-/* ---- the map's viewing date: edit the city as it was (time-travel editing) ---- */
-MAPW.when = null;
-const mapWhen = () => MAPW.edit ? MAPW.when : null;
-function setMapWhen(idx) {
-  MAPW.when = idx == null ? null : clamp(Math.round(idx), 0, hyIndex(CURRENT_YEAR + 30, 'L'));
+/* ---- the time you are in: one date for the map (explore and edit) and for every new record ----
+   An expandable clock button on the map holds a slider from Early 2013 to today. Sliding back shows the city as it
+   was (dated shapes, buildings standing then, the old maps for that date); everything stays editable, and new
+   buildings, roads, lines, stations, businesses and chronicle entries take that date. Session only — a reload is today. */
+MAPW.when = null; MAPW.timeOpen = false;
+const mapWhen = () => MAPW.when;
+const presentIdx = () => hyIndex(CURRENT_YEAR, CURRENT_HALF);
+const travelDate = () => MAPW.when == null ? null : hyFromIndex(MAPW.when);
+function setMapWhen(idx, { fromSlider = false } = {}) {
+  MAPW.when = idx == null || idx >= presentIdx() ? null : clamp(Math.round(idx), 0, presentIdx() - 1);
   if (MAPW.sel?.vertex != null) MAPW.sel = { kind: MAPW.sel.kind, id: MAPW.sel.id };
-  renderWhenControl(); renderDock(); refreshTools(); mapDraw();
+  if (fromSlider) paintTimeWidget(); else renderTimeWidget();
+  $('#mapstage')?.classList.toggle('dated', MAPW.when != null); renderWhenChip();
+  if (UI.nav === 'map') { if (MAPW.edit) { renderDock(); refreshTools(); } else renderPlaceCard?.(); mapDraw(); }
 }
-function whenControlHTML() {
-  const w = MAPW.when; const y = w != null ? hyFromIndex(w).year : '', h = w != null ? hyFromIndex(w).half : CURRENT_HALF;
-  return `<div class="grp when ${w != null ? 'on' : ''}" id="map-when" title="View and edit the map as it was on a date — new roads, lines, stations and buildings get this date; edits to a road change the shape in force then">${icon('clock')}<select id="map-when-h" aria-label="Half"><option value="E" ${h === 'E' ? 'selected' : ''}>Early</option><option value="L" ${h === 'L' ? 'selected' : ''}>Late</option></select><input id="map-when-y" type="number" min="${FOUNDED_YEAR}" max="2200" placeholder="today" value="${esc(y)}" aria-label="Year"><button data-act="map-when-step" data-dir="-1" title="Half a year earlier">‹</button><button data-act="map-when-step" data-dir="1" title="Half a year later">›</button>${w != null ? `<button data-act="map-when-clear" title="Back to today">Today</button>` : ''}</div>`;
+const timeLabel = () => MAPW.when == null ? 'Today' : hyLabel(hyFromIndex(MAPW.when).year, hyFromIndex(MAPW.when).half);
+function timeWidgetHTML() {
+  const w = MAPW.when, p = presentIdx(); const ys = []; for (let y = FOUNDED_YEAR; y <= CURRENT_YEAR; y++) ys.push(y);
+  const step = ys.length > 9 ? 2 : 1;
+  return `<div class="tw ${MAPW.timeOpen ? 'open' : ''} ${w != null ? 'past' : ''}" id="map-time">
+    <div class="tw-panel" ${MAPW.timeOpen ? '' : 'hidden'}>
+      <div class="tw-top"><span class="k">GO BACK IN TIME</span><b id="tw-label">${esc(timeLabel())}</b></div>
+      <div class="tw-row"><button data-act="map-when-step" data-dir="-1" title="Half a year earlier ([)">‹</button><input type="range" id="tw-range" min="0" max="${p}" step="1" value="${w ?? p}" aria-label="Date on the map"><button data-act="map-when-step" data-dir="1" title="Half a year later (])">›</button></div>
+      <div class="tw-years">${ys.map(y => `<span style="left:${((hyIndex(y, 'E')) / Math.max(1, p) * 100).toFixed(2)}%">${(y - FOUNDED_YEAR) % step ? '' : `'${String(y).slice(2)}`}</span>`).join('')}</div>
+      <div class="tw-foot" id="tw-note">${w != null ? `The city as it was. Everything stays editable; new buildings, roads, lines, stations, businesses and chronicle entries get <b>${esc(timeLabel())}</b>.` : 'Slide back to see the city as it was and edit it there. New records follow the date you pick.'}</div>
+      <div class="tw-acts"><button class="btn sm" data-act="map-when-clear" ${w == null ? 'disabled' : ''}>Back to today</button></div>
+    </div>
+    <button class="tw-btn" data-act="tw-toggle" aria-expanded="${MAPW.timeOpen}" title="Go back in time — see and edit the city as it was ([ ] steps half a year)">${icon('clock')}<span id="tw-btn-l">${esc(timeLabel())}</span><span class="chv">${icon('up')}</span></button>
+  </div>`;
 }
-function renderWhenControl() { const el = $('#map-when'); if (!el) return; el.outerHTML = whenControlHTML(); wireWhenControl(); const st = $('#mapstage'); st?.classList.toggle('dated', MAPW.when != null); }
-function wireWhenControl() {
-  const read = () => { const y = num($('#map-when-y')?.value); const h = $('#map-when-h')?.value || 'E'; setMapWhen(y == null ? null : hyIndex(y, h)); };
-  $('#map-when-y')?.addEventListener('change', read); $('#map-when-h')?.addEventListener('change', () => { if (MAPW.when != null) read(); });
-  $('#map-when-y')?.addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); read(); } e.stopPropagation(); });
+function renderTimeWidget() { const el = $('#map-time'); if (!el) return; el.outerHTML = timeWidgetHTML(); wireTimeWidget(); }
+function paintTimeWidget() { const el = $('#map-time'); if (!el) return; el.classList.toggle('past', MAPW.when != null); const l = $('#tw-label'); if (l) l.textContent = timeLabel(); const b = $('#tw-btn-l'); if (b) b.textContent = timeLabel(); const n = $('#tw-note'); if (n) n.innerHTML = MAPW.when != null ? `The city as it was. Everything stays editable; new buildings, roads, lines, stations, businesses and chronicle entries get <b>${esc(timeLabel())}</b>.` : 'Slide back to see the city as it was and edit it there. New records follow the date you pick.'; const c = $('#map-time [data-act="map-when-clear"]'); if (c) c.disabled = MAPW.when == null; }
+function wireTimeWidget() {
+  const r = $('#tw-range'); if (!r) return; let raf = 0;
+  r.addEventListener('input', () => { cancelAnimationFrame(raf); raf = requestAnimationFrame(() => setMapWhen(+r.value, { fromSlider: true })); });
+  r.addEventListener('keydown', e => e.stopPropagation());
 }
+function toggleTimeWidget(open = !MAPW.timeOpen) { MAPW.timeOpen = open; renderTimeWidget(); if (open) $('#tw-range')?.focus({ preventScroll: true }); }
+/* outside the map the date is still in force: a chip in the status bar says so and goes back to today */
+function renderWhenChip() { const el = $('#st-when'); if (!el) return; el.hidden = MAPW.when == null; if (MAPW.when != null) el.innerHTML = `<button data-act="map-when-clear" title="New records take this date — click to go back to today">${icon('clock')} ${esc(timeLabel())} · new records use this date · today ✕</button>`; }
 /* the shape to edit for a road / track at the viewing date (null when nothing stands then) */
 function editableShape(o, kind) {
   const w = mapWhen(); if (w == null) return { pts: o.geometry, target: { kind, id: o.id }, label: '' };
@@ -166,7 +188,8 @@ function editableShape(o, kind) {
 const roadGeomNow = r => { const w = mapWhen(); if (w == null) return r.geometry; const g = geometryAt(r, w); return g.state === 'open' || g.state === 'undated' ? g.geometry : []; };
 const trackGeomNow = t => roadGeomNow(t);
 /* stamp a record drawn while viewing a past date */
-function stampWhen(o, yk = 'yearOpened', hk = 'halfOpened') { const w = mapWhen(); if (w == null) return; const { year, half } = hyFromIndex(w); o[yk] = year; o[hk] = half; }
+function stampWhen(o, yk = 'yearOpened', hk = 'halfOpened') { const t = travelDate(); if (!t) return; if (o[yk] == null) { o[yk] = t.year; o[hk] = t.half; } }
+const stampedPreset = (preset, yk = 'yearOpened', hk = 'halfOpened') => { const t = travelDate(); return t && preset[yk] == null ? { [yk]: t.year, [hk]: t.half, ...preset } : preset; };
 
 /* ---- the timeline in the inspector and the records ---- */
 function shapeTimelineHTML(o, kind, { editable = true, owner = null } = {}) {

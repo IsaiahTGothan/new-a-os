@@ -47,7 +47,7 @@ async function flush() {
     for (const b of S.buildings) b.status = summaryStatus(b);                 // legacy summary always in sync
     await SAVE.write(JSON.parse(JSON.stringify(S)));
     await maybeSnapshot();
-    if (VAULT.status === 'granted') await vaultWrite();
+    if (VAULT.status === 'granted') { try { await vaultWrite(); VAULT.error = null; } catch (e) { if (/NotFound|NotReadable|InvalidState/i.test(e?.name || '')) { const was = VAULT.status; VAULT.status = 'missing'; vaultStatusChanged(was); } else if (e?.name === 'NotAllowedError') { VAULT.status = 'prompt'; VAULT.asked = false; vaultArmReconnect(); } else throw e; } }
     else if (typeof OS !== 'undefined' && OS.online && OS.status?.vaultOk && !OS.vaultHold) { try { await OS.vaultWrite(); } catch (e) { console.warn('bridge vault write failed', e); OS.vaultError = e.message || String(e); } }
     SAVE.dirty = false; SAVE.lastSaved = new Date(); SAVE.lastError = null;
     setSaveState('saved', 'SAVED ' + fmtTime(SAVE.lastSaved));
@@ -105,12 +105,48 @@ const blobToDataURL = blob => new Promise(res => { const r = new FileReader(); r
 const dataURLToBlob = async url => (await fetch(url)).blob();
 
 /* ---- vault: a folder on disk holding Registry.json (the master) · NewA.json (compat, optional) · images/ ---- */
-const VAULT = { handle: null, status: 'none', name: '', lastWrite: null, legacyChecked: false };   // none | prompt | granted | unsupported
+const VAULT = { handle: null, status: 'none', name: '', lastWrite: null, legacyChecked: false, error: null, watch: null, armed: false, asked: false };   // none | prompt | granted | missing | unsupported
 const fsSupported = () => 'showDirectoryPicker' in window;
 async function vaultInit() {
   if (!fsSupported()) { VAULT.status = 'unsupported'; return; }
-  try { const h = await idbGet('handles', 'vault'); if (!h) return; VAULT.handle = h; VAULT.name = h.name; const p = await h.queryPermission({ mode: 'readwrite' }); VAULT.status = p === 'granted' ? 'granted' : 'prompt'; }
+  try { const h = await idbGet('handles', 'vault'); if (!h) return; await vaultAttach(h); }
   catch (e) { console.warn('vault init', e); }
+}
+/* The linked folder stays linked: a remembered permission reconnects silently; otherwise the first click anywhere asks
+   once (Chrome then offers "Allow on every visit"). A folder or drive that is not there is waited for, never forgotten. */
+async function vaultAttach(h) {
+  VAULT.handle = h; VAULT.name = h.name; let p = 'prompt';
+  try { p = await h.queryPermission({ mode: 'readwrite' }); } catch { }
+  VAULT.status = p === 'granted' ? 'granted' : 'prompt';
+  if (VAULT.status === 'granted') await vaultProbe(); else vaultArmReconnect();
+  vaultWatch();
+}
+/* is the folder really there? (an unplugged drive or a deleted folder answers NotFoundError) */
+async function vaultProbe() {
+  const h = VAULT.handle; if (!h) return VAULT.status; const was = VAULT.status;
+  try { const p = await h.queryPermission({ mode: 'readwrite' }); if (p !== 'granted') { VAULT.status = 'prompt'; vaultArmReconnect(); return VAULT.status; } for await (const _ of h.keys()) break; VAULT.status = 'granted'; }
+  catch (e) { VAULT.status = /NotFound|NotReadable|InvalidState/i.test(e?.name || '') ? 'missing' : was === 'missing' ? 'missing' : 'granted'; }
+  if (was !== VAULT.status) vaultStatusChanged(was);
+  return VAULT.status;
+}
+function vaultStatusChanged(was) {
+  if (typeof renderStatus === 'function') renderStatus();
+  if (VAULT.status === 'missing' && was !== 'missing') toast(`Vault folder “${VAULT.name}” is not there (drive unplugged or folder moved) — saving in this browser and reconnecting as soon as it is back`, 'warn');
+  if (VAULT.status === 'granted' && was === 'missing') { toast(`Vault folder “${VAULT.name}” is back — writing to it again`, 'good'); SAVE.dirtyImages = new Set([...SAVE.dirtyImages, ...imageOwners().filter(b => b.image).map(b => b.id)]); if (S) commit({ now: true, silentRender: true }); }
+}
+/* re-check every 20 s and whenever the window comes back to the front */
+function vaultWatch() {
+  if (VAULT.watch) return;
+  VAULT.watch = setInterval(() => { if (VAULT.handle && ['granted', 'missing'].includes(VAULT.status) && !document.hidden) vaultProbe(); }, 20000);
+  const again = () => { if (VAULT.handle && ['granted', 'missing'].includes(VAULT.status)) vaultProbe(); };
+  window.addEventListener('focus', again); document.addEventListener('visibilitychange', () => { if (!document.hidden) again(); });
+}
+/* permission needs a user gesture: ask on the first click or key press anywhere, once per session */
+function vaultArmReconnect() {
+  if (VAULT.armed || VAULT.asked || !VAULT.handle) return; VAULT.armed = true;
+  const go = e => { if (e.type === 'keydown' && (e.key === 'Escape' || e.metaKey || e.ctrlKey || e.altKey)) return; if (e.target?.closest?.('[data-act="vault-reconnect"]')) { off(); return; } off(); VAULT.asked = true; vaultReconnect({ auto: true }); };
+  const off = () => { VAULT.armed = false; document.removeEventListener('pointerdown', go, true); document.removeEventListener('keydown', go, true); };
+  document.addEventListener('pointerdown', go, true); document.addEventListener('keydown', go, true);
 }
 const diskIsLegacy = disk => ['master', 'core', 'other'].some(k => disk?.[k] && (disk[k].schema ?? 1) < APP.schema);
 function reportFor(disk) {
@@ -122,7 +158,7 @@ async function vaultLink() {
   let h;
   try { h = await window.showDirectoryPicker({ mode: 'readwrite', id: 'newa-vault', startIn: 'documents' }); }
   catch (e) { if (e.name !== 'AbortError') toast('Could not open folder: ' + e.message, 'bad'); return; }
-  VAULT.handle = h; VAULT.name = h.name; VAULT.status = 'granted';
+  VAULT.handle = h; VAULT.name = h.name; VAULT.status = 'granted'; VAULT.asked = true; vaultWatch();
   await idbPut('handles', 'vault', h);
   const existing = await vaultRead().catch(() => null); let upgraded = null;
   if (existing && (existing.master || existing.core || existing.other)) {
@@ -139,12 +175,12 @@ async function vaultLink() {
   toast(`Vault linked — ${h.name}`, 'good');
   if (upgraded) openUpgradeReport(upgraded);
 }
-async function vaultReconnect() {
-  if (!VAULT.handle) return vaultLink();
+async function vaultReconnect({ auto = false } = {}) {
+  if (!VAULT.handle) return auto ? null : vaultLink();
   try {
     const p = await VAULT.handle.requestPermission({ mode: 'readwrite' });
-    if (p !== 'granted') { toast('Folder access was not granted', 'warn'); return; }
-    VAULT.status = 'granted';
+    if (p !== 'granted') { VAULT.status = 'prompt'; renderStatus(); toast(auto ? `The vault “${VAULT.name}” stays unlinked for now — reconnect from the status bar (choose “Allow on every visit” to never be asked again)` : 'Folder access was not granted', 'warn'); return; }
+    VAULT.status = 'granted'; if (await vaultProbe() === 'missing') return;
     const disk = await vaultRead().catch(() => null); const main = disk?.master || disk?.core;
     const diskUpdated = main?.meta?.updated || main?.exported; let upgraded = null;
     if (diskUpdated && S.meta.updated && new Date(diskUpdated).getTime() > new Date(S.meta.updated).getTime() + 2000) {
@@ -154,7 +190,7 @@ async function vaultReconnect() {
     }
     VAULT.legacyChecked = false;
     SAVE.dirtyImages = new Set(imageOwners().filter(b => b.image).map(b => b.id));
-    commit({ now: true }); renderStatus(); renderAll(); toast(`Vault reconnected — ${VAULT.name}`, 'good');
+    commit({ now: true }); renderStatus(); renderAll(); toast(`Vault reconnected — ${VAULT.name}${auto ? ' (choose “Allow on every visit” next time and it reconnects by itself)' : ''}`, 'good');
     if (upgraded) openUpgradeReport(upgraded);
   } catch (e) { toast('Could not reconnect: ' + e.message, 'bad'); }
 }

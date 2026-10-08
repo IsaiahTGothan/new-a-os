@@ -816,14 +816,56 @@ const FEED = (extra = '') => `<?xml version="1.0"?><rss version="2.0"><channel><
   ok(!leakU.inState && !leakU.inMaster, 'the access key is never in the registry or the master file (browser storage only)');
   await page.evaluate(() => { window.confirmDialog = async () => 'ok'; const b = S.buildings.find(x => x.lot); if (!b) { const x = S.buildings.find(y => isActive(y)); x.lot = [[0, 0], [10, 0], [10, 10], [0, 10]]; } commit({ now: true }); });
   await page.evaluate(() => slPublishClick()); await page.waitForTimeout(800);
-  const pubU = pushes[pushes.length - 1]; const m = pubU?.body?.master || {};
+  const APP_VERSION_T = await page.evaluate(() => APP.version); const pubU = pushes[pushes.length - 1]; const m = pubU?.body?.master || {};
   const r3 = { lot: (m.buildings || []).some(b => Array.isArray(b.lot)), versions: (m.roads || []).some(r => (r.versions || []).some(v => 'toYear' in v)), hours: (m.lines || []).some(l => 'hours' in l), transfers: (m.stations || []).some(s => Array.isArray(s.transferIds)), news: 'news' in m, world: 'world' in m, ai: !!m.settings?.ai, keys: JSON.stringify(pubU?.body || {}).includes(GOOD) };
-  ok(pubU && pubU.gz === 'application/octet-stream' && pubU.body.version === '3.2.0' && r3.lot && r3.versions && r3.hours && r3.transfers, `Publish to site sends the round-3 registry gzipped as version 3.2.0 (lots, dated shapes, line hours, transfers): ${JSON.stringify(r3)}`);
+  ok(pubU && pubU.gz === 'application/octet-stream' && pubU.body.version === APP_VERSION_T && r3.lot && r3.versions && r3.hours && r3.transfers, `Publish to site sends the round-3 registry gzipped with the app version (lots, dated shapes, line hours, transfers): ${JSON.stringify(r3)}`);
   ok(!r3.news && !r3.world && !r3.ai && !r3.keys, 'what never leaves the computer stays home: news inbox, world scans, AI settings and the key are not in the publish');
   const lastU = await page.evaluate(() => ({ state: SITE.conn.state, hash: SITE.conn.info?.hash, bar: $('#st-site-t')?.textContent || '' }));
   ok(lastU.hash === 'h-' + pushes.length && /newa-site|connected|site/i.test(lastU.bar), `the dashboard records the site's new fingerprint (${lastU.hash}) and the status bar shows the link (${lastU.bar})`);
   await page.unroute('https://newa-site.vercel.app/**');
   noErrors('Site link');
+
+  // ---------- V · time button on the map · the vault stays linked ----------
+  console.log('\nV · go back in time on the map · the vault stays linked');
+  await page.evaluate(() => { closeModal(); closeDrawer(true); setMapWhen(null); MAPW.timeOpen = false; setNav('map'); setMapEdit(false); }); await page.waitForTimeout(300);
+  const twBtn = await page.evaluate(() => { const r = $('[data-act="tw-toggle"]').getBoundingClientRect(); return [r.left + r.width / 2, r.top + r.height / 2]; });
+  await page.mouse.click(twBtn[0], twBtn[1]); await page.waitForTimeout(120);
+  const later = await page.evaluate(() => { const b = S.buildings.find(x => isActive(x) && !isUnderWay(x) && x.x != null && num(x.yearBuilt) >= 2018); return b ? { id: b.id, reg: b.reg, x: b.x, z: b.z } : null; });
+  const rangeBox = await page.evaluate(() => { const r = $('#tw-range').getBoundingClientRect(); return { x: r.left, y: r.top + r.height / 2, w: r.width, max: +$('#tw-range').max }; });
+  // drag the real slider to Early 2016
+  const twTarget = (await page.evaluate(() => hyIndex(2016, "E"))) / rangeBox.max; const thumbX = rangeBox.x + rangeBox.w; await page.mouse.move(thumbX - 4, rangeBox.y); await page.mouse.down(); await page.mouse.move(rangeBox.x + rangeBox.w * twTarget, rangeBox.y, { steps: 8 }); await page.mouse.up(); await page.waitForTimeout(150);
+  const twT = await page.evaluate(b => { const at = MAPW.when; const label = $('#tw-btn-l')?.textContent; const chip = !$('#st-when').hidden && $('#st-when').textContent; let hit = null; if (b) { MAPW.cam = { x: b.x, z: b.z, k: 3 }; mapDraw(); const [sx, sy] = w2s(b.x, b.z); hit = hitTest(sx, sy); } return { at, label, chip, open: $('#map-time').classList.contains('open'), past: $('#map-time').classList.contains('past'), hidden: b ? (!hit || hit.id !== b.id) : null }; }, later);
+  ok(twT.open && twT.past && Math.abs(twT.at - 6) <= 1 && /2016|2015|2017/.test(twT.label) && /new records use this date/.test(twT.chip || ''), `the clock button opens a time slider; dragging it back shows ${twT.label} on the map and in the status bar`);
+  ok(twT.hidden === true || later === null, `the map is the city as it was: ${later ? later.reg + ' (built later) is not there to click' : 'no later building to check'}`);
+  await page.evaluate(() => setMapWhen(hyIndex(2016, 'L')));
+  const newT = await page.evaluate(() => { const out = {}; newBuildingFlow(null); out.b = [DR.draft.yearBuilt, DR.draft.halfBuilt].join(' '); closeDrawer(true); newRoadFlow(); out.r = [DR.draft.yearOpened, DR.draft.halfOpened].join(' '); closeDrawer(true); newLineFlow(); out.l = DR.draft.yearOpened; closeDrawer(true); newStationFlow(); out.s = DR.draft.yearOpened; closeDrawer(true); newBusinessFlow(); out.z = DR.draft.yearOpened; closeDrawer(true); setNav('history'); openArchiveModal(null); out.a = ARCH.editing?.year; archiveCancel?.(); closeModal(); return out; });
+  ok(newT.b === '2016 L' && newT.r === '2016 L' && newT.l === 2016 && newT.s === 2016 && newT.z === 2016 && newT.a === 2016, `new records follow the selected time (Late 2016): building ${newT.b}, road ${newT.r}, line, station, business, chronicle ${newT.a}`);
+  await page.evaluate(() => { setNav('map'); setMapEdit(true); }); await page.waitForTimeout(250);
+  const editT = await page.evaluate(() => { MAPW.cam = { x: 12000, z: 12000, k: 1 }; setMapMode('road'); MAPW.draft = { kind: 'polyline', pts: [[12000, 12000], [12100, 12000]], cursor: null, forKind: 'road' }; mapFinishDraft(); const r = roadById(MAPW.sel.id); return { y: r.yearOpened, h: r.halfOpened, edit: MAPW.edit, widget: !!$('#map-time .tw-btn') }; });
+  ok(editT.y === 2016 && editT.h === 'L' && editT.widget, 'in edit mode the same button stays, and a road drawn there opens in Late 2016');
+  await page.evaluate(() => { const r = $('#st-when button').getBoundingClientRect(); window.__c = [r.left + 5, r.top + r.height / 2]; }); const chipXY = await page.evaluate(() => window.__c); await page.mouse.click(chipXY[0], chipXY[1]); await page.waitForTimeout(120);
+  const todayT = await page.evaluate(() => ({ when: MAPW.when, chip: $('#st-when').hidden, label: $('#tw-btn-l')?.textContent })); await page.evaluate(() => setMapEdit(false));
+  ok(todayT.when === null && todayT.chip && todayT.label === 'Today', 'the status-bar chip goes back to today');
+  noErrors('time button');
+  // the vault: a stand-in folder handle (the browser's folder picker cannot run headless)
+  const vaultT = await page.evaluate(async () => {
+    const mk = (perm) => { const m = { name: 'NewA Vault', perm, present: true, files: {}, asked: 0,
+      queryPermission: async () => m.perm, requestPermission: async () => { m.asked++; m.perm = 'granted'; return 'granted'; },
+      keys: async function* () { if (!m.present) throw new DOMException('gone', 'NotFoundError'); for (const k of Object.keys(m.files)) yield k; },
+      getFileHandle: async (name, o = {}) => { if (!m.present) throw new DOMException('gone', 'NotFoundError'); if (!(name in m.files) && !o.create) throw new DOMException('no file', 'NotFoundError'); return { getFile: async () => new File([m.files[name] || ''], name), createWritable: async () => { let buf = ''; return { write: async d => { buf = typeof d === 'string' ? d : await new Response(d).text(); }, close: async () => { m.files[name] = buf; } }; } }; },
+      getDirectoryHandle: async () => { if (!m.present) throw new DOMException('gone', 'NotFoundError'); return m; }, removeEntry: async () => {} }; return m; };
+    const wait = ms => new Promise(r => setTimeout(r, ms)); const out = {};
+    const g = mk('granted'); VAULT.asked = false; await vaultAttach(g); out.boot = VAULT.status; commit({ now: true }); await wait(400); out.wroteBoot = 'Registry.json' in g.files;
+    const p = mk('prompt'); VAULT.asked = false; VAULT.armed = false; await vaultAttach(p); out.prompt = VAULT.status; out.armed = VAULT.armed; window.__p = p; return out; });
+  await page.mouse.click(700, 450); await page.waitForTimeout(800); await page.evaluate(() => closeModal());
+  const vault2 = await page.evaluate(async () => { const p = window.__p; const wait = ms => new Promise(r => setTimeout(r, ms)); const out = { asked: p.asked, status: VAULT.status, wrote: 'Registry.json' in p.files };
+    p.present = false; await vaultProbe(); out.missing = VAULT.status; out.bar = $('#st-vault-t').textContent; p.files = {}; commit({ now: true }); await wait(400); out.saveErr = SAVE.lastError; out.keptHandle = !!VAULT.handle;
+    p.present = true; await vaultProbe(); await wait(500); out.back = VAULT.status; out.rewrote = 'Registry.json' in p.files; return out; });
+  ok(vaultT.boot === 'granted' && vaultT.wroteBoot, 'a remembered folder permission reconnects by itself at start and the registry is written there');
+  ok(vaultT.prompt === 'prompt' && vaultT.armed && vault2.asked === 1 && vault2.status === 'granted' && vault2.wrote, 'when the browser needs a gesture, the first click anywhere reconnects the folder (asked once) and writing resumes');
+  ok(vault2.missing === 'missing' && /not found/.test(vault2.bar) && !vault2.saveErr && vault2.keptHandle && vault2.back === 'granted' && vault2.rewrote, `an unplugged folder is waited for, not forgotten (${vault2.bar}); saving carries on in the browser; when it is back the registry is written to it again`);
+  await page.evaluate(() => { VAULT.handle = null; VAULT.status = 'none'; renderStatus(); });
+  noErrors('vault stays linked');
 
   await ctx.close(); await browser.close();
   console.log(`\n${checks - failures}/${checks} checks passed${failures ? ` · ${failures} FAILED` : ''}`);

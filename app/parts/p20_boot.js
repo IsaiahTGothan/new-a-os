@@ -23,7 +23,7 @@ async function boot() {
   await playBoot({ stored: !!stored });
   if (MIGRATION.report) { openUpgradeReport(MIGRATION.report); MIGRATION.report = null; commit({ now: true }); }
   if (MIGRATION.minor) { toast(`Registry upgraded to schema ${MIGRATION.minor.to} — civic facilities, officials, projects, service times and valuations are ready; every existing record is unchanged`, 'good'); MIGRATION.minor = null; commit({ now: true }); }
-  if (VAULT.status === 'prompt') toast(`Vault “${VAULT.name}” needs a click to reconnect`, 'warn', { label: 'RECONNECT', fn: vaultReconnect });
+  if (VAULT.status === 'prompt') toast(`Vault “${VAULT.name}” reconnects on your first click — choose “Allow on every visit” and it will link itself from now on`, '');
   slBoot();
   newsAutoRefresh();
   if (typeof OS !== 'undefined') OS.start();

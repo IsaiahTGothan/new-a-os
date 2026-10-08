@@ -28,16 +28,17 @@ const s2w = (sx, sy) => projFor(MAPW.cam, MAPW.w, MAPW.h).w(sx, sy);
 /* ---- page ---- */
 function renderMapWorkspace() {
   return `<div class="mapws ${MAPW.edit ? 'edit' : 'explore'} ${MAPW.dockOpen && MAPW.edit ? '' : 'nodock'}">
-    <div class="mapstage mode-${MAPW.mode}${MAPW.edit && MAPW.when != null ? ' dated' : ''}" id="mapstage">
+    <div class="mapstage mode-${MAPW.mode}${MAPW.when != null ? ' dated' : ''}" id="mapstage">
       <canvas id="mapcanvas" aria-label="Map of ${esc(scopeName())}" role="img"></canvas>
       ${exploreChromeHTML()}
+      ${timeWidgetHTML()}
       <div class="map-tools" role="toolbar" aria-label="Map modes">${MODES.map((m, i) => `${i === 2 ? '<div class="sep"></div>' : ''}<button data-mode="${m.id}" aria-pressed="${MAPW.mode === m.id}" title="${esc(m.label)} (${m.key}) — ${esc(m.hint)}">${icon(m.icon)}<kbd>${m.key}</kbd></button>`).join('')}<div class="sep"></div><button data-act="map-undo" title="Undo (⌘/Ctrl+Z)" ${MAPW.undo.length ? '' : 'disabled'}>${icon('undo')}</button><button data-act="map-redo" title="Redo (⌘/Ctrl+Shift+Z)" ${MAPW.redo.length ? '' : 'disabled'}>${icon('redo')}</button></div>
       <div id="map-instr"></div>
       <div class="map-search"><div class="search" role="search">${icon('search')}<input id="map-q" placeholder="Find anything, or go to X, Z…" autocomplete="off" spellcheck="false" aria-label="Search the map"><div id="map-palette" class="palette" hidden></div></div><button class="btn icon" data-act="map-dock-toggle" title="${MAPW.dockOpen ? 'Hide' : 'Show'} the side panel">${icon('layers')}</button></div>
       <div class="map-hud">
         <div class="grp"><button data-act="map-fit" title="Fit everything in scope">${icon('fit')}</button><button data-act="map-fit-sel" title="Fit the selection" ${MAPW.sel ? '' : 'disabled'}>${icon('expand')}</button><button data-act="map-zoom" data-dir="1" title="Zoom in">${icon('zoomin')}</button><button data-act="map-zoom" data-dir="-1" title="Zoom out">${icon('zoomout')}</button></div>
         <div class="grp"><button data-act="map-snap-grid" aria-pressed="${MAPW.snapGrid}" title="Snap to whole blocks">grid ${MAPW.gridStep}</button><button data-act="map-snap-vertex" aria-pressed="${MAPW.snapVertex}" title="Snap to existing vertices and lines">snap</button><button data-act="map-junctions" aria-pressed="${MAPW.junctions}" title="Show junction markers">junctions</button></div>
-        ${whenControlHTML()}<div class="grp coord" id="map-coord"><span>X <b>—</b></span><span>Z <b>—</b></span><span class="muted" id="map-zoom-t"></span></div>
+        <div class="grp coord" id="map-coord"><span>X <b>—</b></span><span>Z <b>—</b></span><span class="muted" id="map-zoom-t"></span></div>
         <span class="spacer"></span>
         <div class="grp" id="map-save-note" style="font-family:var(--font-mono);font-size:11px;color:var(--ink-3);padding:0 10px;height:34px;display:inline-flex;align-items:center;white-space:nowrap;overflow:hidden;min-width:0;flex-shrink:1">edits the registry, not the world</div>
         <div class="grp scale" id="map-scale"><span id="map-scale-t">—</span><i id="map-scale-i"></i></div>
@@ -59,7 +60,7 @@ function mapMount() {
   c.addEventListener('dblclick', mapDblClick);
   c.addEventListener('contextmenu', e => { e.preventDefault(); if (MAPW.draft) mapFinishDraft(); });
   if (!MAPW.resizeBound) { window.addEventListener('resize', () => { if ($('#mapcanvas') && UI.nav === 'map') { mapResize(); mapDraw(); } }); MAPW.resizeBound = true; }
-  wireMapSearch(); wireWhenControl(); $('#mapstage')?.classList.toggle('dated', MAPW.when != null); renderMapInstr(); renderDock(); wireExplore(); renderPlaceCard(); mapDraw();
+  wireMapSearch(); wireTimeWidget(); $('#mapstage')?.classList.toggle('dated', MAPW.when != null); renderMapInstr(); renderDock(); wireExplore(); renderPlaceCard(); mapDraw();
 }
 /* smooth camera flight to an extent (respects reduced motion) */
 function mapFlyTo(ext, { pad = 70, maxK = 6 } = {}) {
@@ -294,14 +295,14 @@ function deleteSelectedVertex() {
 }
 function afterGeometryChange(target) { if (target.kind === 'lot') { const b = byId(target.id); if (b && b.lotSource !== 'manual') applyLotMetrics(b); else if (b) b.updated = now(); return; } if (target.kind === 'shape') { const o = target.owner === 'road' ? roadById(target.id) : trackById(target.id); if (o) o.updated = now(); JUNCTION_CACHE.key = ''; return; } const n = ['region', 'district', 'hood'].includes(target.kind) ? nodeById(target.id) : null; if (n) { if (n.bounds !== undefined) n.bounds = bboxOfPolys(n.polygons || []); n.updated = now(); } else { const o = target.kind === 'road' ? roadById(target.id) : target.kind === 'track' ? trackById(target.id) : byId(target.id); if (o) o.updated = now(); } }
 function hitTest(sx, sy) {
-  const p = s2w(sx, sy); const L = UI.layers; const tol = 9 / MAPW.cam.k;
+  const p = s2w(sx, sy); const L = UI.layers; const tol = 9 / MAPW.cam.k; const wAt = mapWhen(); const there = b => wAt == null || ['standing', 'construction'].includes(stateAtHY(b, wAt));
   if (L.stations) for (const s of S.stations) if (s.x != null && Math.hypot(...[w2s(s.x, s.z)[0] - sx, w2s(s.x, s.z)[1] - sy]) < 10) return { kind: 'station', id: s.id };
-  if (L.buildings) { let best = null, bd = 11; for (const b of mapBuildings()) { const [x, y] = w2s(b.x, b.z); const d = Math.hypot(x - sx, y - sy); if (d < bd) { bd = d; best = b; } } if (best) return { kind: 'building', id: best.id }; }
+  if (L.buildings) { let best = null, bd = 11; for (const b of mapBuildings()) { if (!there(b)) continue; const [x, y] = w2s(b.x, b.z); const d = Math.hypot(x - sx, y - sy); if (d < bd) { bd = d; best = b; } } if (best) return { kind: 'building', id: best.id }; }
   if (L.roads && MAPW.junctions && MAPW.cam.k > 1.5) for (const j of cachedJunctions()) if (j.kind !== 'separated' && Math.hypot(w2s(j.x, j.z)[0] - sx, w2s(j.x, j.z)[1] - sy) < 7) return { kind: 'junction', id: `${j.a}|${j.b}|${Math.round(j.x)}|${Math.round(j.z)}`, j };
   if (L.transit) { let best = null, bd = tol; for (const l of visibleLines()) for (const g of [...lineTracks(l).map(trackGeomNow), ...lineRoads(l).map(roadGeomNow)].filter(g => g && g.length >= 2)) { const c = polylineClosest(p, g); if (c && c.d < bd) { bd = c.d; best = l; } } if (best) return { kind: 'line', id: best.id }; }
   if (L.roads) { let best = null, bd = tol, bq = null; for (const r of visibleRoads()) { const g = roadGeomNow(r); if (!g || g.length < 2) continue; const c = polylineClosest(p, g); if (c && c.d < Math.max(bd, (r.width || 5) / 2)) { bd = c.d; best = r; bq = c.q; } } if (best) return { kind: 'road', id: best.id, pt: bq ? roundPt(bq) : null }; }
-  if (L.footprints) for (const b of mapBuildings()) if (b.footprint && pointInPoly(p, b.footprint) !== 'out') return { kind: 'building', id: b.id };
-  if (L.lots) for (const b of mapBuildings()) if (lotOutline(b) && pointInPoly(p, b.lot) !== 'out') return { kind: 'building', id: b.id };
+  if (L.footprints) for (const b of mapBuildings()) if (b.footprint && there(b) && pointInPoly(p, b.footprint) !== 'out') return { kind: 'building', id: b.id };
+  if (L.lots) for (const b of mapBuildings()) if (lotOutline(b) && there(b) && pointInPoly(p, b.lot) !== 'out') return { kind: 'building', id: b.id };
   const polyHit = (list, kind) => { let best = null, ba = Infinity; for (const n of list) for (const poly of n.polygons || []) if (poly.length >= 3 && pointInPoly(p, poly) !== 'out') { const a = polyArea(poly); if (a < ba) { ba = a; best = n; } } return best ? { kind, id: best.id } : null; };
   if (L.hoods) { const h = polyHit(visibleHoods(), 'hood'); if (h) return h; }
   if (L.districts) { const d = polyHit(visibleDistricts(), 'district'); if (d) return d; }
@@ -552,7 +553,7 @@ function drawScene(R) {
 }
 function mapDraw() {
   if (!MAPW.ctx || UI.nav !== 'map') return;
-  drawScene({ ctx: MAPW.ctx, W: MAPW.w, H: MAPW.h, cam: MAPW.cam, layers: UI.layers, hy: mapWhen(), refOverlay: mapWhen() != null, sel: MAPW.sel, hover: MAPW.hover, draft: MAPW.draft, handles: MAPW.edit && MAPW.mode === 'select', highlight: MAPW.highlight, preview: MAPW.preview, marker: MAPW.marker, showJunctions: MAPW.edit && MAPW.junctions, connector: MAPW.edit ? inspectorConnector() : null, cursorMark: ['station', 'place'].includes(MAPW.mode) && MAPW.pointer ? snapPoint(MAPW.pointer).p : null, districts: visibleDistricts(), hoods: visibleHoods(), route: MAPW.route, halo: !MAPW.edit });
+  drawScene({ ctx: MAPW.ctx, W: MAPW.w, H: MAPW.h, cam: MAPW.cam, layers: UI.layers, hy: mapWhen(), refOverlay: MAPW.edit && mapWhen() != null, sel: MAPW.sel, hover: MAPW.hover, draft: MAPW.draft, handles: MAPW.edit && MAPW.mode === 'select', highlight: MAPW.highlight, preview: MAPW.preview, marker: MAPW.marker, showJunctions: MAPW.edit && MAPW.junctions, connector: MAPW.edit ? inspectorConnector() : null, cursorMark: ['station', 'place'].includes(MAPW.mode) && MAPW.pointer ? snapPoint(MAPW.pointer).p : null, districts: visibleDistricts(), hoods: visibleHoods(), route: MAPW.route, halo: !MAPW.edit });
   if (!MAPW.edit) { const zt = $('#gm-coord'); if (zt && MAPW.pointer) zt.innerHTML = `X <b>${Math.round(MAPW.pointer[0])}</b> · Z <b>${Math.round(MAPW.pointer[1])}</b>`; }
   const step = GRID_STEPS.find(s => s * MAPW.cam.k >= 70) || 10000; document.querySelectorAll('[id=map-scale-t]').forEach(t => t.textContent = `${step} blocks`); document.querySelectorAll('[id=map-scale-i]').forEach(i => i.style.setProperty('--w', (step * MAPW.cam.k) + 'px'));
   const zt = $('#map-zoom-t'); if (zt) zt.textContent = `${MAPW.cam.k.toFixed(2)} px/blk`;

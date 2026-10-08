@@ -29,6 +29,7 @@ function newBuildingFlow(districtId, opts = {}) {
   draft.reg = ''; draft.neighborhoodId = UI.scope.kind === 'hood' ? UI.scope.id : (UI.filters.hood && UI.filters.hood !== '__none' ? UI.filters.hood : null);
   if (opts.historical) { draft.physical = 'demolished'; draft.status = 'demolished'; draft.confidence = 'approximate'; }
   if (opts.preset) Object.assign(draft, opts.preset);
+  { const t = travelDate(); if (t && !opts.historical && draft.yearBuilt == null) { draft.yearBuilt = t.year; draft.halfBuilt = t.half; } }   // new records follow the date you are in
   DR.id = draft.id; DR.kind = 'building'; DR.mode = 'edit'; DR.isNew = true; DR.draft = draft; DR.stack = opts.stack || []; UI.selected = null;
   renderDrawer(); showDrawer(); setTimeout(() => $('#f-number')?.focus(), 80);
 }

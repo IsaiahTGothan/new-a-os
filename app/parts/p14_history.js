@@ -291,6 +291,7 @@ function archivePhotoHTML(a) {
   return `<div class="photo" id="arch-photo" tabindex="0" style="border:1px solid var(--line-2);border-radius:var(--r-2);margin-top:12px" title="Drop or paste a screenshot here">${url ? `<img src="${url}" alt="">` : `<div class="ph">${icon('img')}Drop a screenshot here, paste one (⌘/Ctrl+V), or click to choose</div>`}<div class="acts"><button type="button" class="btn sm" data-act="arch-photo">${icon('img')} ${url ? 'Replace' : 'Add image'}</button></div></div>`;
 }
 function openArchiveModal(id = null, preset = {}) {
+  if (!id && preset.year == null && travelDate()) preset = { ...preset, year: travelDate().year };
   const src = id ? archiveById(id) : null;
   const a = src ? JSON.parse(JSON.stringify(src)) : Object.assign(newArchiveEntry(preset.year, preset.districtId ?? (UI.scope.kind === 'district' ? UI.scope.id : UI.scope.kind === 'hood' ? hoodById(UI.scope.id)?.districtId : null)), preset);
   ARCH.editing = a; ARCH.viewing = null;

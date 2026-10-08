@@ -60,9 +60,11 @@ function renderStatus() {
   const v = $('#st-vault'), vt = $('#st-vault-t');
   if (VAULT.status === 'granted') { v.className = ''; vt.textContent = `vault · ${VAULT.name}${VAULT.lastWrite ? ' · ' + fmtTime(VAULT.lastWrite) : ''}`; }
   else if (typeof OS !== 'undefined' && OS.online && OS.status?.vaultOk) { if (OS.vaultHold) { v.className = 'warn'; vt.innerHTML = `vault · <button data-act="os-open" style="color:var(--warn)">newer copy in the folder (${OS.vaultHold.buildings} buildings) — load or overwrite</button>`; } else if (OS.vaultError) { v.className = 'warn'; vt.innerHTML = `vault · <button data-act="os-open" style="color:var(--warn)">bridge write failed — ${esc(truncate(OS.vaultError, 40))}</button>`; } else { v.className = ''; vt.textContent = `vault · via OS bridge${OS.lastVaultWrite ? ' · ' + fmtTime(OS.lastVaultWrite) : ''}`; } }
+  else if (VAULT.status === 'missing') { v.className = 'warn'; vt.innerHTML = `vault · <span style="color:var(--warn)" title="The folder or its drive is not there. Edits are kept in this browser and written to the folder as soon as it is back.">${esc(VAULT.name)} not found — waiting for it</span>`; }
   else if (VAULT.status === 'prompt') { v.className = 'warn'; vt.innerHTML = `vault · <button data-act="vault-reconnect" style="color:var(--warn)">reconnect ${esc(VAULT.name)}</button>`; }
   else if (VAULT.status === 'unsupported') { v.className = 'off'; vt.textContent = 'vault · unsupported browser (use backups)'; }
   else { v.className = 'off'; vt.innerHTML = `vault · <button data-act="vault-link">link a folder</button>`; }
+  if (typeof renderWhenChip === 'function') renderWhenChip();
   const photos = imageOwners().filter(b => b.image).length;
   $('#st-counts').textContent = `${activeBuildings().length} active · ${histBuildings().length} historical · ${S.regions.length} regions · ${S.districts.length} districts · ${S.roads.length} roads · ${S.lines.length} lines · ${S.businesses.length} businesses · ${S.archive.length} chronicle · ${photos} photos`;
   const iss = $('#st-issues'); if (iss) { const n = allIssues().length; iss.textContent = n ? `◆ ${n} issue${n === 1 ? '' : 's'}` : '◆ no issues'; iss.style.color = n ? 'var(--warn)' : ''; }

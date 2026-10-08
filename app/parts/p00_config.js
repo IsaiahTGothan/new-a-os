@@ -7,7 +7,7 @@
 /* =====================================================================
    §0  CONFIG
    ===================================================================== */
-const APP = { name: 'New A OS', version: '3.2.0', schema: 4, site: 'zays.us/new-a', newsSite: 'https://newa-site.vercel.app', feedUrl: 'https://newa-site.vercel.app/feed.xml', marketsUrl: 'https://newa-site.vercel.app/api/markets' };
+const APP = { name: 'New A OS', version: '3.2.1', schema: 4, site: 'zays.us/new-a', newsSite: 'https://newa-site.vercel.app', feedUrl: 'https://newa-site.vercel.app/feed.xml', marketsUrl: 'https://newa-site.vercel.app/api/markets' };
 const FOUNDED_YEAR = 2013;                       // Jan 27, 2013 — the timeline starts here
 const CURRENT_YEAR = new Date().getFullYear();   // the "present" end of the timeline
 const CURRENT_HALF = new Date().getMonth() < 6 ? 'E' : 'L';

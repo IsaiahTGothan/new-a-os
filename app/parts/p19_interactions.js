@@ -35,7 +35,8 @@ document.addEventListener('click', async e => {
   const act = t.dataset.act; if (!act) return;
   if (act.startsWith('insp-')) { inspectorAction(act, t); return; }
   if (act.startsWith('per-')) { shapeTimelineAction(act, t); return; }
-  if (act === 'map-when-step') { const base = MAPW.when ?? hyIndex(CURRENT_YEAR, CURRENT_HALF); setMapWhen(base + (+t.dataset.dir)); return; }
+  if (act === 'tw-toggle') { toggleTimeWidget(); return; }
+  if (act === 'map-when-step') { const base = MAPW.when ?? presentIdx(); setMapWhen(base + (+t.dataset.dir)); return; }
   if (act === 'map-when-clear') { setMapWhen(null); return; }
   switch (act) {
     // creation
@@ -351,7 +352,7 @@ document.addEventListener('keydown', e => {
     if (k === 'Backspace' && MAPW.draft) { e.preventDefault(); mapDraftUndo(); return; }
     if ((k === 'Delete' || k === 'Backspace') && MAPW.sel?.vertex != null) { e.preventDefault(); deleteSelectedVertex(); return; }
     if ((k === 't' || k === 'T') && MAPW.mode === 'transit') { MAPW.stopMode = !MAPW.stopMode; renderMapInstr(); toast(MAPW.stopMode ? 'Every click places a stop' : 'Clicks place track points (Alt-click for a stop)', ''); return; }
-    if ((k === '[' || k === ']') && MAPW.edit) { e.preventDefault(); setMapWhen((MAPW.when ?? hyIndex(CURRENT_YEAR, CURRENT_HALF)) + (k === ']' ? 1 : -1)); return; }
+    if (k === '[' || k === ']') { e.preventDefault(); setMapWhen((MAPW.when ?? presentIdx()) + (k === ']' ? 1 : -1)); return; }
     const modeKey = { s: 'select', p: 'pan', b: 'border', d: 'road', l: 'transit', x: 'station', a: 'place' }[k.toLowerCase()];
     if (modeKey && !e.shiftKey && MAPW.edit) { if (MAPW.draft?.pts?.length && modeKey !== MAPW.mode) { toast('Finish the drawing (Enter) or cancel it (Esc) first', 'warn'); return; } setMapMode(modeKey); return; }
     if ((k === 'e' || k === 'E') && !DR.id) { setMapEdit(!MAPW.edit); return; }

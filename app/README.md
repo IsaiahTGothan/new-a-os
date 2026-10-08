@@ -4,7 +4,7 @@
 
 ```
 python3 build.py        # rebuild
-node test.js            # 272 checks in headless Chromium on the real schema-2 data (sections A–U), ~4 min
+node test.js            # 282 checks in headless Chromium on the real schema-2 data (sections A–V), ~4 min
 node smoke.js           # every page, tab and modal; prints "[view] errors: N", 0 expected everywhere
 node shots-resp.js      # responsive screenshots at 1024 and 390 px
 ```
