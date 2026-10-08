@@ -59,7 +59,7 @@ function renderRoadEditor(r) {
       <div class="f"><label>Unnamed</label><label class="switch"><input type="checkbox" id="f-unnamed" ${r.unnamed ? 'checked' : ''}> <span class="muted" style="font-size:12px">shown by number</span></label></div>
     </div></div>
     <div class="fsect"><h4>KIND</h4><div class="frow c3">
-      ${fld('type', 'Type', selF('type', ROAD_TYPES, r.type))}${fld('grade', 'Grade', selF('grade', GRADES, r.grade), 'bridges & tunnels never form junctions with surface roads')}${fld('direction', 'Access', selF('direction', DIRECTIONS, r.direction))}
+      ${fld('type', 'Type', selF('type', ROAD_TYPES, r.type))}${fld('grade', 'Grade', selF('grade', GRADES, r.grade), 'a bridge or tunnel joins the streets it ends on, never the ones it passes over or under')}${fld('direction', 'Access', selF('direction', DIRECTIONS, r.direction))}
       ${fld('oneWayDir', 'One-way runs', selF('oneWayDir', ONEWAY_DIRS, r.oneWayDir === -1 ? -1 : 1), 'only for one-way roads · the map shows faint arrows')}
       ${fld('width', 'Width', numF('width', r.width, 'min="1" step="1"'), 'blocks')}${fld('surface', 'Surface', inpF('surface', r.surface, 'placeholder="stone bricks, asphalt…"'))}
     </div></div>

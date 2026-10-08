@@ -601,3 +601,7 @@ details.fsect.dimmed{ opacity:.7; }
   #status #st-vault-t, #status #st-os-t{ display:block; max-width:120px; overflow:hidden; text-overflow:ellipsis; }
   .st-when .xl{ display:none; }
 }
+/* ---- 3.5.1: the note on the map when no train is out ---- */
+.trains-note{ position:absolute; left:14px; top:68px; z-index:4; padding:4px 9px; border-radius:6px; background:rgba(5,9,13,.82); border:1px solid var(--line-2); font-family:var(--font-mono); font-size:10.5px; color:var(--ink-2); pointer-events:none; max-width:calc(100% - 28px); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.mapws.edit .trains-note{ top:auto; bottom:56px; left:12px; }
+@media (max-width:760px){ .trains-note{ top:auto; bottom:64px; left:12px; right:60px; max-width:none; } .mapws.edit .trains-note{ bottom:56px; right:auto; } }

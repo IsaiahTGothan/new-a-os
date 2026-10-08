@@ -155,7 +155,9 @@ function roadGraph() {
   for (const r of roads) {
     const g = r.geometry; const cum = [0]; for (let i = 1; i < g.length; i++) cum[i] = cum[i - 1] + dist2(g[i - 1], g[i]);
     const marks = g.map((p, i) => ({ s: cum[i], key: nodeKey(p), p }));
-    for (const j of js) { if (j.a !== r.id && j.b !== r.id) continue; const c = polylineClosest([j.x, j.z], g); if (!c || c.d > 2) continue; const s = cum[c.i] + c.t * dist2(g[c.i], g[c.i + 1]); const jp = [j.x, j.z]; marks.push({ s, key: nodeKey(jp), p: jp }); }
+    for (const j of js) { if (j.a !== r.id && j.b !== r.id) continue; const jp = [j.x, j.z]; const c = polylineClosest(jp, g); if (!c) continue; let s;
+      if (c.d <= 2) s = cum[c.i] + c.t * dist2(g[c.i], g[c.i + 1]); else if (j.ends || j.endOf === r.id) s = dist2(jp, g[0]) <= dist2(jp, g[g.length - 1]) ? 0 : cum[cum.length - 1]; else continue;   // a landing: the junction sits at this road's end, a few blocks off its centreline
+      marks.push({ s, key: nodeKey(jp), p: jp }); }
     marks.sort((a, b) => a.s - b.s);
     const chain = []; for (const m of marks) { if (chain.length && chain[chain.length - 1].key === m.key) continue; chain.push(m); }
     for (let i = 0; i < chain.length; i++) { const n = node(chain[i].p, chain[i].key); if (i) link(node(chain[i - 1].p, chain[i - 1].key), n, chain[i].s - chain[i - 1].s, r.id); }

@@ -46,7 +46,29 @@ function lineTrains(l, nowMin = nowMinutes()) {
       out.push({ l, dir, ...pos, dwell: false, at: null, next: b.s, frac: (t + local) / total });
     }
   }
+  // between runs a train waits at each end of the line: it came in from the other direction and leaves on the next departure
+  for (const dir of [1, -1]) {
+    const term = dir === 1 ? chain[0] : chain[chain.length - 1], nxt = dir === 1 ? chain[1] : chain[chain.length - 2];
+    const deps = lineDepartures(l, dir, { nowMin, from: -1440, to: 1440 }); const nextDep = deps.find(d => d > nowMin); if (nextDep == null) continue;
+    if (!lineInService(l, nowMin) && nextDep - nowMin > 1.5) continue;                    // stabled out of hours: nothing to show until just before the first run
+    const arrivals = lineDepartures(l, -dir, { nowMin, from: -1440, to: 0 }).map(d => d + total / 60).filter(a => a < nowMin); const lastArr = arrivals.length ? arrivals[arrivals.length - 1] : null;
+    const stillHere = lastArr != null && !deps.some(d => d > lastArr && d <= nowMin);   // the train that came in has not gone out again
+    if (!stillHere && nextDep - nowMin > 1.5) continue;                                 // otherwise one is brought out shortly before its run
+    out.push({ l, dir, x: term.pt[0], z: term.pt[1], ang: Math.atan2(nxt.pt[1] - term.pt[1], nxt.pt[0] - term.pt[0]), dwell: true, layover: true, at: term.s, next: nxt.s, frac: dir === 1 ? 0 : 1, leaves: nextDep });
+  }
   return out;
+}
+/* is the line running at this minute of the day (its status and hours)? */
+function lineInService(l, nowMin = nowMinutes()) { if (!['open', 'partial'].includes(l.status || 'open')) return false; const h = (((nowMin % 1440) + 1440) % 1440) / 60; return hoursWindows(l.hours || '', l).some(([a, b]) => h >= a && h < b); }
+/* why there is nothing to see — shown on the map while the Trains layer is on and no train is out */
+function trainsNote(nowMin = nowMinutes(), trains = liveTrains(nowMin)) {
+  if (trains.length) return '';
+  const lines = S.lines.filter(l => ['open', 'partial'].includes(l.status || 'open') && lineStopChain(l).filter(c => c.pt).length >= 2); if (!lines.length) return '';
+  let next = null; for (const l of lines) for (const dir of [1, -1]) { const d = lineDepartures(l, dir, { nowMin, from: 0, to: 1440 })[0]; if (d != null && (next == null || d < next.at)) next = { at: d, l }; }
+  if (!next) return 'No trains — no line has service hours that run';
+  const t = ((next.at % 1440) + 1440) % 1440; const clock = `${String(Math.floor(t / 60)).padStart(2, '0')}:${String(Math.floor(t % 60)).padStart(2, '0')}`;
+  const hl = l => l.hours === 'custom' ? hoursLabel('custom', l) : (SERVICE_HOURS.find(x => x[0] === (l.hours || ''))?.[1] || 'Regular hours');
+  return lines.some(l => lineInService(l, nowMin)) ? `Trains: next leaves ${clock} · ${lineLabel(next.l)}` : `No trains now · ${lines.length === 1 ? hl(lines[0]) : 'outside service hours'} · next ${clock} ${lineLabel(next.l)}`;
 }
 function liveTrains(nowMin = nowMinutes()) { const out = []; for (const l of S.lines) out.push(...lineTrains(l, nowMin)); return out; }
 /* draw them: a rounded car in the line colour, nose first; a dwelling train sits on its station with a soft pulse */
@@ -64,7 +86,7 @@ function drawTrains(ctx, P, k, trains) {
   }
 }
 /* the loop: redraw the map while trains are on it (only on the live map, only while it is on screen) */
-function trainsRunning() { return UI.nav === 'map' && MAPW.mounted && UI.layers.trains !== false && MAPW.when == null && !document.hidden && motionOn() && S.lines.some(l => ['open', 'partial'].includes(l.status || 'open') && (l.stopIds || []).length >= 2); }
+function trainsRunning() { return UI.nav === 'map' && MAPW.mounted && UI.layers.trains !== false && MAPW.when == null && !document.hidden && motionOn() && S.lines.some(l => lineInService(l) && (l.stopIds || []).length >= 2); }   // outside every line's hours the loop sleeps (re-checked every 2.5 s)
 function trainsLoop() {
   if (MAPW.trainRaf) cancelAnimationFrame(MAPW.trainRaf); if (MAPW.trainTimer) clearTimeout(MAPW.trainTimer); MAPW.trainTimer = null;
   let last = 0;
@@ -77,5 +99,5 @@ function lineStripHTML(l) {
   const chain = lineStopChain(l).filter(c => c.pt); if (chain.length < 2) return '';
   const tt = lineTimetable(l); const byId = new Map(tt.map(r => [r.s.id, r.t])); const total = tt[tt.length - 1]?.t || 1; if (!total) return '';
   const trains = lineTrains(l);
-  return `<div class="lstrip" style="--c:${esc(l.color || '#B99CFF')}" title="${trains.length} train${trains.length === 1 ? '' : 's'} on the line right now">${chain.map(c => `<i class="tick" style="left:${((byId.get(c.s.id) ?? 0) / total * 100).toFixed(1)}%" title="${esc(c.s.name || c.s.reg)}"></i>`).join('')}${trains.map(tr => `<b class="tr ${tr.dir === 1 ? 'f' : 'r'} ${tr.dwell ? 'dw' : ''}" style="left:${(tr.frac * 100).toFixed(1)}%" title="${tr.dwell ? 'at ' + esc(tr.at?.name || tr.at?.reg || '') : 'to ' + esc(tr.next?.name || tr.next?.reg || '')}"></b>`).join('')}</div>`;
+  return `<div class="lstrip" style="--c:${esc(l.color || '#B99CFF')}" title="${trains.length} train${trains.length === 1 ? '' : 's'} on the line right now">${chain.map(c => `<i class="tick" style="left:${((byId.get(c.s.id) ?? 0) / total * 100).toFixed(1)}%" title="${esc(c.s.name || c.s.reg)}"></i>`).join('')}${trains.map(tr => `<b class="tr ${tr.dir === 1 ? 'f' : 'r'} ${tr.dwell ? 'dw' : ''}" style="left:${(tr.frac * 100).toFixed(1)}%" title="${tr.layover ? 'waiting at ' + esc(tr.at?.name || tr.at?.reg || '') : tr.dwell ? 'at ' + esc(tr.at?.name || tr.at?.reg || '') : 'to ' + esc(tr.next?.name || tr.next?.reg || '')}"></b>`).join('')}</div>`;
 }

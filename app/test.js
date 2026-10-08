@@ -1069,6 +1069,40 @@ const FEED = (extra = '') => `<?xml version="1.0"?><rss version="2.0"><channel><
   noErrors('audit fixes (phone)');
   await page.evaluate(fx => { if (fx.line) { S.lines = S.lines.filter(l => l.id !== fx.line.l); S.tracks = S.tracks.filter(t => t.id !== fx.line.t); S.stations = S.stations.filter(s => !fx.line.s.includes(s.id)); } if (fx.road) S.roads = S.roads.filter(r => r.id !== fx.road); commit(); JUNCTION_CACHE.key = ''; ROAD_GRAPH.key = ''; }, fxX);
 
+  // ---------- Y · 3.5.1: bridges land on streets · decks drawn on top · trains lay over at terminals · a note when none run ----------
+  console.log('\nY · 3.5.1 — bridge landings join streets, layover trains, the no-trains note');
+  await page.evaluate(() => { closeModal(); closeDrawer(true); setMapWhen(null); setNav('map'); setMapEdit(true); setMapMode('select'); }); await page.waitForTimeout(300);
+  const brT = await page.evaluate(() => {
+    const mk = (name, pts, grade, width = 8) => { const r = newRoad(S); r.name = name; r.geometry = pts; r.grade = grade; r.width = width; r.direction = 'two-way'; S.roads.push(r); return r; };
+    const st = mk('Y Shore Street', [[50000, 50000], [50400, 50000]], 'surface'), far = mk('Y Far Street', [[50000, 49500], [50400, 49500]], 'surface');
+    const br = mk('Y Bridge', [[50200, 50004], [50200, 49496]], 'bridge', 10);                  // lands 4 blocks off each street's centreline — inside its paved width
+    const mid = mk('Y Mid Street', [[50100, 49750], [50300, 49750]], 'surface');                  // passes under the bridge mid-span
+    commit(); JUNCTION_CACHE.key = ''; ROAD_GRAPH.key = '';
+    const js = roadJunctions(); const of = (a, b) => js.filter(j => (j.a === a.id && j.b === b.id) || (j.a === b.id && j.b === a.id));
+    const landings = [of(br, st), of(br, far)].map(x => x.map(j => j.kind + (j.endOf === br.id ? '/end' : '') + (j.landing ? '/landing' : '')).join());
+    const cross = of(br, mid).map(j => j.kind).join(); const conns = roadConnections(br, js).length;
+    const route = routeBetween({ kind: 'point', pt: [50050, 50001] }, { kind: 'point', pt: [50350, 49499] }, 'drive'); const walk = routeBetween({ kind: 'point', pt: [50050, 50001] }, { kind: 'point', pt: [50350, 49499] }, 'walk');
+    MAPW.cam = { x: 50200, z: 49750, k: 1.2 }; mapDraw(); const order = [...S.roads].sort((a, b) => (GRADE_ORDER[a.grade || 'surface'] ?? 1) - (GRADE_ORDER[b.grade || 'surface'] ?? 1)); const deckLast = order.indexOf(br) > order.indexOf(mid);
+    return { landings, cross, conns, dist: route ? Math.round(route.dist) : null, straight: route?.straight, walkDist: walk ? Math.round(walk.dist) : null, deckLast, ids: [st.id, far.id, br.id, mid.id] };
+  });
+  ok(brT.landings.every(x => x === 'joins/end/landing') && brT.cross === 'separated' && brT.conns === 2, `a bridge joins the two streets it lands on (${brT.landings.join(' | ')}) and stays separated from the street it crosses mid-span (${brT.cross}); ${brT.conns} connections`);
+  ok(brT.dist != null && brT.dist >= 780 && brT.dist <= 840 && brT.straight !== true && brT.walkDist === brT.dist, `driving and walking from one shore to the other use the bridge (${brT.dist} blk along the roads — the only way across)`);
+  ok(brT.deckLast, 'the deck is drawn after the street it passes over, so it sits on top');
+  const lyT = await page.evaluate(() => {
+    const t = newTrack(S); t.geometry = [[52000, 52000], [52400, 52000]]; S.tracks.push(t); const l = newLine(S); l.name = 'Y Layover Line'; l.shortName = 'Y'; l.trackIds = [t.id]; l.hours = 'custom'; l.hoursFrom = 6; l.hoursTo = 7; S.lines.push(l);
+    const a = newStationAt([52000, 52000]), b = newStationAt([52400, 52000]); addStopOrdered(l, a.id); addStopOrdered(l, b.id); commit();
+    let dead = 0, lay = 0, moving = 0, samples = 0; for (let m = 6 * 60 + 5; m < 7 * 60; m += 0.25) { const tr = lineTrains(l, m); samples++; if (!tr.length) dead++; if (tr.some(x => x.layover)) lay++; if (tr.some(x => !x.dwell)) moving++; }
+    const atTerm = lineTrains(l, 6 * 60 + 30).filter(x => x.layover).every(x => (x.x === 52000 || x.x === 52400) && x.z === 52000);
+    const others = S.lines; S.lines = [l]; const night = { n: lineTrains(l, 180).length, note: trainsNote(180, []), svc: [lineInService(l, 180), lineInService(l, 6 * 60 + 30)] }; S.lines = others;   // the note for this line alone (other lines on file may run at night)
+    const day = trainsNote(6 * 60 + 30, lineTrains(l, 6 * 60 + 30)); const noteEl = !!$('#trains-note'); const strip = lineStripHTML(l).includes('class="tr');
+    S.lines = S.lines.filter(x => x.id !== l.id); S.tracks = S.tracks.filter(x => x.id !== t.id); S.stations = S.stations.filter(s => s.id !== a.id && s.id !== b.id); commit();
+    return { samples, dead, lay, moving, atTerm, night, day, noteEl, strip };
+  });
+  ok(lyT.dead === 0 && lyT.lay > 0 && lyT.moving > 0 && lyT.atTerm, `during service a line never looks empty: ${lyT.samples} samples 06:05–07:00, ${lyT.dead} without a train, ${lyT.lay} with one laying over at a terminal, ${lyT.moving} with one moving`);
+  ok(lyT.night.n === 0 && !lyT.night.svc[0] && lyT.night.svc[1] && /^No trains now/.test(lyT.night.note) && /next 0[56]:\d\d/.test(lyT.night.note) && lyT.day === '' && lyT.noteEl, `out of hours there are no trains and the map note says why and when the next one leaves ("${lyT.night.note}")`);
+  await page.evaluate(ids => { S.roads = S.roads.filter(r => !ids.includes(r.id)); commit(); JUNCTION_CACHE.key = ''; ROAD_GRAPH.key = ''; setMapEdit(false); }, brT.ids);
+  noErrors('bridge landings, layover trains');
+
   await ctx.close(); await browser.close();
   console.log(`\n${checks - failures}/${checks} checks passed${failures ? ` · ${failures} FAILED` : ''}`);
   process.exit(failures ? 1 : 0);

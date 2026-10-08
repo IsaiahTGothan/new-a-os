@@ -20,6 +20,7 @@ const MODES = [
   { id: 'station', label: 'Station', icon: 'station', key: 'X', hint: 'Click on a track: the station joins every line running there (a transfer where lines meet) and slots in at the right place along each line' },
   { id: 'place', label: 'Place building', icon: 'bldg', key: 'A', hint: 'Click the building\'s position · its borough and neighborhood are suggested, never assumed' },
 ];
+const GRADE_ORDER = { tunnel: 0, surface: 1, elevated: 2, bridge: 3 };   // drawing order: what is above is drawn later
 const MODE_COLOR = { border: 'var(--region)', road: 'var(--road)', transit: 'var(--transit)', station: 'var(--transit)', place: 'var(--amber)', footprint: 'var(--cyan)' };
 const projFor = (cam, W, H) => ({ s: (x, z) => [(x - cam.x) * cam.k + W / 2, (z - cam.z) * cam.k + H / 2], w: (sx, sy) => [(sx - W / 2) / cam.k + cam.x, (sy - H / 2) / cam.k + cam.z] });
 const w2s = (x, z) => projFor(MAPW.cam, MAPW.w, MAPW.h).s(x, z);
@@ -34,6 +35,7 @@ function renderMapWorkspace() {
       ${timeWidgetHTML()}
       <div class="map-tools" role="toolbar" aria-label="Map modes">${MODES.map((m, i) => `${i === 2 ? '<div class="sep"></div>' : ''}<button data-mode="${m.id}" aria-pressed="${MAPW.mode === m.id}" title="${esc(m.label)} (${m.key}) — ${esc(m.hint)}">${icon(m.icon)}<kbd>${m.key}</kbd></button>`).join('')}<div class="sep"></div><button data-act="map-undo" title="Undo (⌘/Ctrl+Z)" ${MAPW.undo.length ? '' : 'disabled'}>${icon('undo')}</button><button data-act="map-redo" title="Redo (⌘/Ctrl+Shift+Z)" ${MAPW.redo.length ? '' : 'disabled'}>${icon('redo')}</button></div>
       <div id="map-instr"></div>
+      <div id="trains-note" class="trains-note" hidden></div>
       <div class="map-search"><div class="search" role="search">${icon('search')}<input id="map-q" placeholder="Find anything, or go to X, Z…" autocomplete="off" spellcheck="false" aria-label="Search the map"><div id="map-palette" class="palette" hidden></div></div><button class="btn icon" data-act="map-dock-toggle" title="${MAPW.dockOpen ? 'Hide' : 'Show'} the side panel">${icon('layers')}</button></div>
       <div class="map-hud">
         <div class="grp"><button data-act="map-fit" title="Fit everything in scope">${icon('fit')}</button><button data-act="map-fit-sel" title="Fit the selection" ${MAPW.sel ? '' : 'disabled'}>${icon('expand')}</button><button data-act="map-zoom" data-dir="1" title="Zoom in">${icon('zoomin')}</button><button data-act="map-zoom" data-dir="-1" title="Zoom out">${icon('zoomout')}</button></div>
@@ -381,6 +383,8 @@ function drawScene(R) {
   const onScreen = (pts) => { const b = bboxOf(pts); if (!b) return false; const [ax, ay] = P.s(b.x1, b.z1), [bx, by] = P.s(b.x2, b.z2); return !(bx < -40 || ax > W + 40 || by < -40 || ay > H + 40); };
   const tracePoly = pts => { ctx.beginPath(); pts.forEach((pt, i) => { const [x, y] = P.s(pt[0], pt[1]); i ? ctx.lineTo(x, y) : ctx.moveTo(x, y); }); ctx.closePath(); };
   const tracePath = pts => { ctx.beginPath(); pts.forEach((pt, i) => { const [x, y] = P.s(pt[0], pt[1]); i ? ctx.lineTo(x, y) : ctx.moveTo(x, y); }); };
+  /* the same path with its first and last segments shortened by inset px — a bridge deck's edge stops short of where it lands */
+  const traceTrimmed = (pts, inset) => { const sp = pts.map(pt => P.s(pt[0], pt[1])); const trim = (p, q) => { const d = Math.hypot(q[0] - p[0], q[1] - p[1]); const t = Math.min(inset, d / 2) / (d || 1); return [p[0] + (q[0] - p[0]) * t, p[1] + (q[1] - p[1]) * t]; }; if (sp.length >= 2) { sp[0] = trim(sp[0], sp[1]); sp[sp.length - 1] = trim(sp[sp.length - 1], sp[sp.length - 2]); } ctx.beginPath(); sp.forEach(([x, y], i) => i ? ctx.lineTo(x, y) : ctx.moveTo(x, y)); };
   const isSel = (kind, id) => sel && sel.kind === kind && sel.id === id, isHov = (kind, id) => hov && hov.kind === kind && hov.id === id;
   const regionVisibleAt = r => hy == null || r.effectiveYear == null || hyIndex(num(r.effectiveYear), r.effectiveHalf) <= hy;
   // polygons: regions › districts › hoods
@@ -403,7 +407,7 @@ function drawScene(R) {
   // roads — in playback the dated shape in force, extensions growing in; removed roads fade as remnants
   const pos = R.pos ?? null, fx = R.fx && R.fx.t < 1 ? R.fx : null; const inFx = i => fx && i != null && i > fx.from && i <= fx.to;
   if (L.roads) {
-    const roads = R.roads || visibleRoads();
+    const roads = [...(R.roads || visibleRoads())].sort((a, b) => (GRADE_ORDER[a.grade || 'surface'] ?? 1) - (GRADE_ORDER[b.grade || 'surface'] ?? 1));
     for (const r of roads) {
       let geom = r.geometry, width = r.width, alpha = 1, dashed = false, ghost = null;
       if (hy != null) {
@@ -416,9 +420,9 @@ function drawScene(R) {
       if (!geom || geom.length < 2 || !onScreen(geom)) continue;
       const s = isSel('road', r.id), h = isHov('road', r.id), hl = R.highlight?.ids?.has(r.id);
       const wpx = Math.max(1.5, (num(width) || 5) * k); const col = ROAD_COLORS[r.type] || ROAD_COLORS.other; const g = r.grade || 'surface';
-      ctx.lineJoin = 'round'; ctx.lineCap = g === 'bridge' || g === 'elevated' ? 'butt' : 'round';
+      ctx.lineJoin = 'round'; ctx.lineCap = 'round';
       if (ghost && ghost.alpha > 0.02) { tracePath(ghost.geometry); ctx.lineWidth = wpx; ctx.strokeStyle = hexA(col, .5 * ghost.alpha); ctx.setLineDash([6, 6]); ctx.stroke(); ctx.setLineDash([]); }
-      if (g === 'bridge' || g === 'elevated') { tracePath(geom); ctx.lineWidth = wpx + 4; ctx.strokeStyle = hexA('#E0C63A', .55 * alpha); ctx.setLineDash([]); ctx.stroke(); }
+      if (g === 'bridge' || g === 'elevated') { ctx.lineCap = 'butt'; traceTrimmed(geom, wpx * .8 + 2); ctx.lineWidth = wpx + 4; ctx.strokeStyle = hexA('#E0C63A', .55 * alpha); ctx.setLineDash([]); ctx.stroke(); ctx.lineCap = 'round'; }   // the deck's edge stops short of each end, so the roadway merges into the street it lands on
       tracePath(geom); ctx.lineWidth = s || hl ? wpx + 3 : wpx; ctx.strokeStyle = s || hl ? '#FFFFFF' : hexA(h ? '#DCE9F0' : col, alpha); ctx.setLineDash(g === 'tunnel' ? [8, 6] : dashed ? [6, 6] : []); ctx.stroke(); ctx.setLineDash([]);
       if (s || hl) { tracePath(geom); ctx.lineWidth = Math.max(1, wpx - 1); ctx.strokeStyle = hexA(col, alpha); ctx.stroke(); }
       // one-way: very faint chevrons along the road so the way is always there to see; bright and labelled while hovered or selected
@@ -561,7 +565,9 @@ function drawScene(R) {
 }
 function mapDraw() {
   if (!MAPW.ctx || UI.nav !== 'map') return;
-  drawScene({ ctx: MAPW.ctx, W: MAPW.w, H: MAPW.h, cam: MAPW.cam, layers: UI.layers, hy: mapWhen(), refOverlay: MAPW.edit && mapWhen() != null, trains: UI.layers.transit && UI.layers.trains !== false && mapWhen() == null ? liveTrains() : null, sel: MAPW.sel, hover: MAPW.hover, draft: MAPW.draft, handles: MAPW.edit && MAPW.mode === 'select', highlight: MAPW.highlight, preview: MAPW.preview, marker: MAPW.marker, showJunctions: MAPW.edit && MAPW.junctions, connector: MAPW.edit ? inspectorConnector() : null, cursorMark: ['station', 'place'].includes(MAPW.mode) && MAPW.pointer ? snapPoint(MAPW.pointer).p : null, districts: visibleDistricts(), hoods: visibleHoods(), route: MAPW.route, halo: !MAPW.edit });
+  MAPW.trainsNow = UI.layers.transit && UI.layers.trains !== false && mapWhen() == null ? liveTrains() : null;
+  drawScene({ ctx: MAPW.ctx, W: MAPW.w, H: MAPW.h, cam: MAPW.cam, layers: UI.layers, hy: mapWhen(), refOverlay: MAPW.edit && mapWhen() != null, trains: MAPW.trainsNow, sel: MAPW.sel, hover: MAPW.hover, draft: MAPW.draft, handles: MAPW.edit && MAPW.mode === 'select', highlight: MAPW.highlight, preview: MAPW.preview, marker: MAPW.marker, showJunctions: MAPW.edit && MAPW.junctions, connector: MAPW.edit ? inspectorConnector() : null, cursorMark: ['station', 'place'].includes(MAPW.mode) && MAPW.pointer ? snapPoint(MAPW.pointer).p : null, districts: visibleDistricts(), hoods: visibleHoods(), route: MAPW.route, halo: !MAPW.edit });
+  { const note = $('#trains-note'); if (note) { const txt = MAPW.trainsNow && !MAPW.trainsNow.length ? trainsNote(nowMinutes(), MAPW.trainsNow) : ''; if (note.textContent !== txt) note.textContent = txt; note.hidden = !txt; } }   // why no train is out, when none is
   if (!MAPW.edit) { const zt = $('#gm-coord'); if (zt && MAPW.pointer) zt.innerHTML = `X <b>${Math.round(MAPW.pointer[0])}</b> · Z <b>${Math.round(MAPW.pointer[1])}</b>`; }
   const step = GRID_STEPS.find(s => s * MAPW.cam.k >= 70) || 10000; document.querySelectorAll('[id=map-scale-t]').forEach(t => t.textContent = `${step} blocks`); document.querySelectorAll('[id=map-scale-i]').forEach(i => i.style.setProperty('--w', (step * MAPW.cam.k) + 'px'));
   const zt = $('#map-zoom-t'); if (zt) zt.textContent = `${MAPW.cam.k.toFixed(2)} px/blk`;
@@ -624,7 +630,7 @@ function renderInspector() {
     const j = sel.j; if (!j) return ''; const A = roadById(j.a), B = roadById(j.b);
     return `<div class="dock-hd" style="--c:var(--road)"><div><div class="kind">${j.kind === 'joins' ? 'JOIN' : 'JUNCTION'}</div><h3>${esc(roadLabel(A || {}))} × ${esc(roadLabel(B || {}))}</h3><div class="sub">X ${Math.round(j.x)} · Z ${Math.round(j.z)} · ${j.kind === 'joins' ? 'an end of one road meets the other' : 'the two roads cross at the same grade'}</div></div></div>
     <div class="chips" style="margin:10px 0 0">${[A, B].filter(Boolean).map(o => `<span class="rchip" data-act="insp-select" data-kind="road" data-id="${o.id}" role="button"><span class="k">${esc(GRADE_LABEL[o.grade] || o.grade).toUpperCase()}</span><span class="t">${esc(roadLabel(o))}</span></span>`).join('')}</div>
-    <div class="desc-line" style="margin-top:10px">A crossing between different grades (bridge or tunnel over a surface road) is drawn as a dashed ring and is not a junction.</div>`;
+    <div class="desc-line" style="margin-top:10px">A bridge or tunnel joins the street it ends on (its landing); where it passes over or under a street there is no junction — that crossing is drawn as a dashed ring.</div>`;
   }
   // region / district / hood
   const node = nodeById(sel.id); if (!node) return ''; const kind = sel.kind; const polys = node.polygons || []; const issues = polygonIssues(polys); const overlaps = peerOverlaps(node, kind);

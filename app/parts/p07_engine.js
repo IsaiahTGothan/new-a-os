@@ -68,18 +68,20 @@ function roadJurisdictions(r) {
 }
 function roadRegions(r) { const rs = new Set(); for (const p of r.geometry || []) for (const x of S.regions) if (x.polygons?.length && pointInPolys(p, x.polygons) !== 'out') rs.add(x.id); for (const d of roadJurisdictions(r)) if (d.parentId) rs.add(d.parentId); return [...rs].map(regionById).filter(Boolean); }
 const roadInScope = (r, sc = UI.scope) => { if (!sc || sc.kind === 'all') return true; const ids = scopeDistrictIds(sc); if (roadJurisdictions(r).some(d => ids.has(d.id))) return true; if (sc.kind === 'region') { const reg = regionById(sc.id); if (reg?.polygons?.length && (r.geometry || []).some(p => pointInPolys(p, reg.polygons) !== 'out')) return true; } return !r.geometry?.length && !roadJurisdictions(r).length && (sc.kind === 'region'); };
-/* junctions: shared ends always connect; mid-segment crossings connect only at the same grade */
+/* junctions: shared ends always connect, and a road that ends on another road joins it there (a bridge's landing, a ramp)
+   whatever the grades; mid-segment crossings connect only at the same grade — a bridge or tunnel passing over or under a
+   street is 'separated'. An end counts as touching when it lies inside the other road's paved width (never less than 1.5 blocks). */
 function roadJunctions(roads = S.roads) {
-  const out = []; const bb = roads.map(r => r.geometry?.length ? bboxOf(r.geometry) : null);
-  const near = (a, b) => dist2(a, b) <= 1.5;
+  const out = []; const bb = roads.map(r => r.geometry?.length ? bboxOf(r.geometry) : null); const halfW = r => (num(r.width) || 5) / 2;
   for (let i = 0; i < roads.length; i++) for (let j = i + 1; j < roads.length; j++) {
     const A = roads[i], B = roads[j]; const ba = bb[i], bbj = bb[j]; if (!ba || !bbj) continue;
-    if (ba.x2 < bbj.x1 - 2 || bbj.x2 < ba.x1 - 2 || ba.z2 < bbj.z1 - 2 || bbj.z2 < ba.z1 - 2) continue;
+    const tol = Math.max(1.5, halfW(A) + halfW(B)); const near = (a, b) => dist2(a, b) <= tol;
+    if (ba.x2 < bbj.x1 - tol || bbj.x2 < ba.x1 - tol || ba.z2 < bbj.z1 - tol || bbj.z2 < ba.z1 - tol) continue;
     const ga = A.grade || 'surface', gb = B.grade || 'surface';
     const endsA = [A.geometry[0], A.geometry[A.geometry.length - 1]], endsB = [B.geometry[0], B.geometry[B.geometry.length - 1]];
-    for (const ea of endsA) for (const eb of endsB) if (near(ea, eb)) out.push({ x: (ea[0] + eb[0]) / 2, z: (ea[1] + eb[1]) / 2, a: A.id, b: B.id, kind: 'joins' });
-    for (const ea of endsA) { const c = polylineClosest(ea, B.geometry); if (c && c.d <= 1.5 && !endsB.some(eb => near(ea, eb))) out.push({ x: c.q[0], z: c.q[1], a: A.id, b: B.id, kind: ga === gb ? 'joins' : 'separated' }); }
-    for (const eb of endsB) { const c = polylineClosest(eb, A.geometry); if (c && c.d <= 1.5 && !endsA.some(ea => near(ea, eb))) out.push({ x: c.q[0], z: c.q[1], a: A.id, b: B.id, kind: ga === gb ? 'joins' : 'separated' }); }
+    for (const ea of endsA) for (const eb of endsB) if (near(ea, eb)) out.push({ x: (ea[0] + eb[0]) / 2, z: (ea[1] + eb[1]) / 2, a: A.id, b: B.id, kind: 'joins', ends: true });
+    for (const ea of endsA) { const c = polylineClosest(ea, B.geometry); if (c && c.d <= tol && !endsB.some(eb => near(ea, eb))) out.push({ x: c.q[0], z: c.q[1], a: A.id, b: B.id, kind: 'joins', endOf: A.id, landing: ga !== gb }); }
+    for (const eb of endsB) { const c = polylineClosest(eb, A.geometry); if (c && c.d <= tol && !endsA.some(ea => near(ea, eb))) out.push({ x: c.q[0], z: c.q[1], a: A.id, b: B.id, kind: 'joins', endOf: B.id, landing: ga !== gb }); }
     for (let s = 1; s < A.geometry.length; s++) for (let t = 1; t < B.geometry.length; t++) {
       const p = segIntersect(A.geometry[s - 1], A.geometry[s], B.geometry[t - 1], B.geometry[t], true); if (!p) continue;
       if ([...endsA, ...endsB].some(e => near(e, p))) continue;
