@@ -1922,6 +1922,21 @@ details.fsect.dimmed{ opacity:.7; }
 #drawer .photo.empty{ aspect-ratio:auto; min-height:0; padding:14px 18px; }
 #drawer .photo.empty .ph{ flex-direction:row; gap:10px; font-size:12.5px; }
 #drawer .photo.empty .ph svg{ width:18px; height:18px; }
+/* ---- round-4 audit: compare mode, phone layouts, the status strip ---- */
+.hv-stage.compare .hv-maps{ top:236px; }   /* under pane A's counters */
+@media (max-width:760px){
+  .hv .hv-stage .hv-maps{ top:128px; bottom:auto; left:12px; right:auto; max-width:calc(100% - 24px); }   /* under the date, clear of the layer chips */
+  .hv .hv-layers{ max-width:calc(100% - 24px); }
+  .hv .hv-note{ display:none; }
+  .tw-panel{ width:min(380px, calc(100vw - 72px)); }
+  .map-hud #map-coord, .map-hud #map-scale{ display:none; }
+  #status{ gap:10px; padding:0 10px; overflow-x:auto; scrollbar-width:none; }
+  #status::-webkit-scrollbar{ display:none; }
+  #status .sys, #status #st-counts, #status #st-keys, #status .it:has(#st-idb), #status .it:has(#st-os){ display:none; }
+  #status .st-when{ order:-1; }   /* the time chip first, always on screen */
+  #status #st-vault-t, #status #st-os-t{ display:block; max-width:120px; overflow:hidden; text-overflow:ellipsis; }
+  .st-when .xl{ display:none; }
+}
 
 /* =====================================================================
    SITE LINK — New A OS as the manager of the public site (City Hall link)
@@ -5310,7 +5325,7 @@ function editorListingsHTML(b) {
   return `<div class="rowlist" style="margin:8px 0 0">${ls.map((l, i) => row(l, 'ls', i)).join('')}${tx.map((t, i) => row(t, 'tx', i)).join('')}</div>`;
 }
 /* re-render the editor without losing what has been typed */
-function rerenderEditor() { if (DR.mode !== 'edit') return; readAnyFormInto(DR.draft, false); const top = $('#drawer .dbody')?.scrollTop || 0; renderDrawer(); const body = $('#drawer .dbody'); if (body) body.scrollTop = top; }
+function rerenderEditor({ read = true } = {}) { if (DR.mode !== 'edit') return; if (read) readAnyFormInto(DR.draft, false); const top = $('#drawer .dbody')?.scrollTop || 0; renderDrawer(); const body = $('#drawer .dbody'); if (body) body.scrollTop = top; }
 
 /* searchable code picker for class / zoning */
 function comboHTML(kind, value, attrs) { return `<div class="combo" data-combo="${kind}"><input id="f-${kind}" value="${esc(value || '')}" ${attrs} autocomplete="off" spellcheck="false"><div class="list" role="listbox"></div></div>`; }
@@ -6502,6 +6517,9 @@ function setMapMode(mode, opts = {}) {
   const st = $('#mapstage'); if (st) st.className = `mapstage mode-${mode}${mapWhen() != null ? ' dated' : ''}`;
   renderMapInstr(); mapDraw();
 }
+/* the tool rail and the mode keys: a line left selected after drawing does not get a second track by accident — a new line starts
+   (the inspector's "Add track" and "Extend" buttons keep the selection) */
+function chooseTool(mode) { if (mode === 'transit' && MAPW.sel?.kind === 'line' && !MAPW.draft?.pts?.length) { MAPW.sel = null; if (MAPW.edit) renderDock(); } setMapMode(mode); }
 const borderTargetNode = () => MAPW.borderTarget ? nodeById(MAPW.borderTarget.id) : null;
 function renderMapInstr() {
   const el = $('#map-instr'); if (!el) return; const m = MODES.find(x => x.id === MAPW.mode);
@@ -7256,15 +7274,22 @@ function openHistoryViewer({ index = 0, year = null, half = null } = {}) {
   root.innerHTML = hvHTML(); HV.canvas = $('#hv-canvas'); HV.ctx = HV.canvas.getContext('2d'); HV.canvasB = $('#hv-canvas-b'); HV.ctxB = HV.canvasB ? HV.canvasB.getContext('2d') : null;
   hvResize(); const ext = scopeExtent(); if (ext) { const pad = 50; HV.cam.k = clamp(Math.min((HV.w - pad * 2) / Math.max(120, ext.x2 - ext.x1), (HV.h - pad * 2) / Math.max(120, ext.z2 - ext.z1)), 0.02, 10); HV.cam.x = (ext.x1 + ext.x2) / 2; HV.cam.z = (ext.z1 + ext.z2) / 2; }
   if (HV.camHint) { HV.cam.x = HV.camHint.x; HV.cam.z = HV.camHint.z; HV.cam.k = Math.max(HV.cam.k, 3); HV.camHint = null; }
-  hvWire(); hvUpdateChrome(); hvDraw();
+  loadBasemaps(); hvWire(); hvUpdateChrome(); hvDraw();   // the dated maps may not be loaded yet when playback opens before the Map page
   if (!HV.resizeBound) { window.addEventListener('resize', () => { if (HV.open) { hvResize(); hvDraw(); } }); HV.resizeBound = true; }
 }
 function closeHistoryViewer() { hvPause(); hideHover(); HV.open = false; document.body.classList.remove('hv-open'); const root = $('#hv-root'); root.hidden = true; root.innerHTML = ''; }
-function hvHTML() {
+/* the eras, year ticks and evidence markers under the slider — rebuilt whenever the range changes (projection) or dated maps are added */
+function hvTrackParts() {
   const i1 = HV.i1; const eras = ERAS.filter(e => hyIndex(e.from, 'E') <= i1).map(e => { const a = hyIndex(e.from, 'E'), b = Math.min(i1 + 1, hyIndex(e.to, 'E')); return `<span data-era="${a}" style="flex:${Math.max(1, b - a)} 0 0">${esc(e.name.toUpperCase())}</span>`; }).join('');
   const ticks = []; for (let y = FOUNDED_YEAR; y <= hyFromIndex(i1).year; y++) ticks.push(`<span data-i="${hyIndex(y, 'E')}">${(hyFromIndex(i1).year - FOUNDED_YEAR) > 8 && (y - FOUNDED_YEAR) % 2 ? '' : y}</span>`);
-  const L = HV.layers; const K = HV.filter.kinds; const dists = scopeDistricts(); const ev = hvEvidence();
+  const ev = hvEvidence();
   const evid = [...ev.entries()].map(([i, e]) => `<span class="evd ${e.maps ? 'maps' : ''} ${e.world ? 'world' : ''}" style="left:${(i / Math.max(1, i1) * 100).toFixed(2)}%" title="${esc(hyLabel(...Object.values(hyFromIndex(i))))}: ${[e.chron ? `${e.chron} chronicle image${e.chron === 1 ? '' : 's'}` : '', e.maps ? `${e.maps} dated map${e.maps === 1 ? '' : 's'}` : '', e.world ? `${e.world} world snapshot${e.world === 1 ? '' : 's'}` : ''].filter(Boolean).join(' · ')}" data-i="${i}"></span>`).join('');
+  return { eras, ticks: ticks.join(''), evid };
+}
+function hvRefreshTrack() { if (!HV.open) return; const p = hvTrackParts(); const set = (id, h) => { const el = $(id); if (el) el.innerHTML = h; }; set('#hv-eras', p.eras); set('#hv-ticks', p.ticks); set('#hv-evidence', p.evid); const r = $('#hv-range'); if (r) r.max = HV.i1 + 0.999; const rb = $('#hv-range-b'); if (rb) rb.max = HV.i1; const jy = $('#hv-jump-y'); if (jy) jy.max = hyFromIndex(HV.i1).year; }
+function hvHTML() {
+  const i1 = HV.i1; const { eras, ticks, evid } = hvTrackParts();
+  const L = HV.layers; const K = HV.filter.kinds; const dists = scopeDistricts();
   return `<div class="hv ${HV.list ? '' : 'nolist'} ${HV.compare ? 'compare' : ''}" role="dialog" aria-modal="true" aria-label="Historical playback">
     <div class="hv-hd"><span class="k">PLAYBACK</span><h3>${esc(scopeName())}</h3><span class="sc">${hyLabel(FOUNDED_YEAR, 'E')} → ${esc(hyLabel(...Object.values(hyFromIndex(i1))))} · <span id="hv-nrec">${hvRows().length}</span> records</span>
       <div class="hv-filters">${dists.length > 1 ? `<label class="field" style="height:28px"><span>Place</span><select id="hv-district"><option value="">All</option>${dists.map(d => `<option value="${d.id}" ${HV.filter.district === d.id ? 'selected' : ''}>${esc(d.name)}</option>`).join('')}</select></label>` : ''}${[['buildings', 'Buildings'], ['roads', 'Roads'], ['transit', 'Transit'], ['biz', 'Businesses']].map(([k, l]) => `<button class="crumb sm" data-hvkind="${k}" aria-pressed="${!!K[k]}">${l}</button>`).join('')}</div>
@@ -7279,7 +7304,7 @@ function hvHTML() {
     </div>
     <div class="hv-ft">
       <div class="tl-ctl"><button class="btn icon" data-act="hv-change" data-dir="-1" title="Previous change ([)">${icon('step')}</button><button class="btn icon" data-act="hv-step" data-dir="-1" title="Previous half-year (←) · Shift for a year">${icon('back')}</button><button class="btn primary play" id="hv-play" data-act="hv-play" title="Play / pause (Space)">${icon('play')}</button><button class="btn icon" data-act="hv-step" data-dir="1" title="Next half-year (→) · Shift for a year" style="transform:scaleX(-1)">${icon('back')}</button><button class="btn icon" data-act="hv-change" data-dir="1" title="Next change (])" style="transform:scaleX(-1)">${icon('step')}</button></div>
-      <div class="hv-track"><div class="tl-eras" id="hv-eras">${eras}</div><input type="range" class="tl-range" id="hv-range" min="0" max="${i1 + 0.999}" step="any" value="${HV.pos}" aria-label="Date"><div class="tl-evidence" id="hv-evidence">${evid}</div><div class="tl-ticks" id="hv-ticks">${ticks.join('')}</div>${HV.compare ? `<div class="tl-b"><span class="k">B</span><input type="range" class="tl-range b" id="hv-range-b" min="0" max="${i1}" step="1" value="${HV.b}" aria-label="Compare date"><span class="v" id="hv-b-label"></span><button class="btn sm ghost" data-act="hv-swap" title="Swap A and B">${icon('swap')}</button></div>` : ''}</div>
+      <div class="hv-track"><div class="tl-eras" id="hv-eras">${eras}</div><input type="range" class="tl-range" id="hv-range" min="0" max="${i1 + 0.999}" step="any" value="${HV.pos}" aria-label="Date"><div class="tl-evidence" id="hv-evidence">${evid}</div><div class="tl-ticks" id="hv-ticks">${ticks}</div>${HV.compare ? `<div class="tl-b"><span class="k">B</span><input type="range" class="tl-range b" id="hv-range-b" min="0" max="${i1}" step="1" value="${HV.b}" aria-label="Compare date"><span class="v" id="hv-b-label"></span><button class="btn sm ghost" data-act="hv-swap" title="Swap A and B">${icon('swap')}</button></div>` : ''}</div>
       <div class="hv-opts">
         <label class="field"><span>Speed</span><select id="hv-speed">${HV_RATES.map(([r, l]) => `<option value="${r}" ${HV.rate === r ? 'selected' : ''}>${l}</option>`).join('')}</select></label>
         <label class="field"><span>Jump</span><select id="hv-jump-h"><option value="E">Early</option><option value="L">Late</option></select><input type="number" id="hv-jump-y" min="${FOUNDED_YEAR}" max="${hyFromIndex(i1).year}" value="${hyFromIndex(HV.to).year}" style="width:64px"><button class="btn sm ghost" data-act="hv-jump">Go</button></label>
@@ -7307,7 +7332,8 @@ function hvWire() {
   $('#hv-range').addEventListener('input', e => { hvPause(); hvScrub(+e.target.value); });
   $('#hv-range-b')?.addEventListener('input', e => { hvPause(); hvSetB(+e.target.value); });
   $('#hv-mapop')?.addEventListener('input', e => { HV.mapOpacity = +e.target.value; hvDraw(); });
-  $('#hv-speed').addEventListener('change', e => { HV.rate = +e.target.value; S.settings.tlRate = HV.rate; });
+  $('#hv-speed').addEventListener('change', e => { HV.rate = +e.target.value; S.settings.tlRate = HV.rate; commit({ silentRender: true }); });
+  $('#hv-jump-y')?.addEventListener('keydown', e => { if (e.key !== 'Enter') return; e.preventDefault(); hvPause(); const y = num(e.target.value); if (y != null) hvSet(hyIndex(y, $('#hv-jump-h')?.value || 'E')); });
   $('#hv-district')?.addEventListener('change', e => { HV.filter.district = e.target.value; hvPause(); const n = $('#hv-nrec'); if (n) n.textContent = hvRows().length; hvUpdateChrome(); hvDraw(); });
   $$('[data-hvkind]').forEach(b => b.addEventListener('click', () => { HV.filter.kinds[b.dataset.hvkind] = !HV.filter.kinds[b.dataset.hvkind]; b.setAttribute('aria-pressed', HV.filter.kinds[b.dataset.hvkind]); hvUpdateChrome(); hvDraw(); }));
   $('#hv-evidence')?.addEventListener('click', e => { const t = e.target.closest('[data-i]'); if (t) { hvPause(); hvSet(+t.dataset.i); } });
@@ -7381,7 +7407,7 @@ function hvUpdateChrome() {
   const ch = $('#hv-chron'); if (ch) { const items = scopeArchive().map(a => ({ a, i: hyIndexOfArchive(a) })).filter(x => x.i <= i).sort((p, q) => (q.i - p.i) || ((q.a.created || '').localeCompare(p.a.created || ''))); const pick = items[0]?.a; const same = pick && items[0].i === i; ch.innerHTML = pick ? `<div class="img" data-arch="${pick.id}">${imgUrl(pick.id, 'full') ? `<img src="${imgUrl(pick.id, 'full')}" alt="">` : ''}</div><div data-arch="${pick.id}"><div class="y">${esc(pick.year)}${pick.month ? ' · ' + MONTHS[pick.month - 1] : ''} · ${same ? 'this half-year' : 'latest before'}${pick.confidence ? ' · ' + esc(confOf(pick.confidence)?.label || '') : ''}</div><div class="t">${esc(pick.title || 'Untitled')}</div><div class="s">${esc(pick.description || '')}</div></div>` : `<div class="desc-line">No chronicle image for ${hyLabel(year, half)} or earlier.</div>`; }
   $$('[data-act="hv-projection"]').forEach(b => b.setAttribute('aria-pressed', HV.projection)); $$('[data-act="hv-ref"]').forEach(b => b.setAttribute('aria-pressed', HV.refOverlay)); $$('[data-act="hv-follow"]').forEach(b => b.setAttribute('aria-pressed', HV.follow)); $$('[data-act="hv-loop"]').forEach(b => b.setAttribute('aria-pressed', HV.loop)); $$('[data-act="hv-compare"]').forEach(b => b.setAttribute('aria-pressed', HV.compare));
 }
-function hvToggleProjection() { HV.projection = !HV.projection; const { i1 } = hyRange(HV.rows, { projection: HV.projection }); HV.i1 = i1; const r = $('#hv-range'); if (r) r.max = i1 + 0.999; HV.pos = Math.min(HV.pos, i1 + 0.999); const rb = $('#hv-range-b'); if (rb) rb.max = i1; HV.to = Math.min(HV.to, i1); HV.b = Math.min(HV.b, i1); hvUpdateChrome(); hvDraw(); }
+function hvToggleProjection() { HV.projection = !HV.projection; const { i1 } = hyRange(HV.rows, { projection: HV.projection }); HV.i1 = i1; hvRefreshTrack(); HV.pos = Math.min(HV.pos, i1 + 0.999); HV.to = Math.min(HV.to, i1); HV.b = Math.min(HV.b, i1); hvUpdateChrome(); hvDraw(); }
 
 /* ============ demolished records ============ */
 const HCOLS = [
@@ -8190,7 +8216,7 @@ document.addEventListener('click', async e => {
   if (t.dataset.pi !== undefined && t.closest('#palette')) { openSearchHit(UI.palette.items[+t.dataset.pi]); return; }
   if (t.dataset.nav) { setNav(t.dataset.nav); return; }
   if (t.dataset.scopeKind !== undefined) { const k = t.dataset.scopeKind; setScope(k === 'all' ? { kind: 'all', id: null } : { kind: k, id: t.dataset.scopeId }); return; }
-  if (t.dataset.add) { $('#addmenu').hidden = true; const a = t.dataset.add; if (a === 'building') newBuildingFlow(null, { historical: false }); else if (a === 'historical') newBuildingFlow(null, { historical: true }); else if (a === 'business') newBusinessFlow(); else if (a === 'road') startDrawFlow('road'); else if (a === 'line') startDrawFlow('transit'); else if (a === 'station') startDrawFlow('station'); else if (a === 'district') openDistrictModal(null); else if (a === 'region') openRegionModal(null); else if (a === 'chronicle') openArchiveModal(null, { year: CURRENT_YEAR }); return; }
+  if (t.dataset.add) { $('#addmenu').hidden = true; const a = t.dataset.add; if (a === 'building') newBuildingFlow(null, { historical: false }); else if (a === 'historical') newBuildingFlow(null, { historical: true }); else if (a === 'business') newBusinessFlow(); else if (a === 'road') startDrawFlow('road'); else if (a === 'line') startDrawFlow('transit'); else if (a === 'station') startDrawFlow('station'); else if (a === 'district') openDistrictModal(null); else if (a === 'region') openRegionModal(null); else if (a === 'chronicle') openArchiveModal(null); return; }
   if (t.dataset.openH !== undefined || t.dataset.open !== undefined) {
     if (!(await leaveEditor())) return;
     const v = t.dataset.openH ?? t.dataset.open; const inDrawer = DR.id && $('#drawer').classList.contains('on');
@@ -8213,7 +8239,7 @@ document.addEventListener('click', async e => {
   if (t.dataset.tseg) { UI.tseg = t.dataset.tseg; renderView(false); return; }
   if (t.dataset.cseg) { UI.cseg = t.dataset.cseg; renderView(false); return; }
   if (t.dataset.cfToggle) { UI.cf[t.dataset.cfToggle] = !UI.cf[t.dataset.cfToggle]; renderView(false); return; }
-  if (t.dataset.mode && !t.dataset.act) { setMapMode(t.dataset.mode); return; }   // the map's tool buttons only — the directions panel's mode buttons carry data-act
+  if (t.dataset.mode && !t.dataset.act) { chooseTool(t.dataset.mode); return; }   // the map's tool buttons only — the directions panel's mode buttons carry data-act
   if (t.dataset.dock) { MAPW.dock = t.dataset.dock; renderDock(); return; }
   const act = t.dataset.act; if (!act) return;
   if (act.startsWith('insp-')) { inspectorAction(act, t); return; }
@@ -8323,7 +8349,7 @@ document.addEventListener('click', async e => {
     case 'hv-ref': HV.refOverlay = !HV.refOverlay; hvUpdateChrome(); hvDraw(); break;
     case 'hv-follow': HV.follow = !HV.follow; hvUpdateChrome(); break;
     // chronicle
-    case 'arch-new': openArchiveModal(null, { year: t.dataset.year ? +t.dataset.year : (HV.open ? hyFromIndex(HV.to).year : CURRENT_YEAR) }); break;
+    case 'arch-new': openArchiveModal(null, t.dataset.year ? { year: +t.dataset.year } : HV.open ? { year: hyFromIndex(HV.to).year } : {}); break;
     case 'arch-edit': openArchiveModal(t.dataset.id); break;
     case 'arch-save': archiveSave(); break;
     case 'arch-cancel': archiveCancel(); break;
@@ -8367,14 +8393,14 @@ document.addEventListener('click', async e => {
     case 'place-on-map': pickPointForDraft('xz'); break;
     case 'footprint-draw': drawFootprintForDraft(); break;
     case 'lot-draw': { if (!DR.draft) break; readFormInto(DR.draft, false); startLotDraw(DR.draft.id, { draft: DR.draft }); break; }
-    case 'lot-clear': { if (!DR.draft) break; readFormInto(DR.draft, false); DR.draft.lot = null; DR.draft.lotSource = ''; rerenderEditor(); toast('Lot outline cleared — the typed frontage, depth and area stay', ''); break; }
-    case 'lot-remeasure': { if (!DR.draft) break; readFormInto(DR.draft, false); applyLotMetrics(DR.draft); rerenderEditor(); toast('Measured lot values restored', 'good'); break; }
-    case 'footprint-clear': readFormInto(DR.draft, false); DR.draft.footprint = null; rerenderEditor(); break;
+    case 'lot-clear': { if (!DR.draft) break; readFormInto(DR.draft, false); DR.draft.lot = null; DR.draft.lotSource = ''; rerenderEditor({ read: false }); toast('Lot outline cleared — the typed frontage, depth and area stay', ''); break; }
+    case 'lot-remeasure': { if (!DR.draft) break; readFormInto(DR.draft, false); applyLotMetrics(DR.draft); rerenderEditor({ read: false }); toast('Measured lot values restored', 'good'); break; }
+    case 'footprint-clear': readFormInto(DR.draft, false); DR.draft.footprint = null; rerenderEditor({ read: false }); break;
     case 'place-accept': { const sel = $('#f-district'); if (sel) { sel.value = t.dataset.district; sel.dispatchEvent(new Event('change')); } break; }
-    case 'listing-add': { readFormInto(DR.draft, false); const v = await listingDialog({ title: 'Add a listing' }); if (!v) break; DR.draft.listings = [...(DR.draft.listings || []), v]; if (!DR.draft.market) DR.draft.market = v.kind === 'lease' ? 'for-lease' : 'for-sale'; if (num(DR.draft.listPrice) == null && v.price != null) DR.draft.listPrice = v.price; rerenderEditor(); break; }
-    case 'listing-remove': readFormInto(DR.draft, false); DR.draft.listings.splice(+t.dataset.i, 1); rerenderEditor(); break;
-    case 'tx-add': { readFormInto(DR.draft, false); const v = await listingDialog({ title: 'Record a transaction', tx: true }); if (!v) break; DR.draft.transactions = [...(DR.draft.transactions || []), v]; if (DR.draft.market === 'for-sale' && v.kind === 'sale') DR.draft.market = 'sold'; if (DR.draft.market === 'for-lease' && v.kind === 'lease') DR.draft.market = 'leased'; rerenderEditor(); break; }
-    case 'tx-remove': readFormInto(DR.draft, false); DR.draft.transactions.splice(+t.dataset.i, 1); rerenderEditor(); break;
+    case 'listing-add': { readFormInto(DR.draft, false); const v = await listingDialog({ title: 'Add a listing' }); if (!v) break; DR.draft.listings = [...(DR.draft.listings || []), v]; if (!DR.draft.market) DR.draft.market = v.kind === 'lease' ? 'for-lease' : 'for-sale'; if (num(DR.draft.listPrice) == null && v.price != null) DR.draft.listPrice = v.price; rerenderEditor({ read: false }); break; }
+    case 'listing-remove': readFormInto(DR.draft, false); DR.draft.listings.splice(+t.dataset.i, 1); rerenderEditor({ read: false }); break;
+    case 'tx-add': { readFormInto(DR.draft, false); const v = await listingDialog({ title: 'Record a transaction', tx: true }); if (!v) break; DR.draft.transactions = [...(DR.draft.transactions || []), v]; if (DR.draft.market === 'for-sale' && v.kind === 'sale') DR.draft.market = 'sold'; if (DR.draft.market === 'for-lease' && v.kind === 'lease') DR.draft.market = 'leased'; rerenderEditor({ read: false }); break; }
+    case 'tx-remove': readFormInto(DR.draft, false); DR.draft.transactions.splice(+t.dataset.i, 1); rerenderEditor({ read: false }); break;
     // roads / lines / stations / businesses in the drawer
     case 'vx-add': { readAnyFormInto(DR.draft, false); const g = DR.kind === 'road' ? DR.draft.geometry : null; if (g) { const last = g[g.length - 1] || [0, 0]; g.push([last[0] + 10, last[1]]); rerenderEditor(); } break; }
     case 'vx-del': { readAnyFormInto(DR.draft, false); if (DR.kind === 'road') { DR.draft.geometry.splice(+t.dataset.i, 1); rerenderEditor(); } break; }
@@ -8466,8 +8492,8 @@ document.addEventListener('change', e => {
   if (el.dataset.jfrom !== undefined) { UI.jfrom = el.value || null; renderView(false); return; }
   if (el.dataset.jto !== undefined) { UI.jto = el.value || null; renderView(false); return; }
   if (el.dataset.boardStation !== undefined) { UI.boardStation = el.value; renderView(false); return; }
-  if (el.closest?.('#calcform')) { const g = id => $('#f-' + id)?.value; UI.calc = { mode: g('cmode'), grade: g('cgrade'), blocks: num(g('cblocks')) || 0, stations: num(g('cstations')) || 0, stationGrade: g('csgrade') }; renderView(false); return; }
-  if (el.dataset.tcost !== undefined) { const v = num(el.value); if (v == null || v < 0) return; S.settings.transitCost = { ...TC(), [el.dataset.tcost]: v }; commit({ silentRender: true }); renderView(false); toast('Cost model updated', 'good'); return; }
+  if (el.closest?.('#calcform')) { const g = id => $('#f-' + id)?.value; UI.calc = { mode: g('cmode'), grade: g('cgrade'), blocks: num(g('cblocks')) || 0, stations: num(g('cstations')) || 0, stationGrade: g('csgrade') }; renderViewKeepingFocus(); return; }
+  if (el.dataset.tcost !== undefined) { const v = num(el.value); if (v == null || v < 0) return; S.settings.transitCost = { ...TC(), [el.dataset.tcost]: v }; commit({ silentRender: true }); renderViewKeepingFocus(); toast('Cost model updated', 'good'); return; }
   if (el.dataset.tline !== undefined) { UI.tline = el.value; UI.tfrom = null; UI.tto = null; renderView(false); return; }
   if (el.dataset.tfrom !== undefined) { UI.tfrom = el.value || null; renderView(false); return; }
   if (el.dataset.tto !== undefined) { UI.tto = el.value || null; renderView(false); return; }
@@ -8507,6 +8533,7 @@ document.addEventListener('keydown', e => {
   const isModal = modalOpen(); const onMap = UI.nav === 'map' && !DR.id && !isModal && !HV.open;
   if (e.key === 'Escape') {
     if ($('.combo.open')) return;
+    if (inField && e.target.closest?.('#dock-body')) { e.target.blur(); return; }   // Esc in an inspector field just leaves the field — the typed values stay
     if (UI.palette.open) { closePalette(); return; }
     if (SCOPE_POP.open) { closeScopePop(); return; }
     if (!$('#addmenu').hidden) { $('#addmenu').hidden = true; return; }
@@ -8530,14 +8557,18 @@ document.addEventListener('keydown', e => {
   }
   if (inField || isModal || e.metaKey || e.ctrlKey || e.altKey) return;
   const k = e.key;
+  if (UI.nav === 'map' && DR.id && MAPW.draft && MAPW.pending && !isModal && !HV.open) {   // tracing a lot or footprint for the open editor (the drawer is hidden meanwhile)
+    if (k === 'Enter') { e.preventDefault(); mapFinishDraft(); return; }
+    if (k === 'Backspace') { e.preventDefault(); mapDraftUndo(); return; }
+  }
   if (onMap) {
     if (k === 'Enter' && MAPW.draft) { e.preventDefault(); mapFinishDraft(); return; }
     if (k === 'Backspace' && MAPW.draft) { e.preventDefault(); mapDraftUndo(); return; }
     if ((k === 'Delete' || k === 'Backspace') && MAPW.sel?.vertex != null) { e.preventDefault(); deleteSelectedVertex(); return; }
     if ((k === 't' || k === 'T') && MAPW.mode === 'transit') { MAPW.stopMode = !MAPW.stopMode; renderMapInstr(); toast(MAPW.stopMode ? 'Every click places a stop' : 'Clicks place track points (Alt-click for a stop)', ''); return; }
-    if (k === '[' || k === ']') { e.preventDefault(); setMapWhen((MAPW.when ?? presentIdx()) + (k === ']' ? 1 : -1)); return; }
+    if (k === '[' || k === ']') { e.preventDefault(); if (MAPW.draft?.pts?.length) { toast('Finish the drawing (Enter) or cancel it (Esc) first', 'warn'); return; } setMapWhen((MAPW.when ?? presentIdx()) + (k === ']' ? 1 : -1)); return; }
     const modeKey = { s: 'select', p: 'pan', b: 'border', d: 'road', l: 'transit', x: 'station', a: 'place' }[k.toLowerCase()];
-    if (modeKey && !e.shiftKey && MAPW.edit) { if (MAPW.draft?.pts?.length && modeKey !== MAPW.mode) { toast('Finish the drawing (Enter) or cancel it (Esc) first', 'warn'); return; } setMapMode(modeKey); return; }
+    if (modeKey && !e.shiftKey && MAPW.edit) { if (MAPW.draft?.pts?.length && modeKey !== MAPW.mode) { toast('Finish the drawing (Enter) or cancel it (Esc) first', 'warn'); return; } chooseTool(modeKey); return; }
     if ((k === 'e' || k === 'E') && !DR.id) { setMapEdit(!MAPW.edit); return; }
   }
   if (DR.id && DR.mode === 'edit' && k !== '/' && k !== '?') return;   // never throw away an open editor from the keyboard
@@ -8565,6 +8596,14 @@ document.addEventListener('keydown', e => {
   else if (/^[1-9]$/.test(k)) { const n = NAV[+k - 1]; if (n) setNav(n.id); }
   else if (k === '[' || k === ']') { const i = NAV.findIndex(n => n.id === UI.nav); setNav(NAV[(i + (k === ']' ? 1 : NAV.length - 1)) % NAV.length].id); }
 });
+/* re-render the view after a form change without losing the keyboard: a tick later the browser has moved the focus
+   (Tab lands after the change event); the field that has it then gets it back on the fresh DOM */
+function renderViewKeepingFocus() {
+  setTimeout(() => {
+    const a = document.activeElement; const key = a?.id ? `#${CSS.escape(a.id)}` : a?.dataset?.tcost != null ? `[data-tcost="${CSS.escape(a.dataset.tcost)}"]` : null; let ss = null; try { ss = a?.selectionStart ?? null; } catch { }
+    renderView(false); if (!key) return; const el = $(key); if (!el) return; el.focus({ preventScroll: true }); try { if (ss != null && el.setSelectionRange) el.setSelectionRange(ss, ss); } catch { }
+  }, 0);
+}
 
 
 /* =====================================================================
@@ -8827,7 +8866,7 @@ function closeDirections() { EXPLORE.dir = false; EXPLORE.picking = null; MAPW.r
    settings.basemaps[] = { id, name, x, z (world coords of the image's top-left pixel), scale (blocks per pixel), opacity, w, h }
    The image itself lives in the images store under 'basemap:<id>' and in the vault as images/basemap-<id>.<ext>. */
 const BASEMAP_IMG = new Map();
-async function loadBasemaps() { for (const bm of S.settings.basemaps || []) { if (BASEMAP_IMG.has(bm.id)) continue; try { const rec = await idbGet('images', 'basemap:' + bm.id); if (!rec?.full) continue; const img = new Image(); img.onload = () => { BASEMAP_IMG.set(bm.id, img); if (!bm.w) { bm.w = img.naturalWidth; bm.h = img.naturalHeight; } mapDraw(); }; img.src = URL.createObjectURL(rec.full); BASEMAP_IMG.set(bm.id, img); } catch { } } }
+async function loadBasemaps() { for (const bm of S.settings.basemaps || []) { if (BASEMAP_IMG.has(bm.id)) continue; try { const rec = await idbGet('images', 'basemap:' + bm.id); if (!rec?.full) continue; const img = new Image(); img.onload = () => { BASEMAP_IMG.set(bm.id, img); if (!bm.w) { bm.w = img.naturalWidth; bm.h = img.naturalHeight; } mapDraw(); if (HV.open) hvDraw(); }; img.src = URL.createObjectURL(rec.full); BASEMAP_IMG.set(bm.id, img); } catch { } } }
 /* which basemaps belong at a moment. Today: every undated render plus the dated ones still in force. At a past date:
    every dated map that had been made by then and is not retired ("shown until"), oldest first so a newer map always
    sits on top of an older one — never the other way round; transparent (unexplored) pixels let older maps show through. */
@@ -9214,7 +9253,7 @@ function renderServiceTab() {
 }
 function renderTimesTab() {
   const lines = S.lines.filter(l => UI.tf.all || lineInScope(l)).sort((a, b) => lineLabel(a).localeCompare(lineLabel(b)));
-  if (!lines.length) return `<div class="panel empty"><b>No lines</b>Draw a line on the map and add its stops to see travel times.</div>`;
+  if (!lines.length) return S.lines.length && !UI.tf.all ? `<div class="panel empty"><b>No lines in ${esc(scopeName())}</b>${S.lines.length} line${S.lines.length === 1 ? ' is' : 's are'} on file outside its borders.<br><button class="btn primary" data-tf-toggle="all">${icon('globe')} Show all jurisdictions</button></div>` : `<div class="panel empty"><b>No lines</b>Draw a line on the map and add its stops to see travel times.</div>`;
   const l = lineById(UI.tline) || lines[0]; UI.tline = l.id; if (!lines.includes(l)) lines.unshift(l); const svc = lineService(l); const tt = lineTimetable(l); const e2e = lineEndToEnd(l); const stops = stationsOf(l);
   const jt = UI.tfrom && UI.tto ? lineJourneyTime(l, UI.tfrom, UI.tto) : null;
   const basisChip = b => `<span class="mk ${TIME_BASIS[b]?.tone || 'muted'}">${(TIME_BASIS[b]?.label || b).toUpperCase()}</span>`;
@@ -10040,11 +10079,11 @@ function paintTimeWidget() { const el = $('#map-time'); if (!el) return; el.clas
 function wireTimeWidget() {
   const r = $('#tw-range'); if (!r) return; let raf = 0;
   r.addEventListener('input', () => { cancelAnimationFrame(raf); raf = requestAnimationFrame(() => setMapWhen(+r.value, { fromSlider: true })); });
-  r.addEventListener('keydown', e => e.stopPropagation());
+  r.addEventListener('keydown', e => { e.stopPropagation(); if (e.key === '[' || e.key === ']') { e.preventDefault(); setMapWhen((MAPW.when ?? presentIdx()) + (e.key === ']' ? 1 : -1), { fromSlider: true }); r.value = MAPW.when ?? presentIdx(); } else if (e.key === 'Escape') { e.preventDefault(); toggleTimeWidget(false); } });   // the slider keeps the focus after opening, so [ ] and Esc work there (painted in place so the focus stays)
 }
 function toggleTimeWidget(open = !MAPW.timeOpen) { MAPW.timeOpen = open; renderTimeWidget(); if (open) $('#tw-range')?.focus({ preventScroll: true }); }
 /* outside the map the date is still in force: a chip in the status bar says so and goes back to today */
-function renderWhenChip() { const el = $('#st-when'); if (!el) return; el.hidden = MAPW.when == null; if (MAPW.when != null) el.innerHTML = `<button data-act="map-when-clear" title="New records take this date — click to go back to today">${icon('clock')} ${esc(timeLabel())} · new records use this date · today ✕</button>`; }
+function renderWhenChip() { const el = $('#st-when'); if (!el) return; el.hidden = MAPW.when == null; if (MAPW.when != null) el.innerHTML = `<button data-act="map-when-clear" title="New records take this date — click to go back to today">${icon('clock')} ${esc(timeLabel())}<span class="xl"> · new records use this date</span> · today ✕</button>`; }
 /* the shape to edit for a road / track at the viewing date (null when nothing stands then) */
 function editableShape(o, kind) {
   const w = mapWhen(); if (w == null) return { pts: o.geometry, target: { kind, id: o.id }, label: '' };
@@ -10086,7 +10125,7 @@ async function shapeTimelineAction(act, t) {
   const after = () => { if (tgtKind === 'road') JUNCTION_CACHE.key = ''; commit(); if (UI.nav === 'map') { renderDock(); mapDraw(); } if (DR.id) renderDrawer(); };
   if (act === 'per-edit') {
     const p = shapePeriods(o).find(x => x.id === t.dataset.pid); if (!p) return;
-    if (UI.nav !== 'map') { closeDrawer?.(true); setNav('map'); }
+    closeDrawer?.(true); if (UI.nav !== 'map') setNav('map');   // the drawer would sit over the shape to drag
     const go = () => { if (!MAPW.edit) setMapEdit(true, { keepMode: true }); const mid = p.from != null ? (p.to != null ? Math.max(p.from, p.to - 1) : p.from) : null; MAPW.sel = { kind: tgtKind === 'road' ? 'road' : 'line', id: tgtKind === 'road' ? o.id : (linesOnTrack(o)[0]?.id || o.id) }; if (MAPW.sel.kind === 'line' && !lineById(MAPW.sel.id)) MAPW.sel = null; setMapWhen(p.current && p.to == null ? null : mid); setMapMode('select'); const ext = bboxOf(p.geometry); if (ext) mapFlyTo(ext); toast(`Editing the ${hyShortText(p.from)} – ${p.to != null ? hyShortText(p.to) : 'today'} shape · map date ${MAPW.when != null ? hyText(MAPW.when) : 'today'} — drag its vertices`, ''); };
     if (MAPW.mounted) go(); else setTimeout(go, 40); return;
   }
@@ -10094,13 +10133,14 @@ async function shapeTimelineAction(act, t) {
   const w = mapWhen(); const dflt = w != null ? hyFromIndex(w) : { year: CURRENT_YEAR, half: CURRENT_HALF };
   if (act === 'per-split') {
     const r = await hyPromptDialog({ title: `New shape for ${o.name || o.reg}`, kicker: 'DATED SHAPE', body: '<p>The shape in force on this date ends here and a copy starts — redraw the copy. Earlier years keep the old shape.</p>', ok: 'Start new shape', label: 'New shape starts', year: dflt.year, half: dflt.half }); if (!r || r.year == null) return;
-    const idx = hyIndex(r.year, r.half || 'E'); let res = shapeSplitAt(o, idx);
-    if (!res.ok && /Give the date/.test(res.why)) { const f = await hyPromptDialog({ title: 'When did the earlier shape start?', kicker: 'DATED SHAPE', body: `<p>${esc(o.name || o.reg)} has no opening date yet.</p>`, ok: 'Use this date', label: 'Earlier shape started', year: FOUNDED_YEAR, half: 'E' }); if (!f || f.year == null) return; res = shapeSplitAt(o, idx, { firstFrom: hyIndex(f.year, f.half || 'E') }); }
-    if (!res.ok) { toast(res.why, 'warn'); return; } mapPushUndo(); after(); toast(`New shape from ${hyLabel(r.year, r.half || 'E')} — drag its vertices; earlier years keep the old shape`, 'good');
+    const idx = hyIndex(r.year, r.half || 'E'); mapPushUndo(); let res = shapeSplitAt(o, idx);   // the snapshot goes in before the shape changes, so Undo brings it back
+    if (!res.ok && /Give the date/.test(res.why)) { const f = await hyPromptDialog({ title: 'When did the earlier shape start?', kicker: 'DATED SHAPE', body: `<p>${esc(o.name || o.reg)} has no opening date yet.</p>`, ok: 'Use this date', label: 'Earlier shape started', year: FOUNDED_YEAR, half: 'E' }); if (!f || f.year == null) { MAPW.undo.pop(); return; } res = shapeSplitAt(o, idx, { firstFrom: hyIndex(f.year, f.half || 'E') }); }
+    if (!res.ok) { MAPW.undo.pop(); toast(res.why, 'warn'); return; } after(); toast(`New shape from ${hyLabel(r.year, r.half || 'E')} — drag its vertices; earlier years keep the old shape`, 'good');
     if (UI.nav === 'map') { setMapWhen(idx); } return;
   }
-  if (act === 'per-close') { const r = await hyPromptDialog({ title: `When was ${o.name || o.reg} removed?`, kicker: 'REMOVED', body: '<p>From this half-year it no longer appears in playback. Nothing is deleted; it can be rebuilt later.</p>', ok: 'Date the removal', label: 'Removed in', year: dflt.year, half: dflt.half }); if (!r || r.year == null) return; const cur = shapePeriods(o).find(p => p.current); const idx = hyIndex(r.year, r.half || 'E'); if (cur?.from != null && idx <= cur.from) { toast('The removal must come after the current shape started', 'warn'); return; } mapPushUndo(); o.yearClosed = r.year; o.halfClosed = r.half || ''; o.updated = now(); after(); toast(`Removed from ${hyLabel(r.year, r.half)} — still on file`, 'good'); return; }
-  if (act === 'per-rebuild') { const r = await hyPromptDialog({ title: `When was ${o.name || o.reg} rebuilt?`, kicker: 'REBUILT', body: '<p>The old shape keeps its dates; a new current shape starts here — redraw it.</p>', ok: 'Start rebuilt shape', label: 'Rebuilt in', year: dflt.year, half: dflt.half }); if (!r || r.year == null) return; const idx = hyIndex(r.year, r.half || 'E'); const res = shapeRebuildAt(o, idx); if (!res.ok) { toast(res.why, 'warn'); return; } mapPushUndo(); after(); toast(`Rebuilt from ${hyLabel(r.year, r.half || 'E')}`, 'good'); return; }
+  if (act === 'per-close') { const cur = shapePeriods(o).find(p => p.current); const d2 = cur?.from != null && hyIndex(dflt.year, dflt.half || 'E') <= cur.from ? hyFromIndex(cur.from + 1) : dflt;   // never offer a date the check below refuses
+    const r = await hyPromptDialog({ title: `When was ${o.name || o.reg} removed?`, kicker: 'REMOVED', body: '<p>From this half-year it no longer appears in playback. Nothing is deleted; it can be rebuilt later.</p>', ok: 'Date the removal', label: 'Removed in', year: d2.year, half: d2.half }); if (!r || r.year == null) return; const idx = hyIndex(r.year, r.half || 'E'); if (cur?.from != null && idx <= cur.from) { toast('The removal must come after the current shape started', 'warn'); return; } mapPushUndo(); o.yearClosed = r.year; o.halfClosed = r.half || ''; o.updated = now(); after(); toast(`Removed from ${hyLabel(r.year, r.half)} — still on file`, 'good'); return; }
+  if (act === 'per-rebuild') { const r = await hyPromptDialog({ title: `When was ${o.name || o.reg} rebuilt?`, kicker: 'REBUILT', body: '<p>The old shape keeps its dates; a new current shape starts here — redraw it.</p>', ok: 'Start rebuilt shape', label: 'Rebuilt in', year: dflt.year, half: dflt.half }); if (!r || r.year == null) return; const idx = hyIndex(r.year, r.half || 'E'); mapPushUndo(); const res = shapeRebuildAt(o, idx); if (!res.ok) { MAPW.undo.pop(); toast(res.why, 'warn'); return; } after(); toast(`Rebuilt from ${hyLabel(r.year, r.half || 'E')}`, 'good'); return; }
 }
 /* date edits typed into the timeline */
 function wireShapeTimelines(root) {
@@ -10226,10 +10266,12 @@ function placeStationSmart(raw) {
     if (sel && !sel.stopIds.includes(existing.id)) { mapPushUndo(); addStopOrdered(sel, existing.id); commit(); MAPW.sel = { kind: 'line', id: sel.id }; renderDock(); mapDraw(); toast(`${existing.name || existing.reg} is now a stop of ${lineLabel(sel)}${linesAtStation(existing).length > 1 ? ' — transfer with ' + linesAtStation(existing).filter(x => x.id !== sel.id).map(lineLabel).join(', ') : ''}`, 'good'); return; }
     MAPW.sel = { kind: 'station', id: existing.id }; setMapMode('select'); renderDock(); mapDraw(); toast(`${existing.name || existing.reg} is already here — selected`, ''); return;
   }
-  const tol = Math.max(4, 10 / MAPW.cam.k); const lines = [...new Map([...(sel ? [{ l: sel }] : []), ...linesNear(p, tol)].map(x => [x.l.id, x.l])).values()];
+  const tol = Math.max(4, 10 / MAPW.cam.k); const selD = sel ? Math.min(Infinity, ...lineGeometries(sel).map(g => polylineClosest(p, g)?.d ?? Infinity)) : Infinity; const joinSel = !!sel && selD <= Math.max(tol * 3, 30);   // a click well away from the selected line makes a free station, not a stop of it
+  const lines = [...new Map([...(joinSel ? [{ l: sel }] : []), ...linesNear(p, tol)].map(x => [x.l.id, x.l])).values()];
   mapPushUndo(); const s = newStationAt(p, lines); for (const l of lines) addStopOrdered(l, s.id);
   commit(); MAPW.sel = sel ? { kind: 'line', id: sel.id } : { kind: 'station', id: s.id }; if (!sel) setMapMode('select'); renderDock(); refreshTools(); mapDraw();
-  toast(`${s.reg} placed${lines.length ? ` on ${lines.map(lineLabel).join(' · ')}${lines.length > 1 ? ' — a transfer' : ''}` : ' — not on any line yet (click it with a line selected, or draw a line through it)'}${sel ? ' · keep clicking to add more stops' : ''}`, 'good');
+  const tail = sel ? (joinSel ? ' · keep clicking to add more stops' : ` · ${fmtInt(Math.round(selD))} blk off ${lineLabel(sel)}, so not a stop of it — click on or near its track to add stops`) : '';
+  toast(`${s.reg} placed${lines.length ? ` on ${lines.map(lineLabel).join(' · ')}${lines.length > 1 ? ' — a transfer' : ''}` : (sel && !joinSel ? '' : ' — not on any line yet (click it with a line selected, or draw a line through it)')}${tail}`, lines.length || !sel ? 'good' : 'warn');
   if (!sel) setTimeout(() => $('#insp-name')?.focus(), 60);
 }
 
@@ -10268,12 +10310,12 @@ function stationInspectorHTML(s) {
     <div class="frow" style="margin-top:8px"><div class="f"><label>X</label>${numF('insp-x', s.x, 'step="1"')}</div><div class="f"><label>Z</label>${numF('insp-z', s.z, 'step="1"')}</div></div>
     <div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:10px"><button class="btn sm primary" data-act="insp-save-station">${icon('check')} Save</button><button class="btn sm" data-act="insp-move">${icon('pin')} Move</button><button class="btn sm danger" data-act="insp-delete">${icon('trash')}</button></div>`;
 }
-/* save the station inspector: status, hours, dates; an opening date in the future is stored as expected */
+/* save the station inspector: status, hours, dates; the date of a station still planned or being built is its expected opening (even once it has slipped past today) */
 function saveStationInspector(s) {
   const g = id => $('#f-' + id)?.value ?? ''; const hy = id => { const y = num($(`#f-${id}-y`)?.value); const h = $(`#f-${id}-h`)?.value; return { y, h: y != null && ['E', 'L'].includes(h) ? h : '' }; };
   s.name = $('#insp-name').value.trim(); s.kind = g('insp-kind') || 'station'; s.status = g('insp-status') || 'open'; s.hours = g('insp-hours'); s.grade = g('insp-grade'); s.hoursFrom = num(g('insp-hfrom')); s.hoursTo = num(g('insp-hto'));
   const st = hy('insp-sstart'), op = hy('insp-sopen'), cl = hy('insp-sclose'); s.yearStarted = st.y; s.halfStarted = st.h; s.yearClosed = cl.y; s.halfClosed = cl.h;
-  const future = op.y != null && hyIndex(op.y, op.h) > hyIndex(CURRENT_YEAR, CURRENT_HALF) && ['construction', 'planned'].includes(s.status);
+  const future = op.y != null && ['construction', 'planned'].includes(s.status);
   if (future) { s.yearExpected = op.y; s.halfExpected = op.h; s.yearOpened = null; s.halfOpened = ''; } else { s.yearOpened = op.y; s.halfOpened = op.h; }
   s.costActual = num(g('insp-cost')); const x = num(g('insp-x')), z = num(g('insp-z')); if (x != null && z != null && (x !== s.x || z !== s.z)) { s.x = x; s.z = z; s.districtId = placeSuggest(x, z).districts[0]?.d.id || null; for (const l of linesAtStation(s)) sortStopsAlong(l); }
   s.updated = now();
@@ -10347,7 +10389,7 @@ function boardDepartures(s, m = null, count = 3) {
 const minsText = m => m < 0.75 ? 'due' : `${Math.round(m)} min`;
 function renderBoardTab() {
   const all = S.stations.filter(s => UI.tf.all || stationInScope(s)).filter(s => s.x != null || linesAtStation(s).length);
-  if (!all.length) return `<div class="panel empty"><b>No stations yet</b>Draw a line on the map and drop stops along it — the board fills in from the line's headway and hours.<br><button class="btn primary" data-act="draw-line">${icon('draw')} Draw a line</button></div>`;
+  if (!all.length) { const onFile = S.stations.filter(s => s.x != null || linesAtStation(s).length).length; return onFile && !UI.tf.all ? `<div class="panel empty"><b>No stations in ${esc(scopeName())}</b>${onFile} station${onFile === 1 ? ' is' : 's are'} on file outside its borders.<br><button class="btn primary" data-tf-toggle="all">${icon('globe')} Show all jurisdictions</button></div>` : `<div class="panel empty"><b>No stations yet</b>Draw a line on the map and drop stops along it — the board fills in from the line's headway and hours.<br><button class="btn primary" data-act="draw-line">${icon('draw')} Draw a line</button></div>`; }
   const s = stationById(UI.boardStation) && all.some(x => x.id === UI.boardStation) ? stationById(UI.boardStation) : all.slice().sort((a, b) => linesAtComplex(b).length - linesAtComplex(a).length || (a.name || a.reg).localeCompare(b.name || b.reg))[0]; UI.boardStation = s.id;
   const deps = boardDepartures(s); const clock = new Date(); const lines = S.lines.filter(l => UI.tf.all || lineInScope(l));
   const uc = all.filter(x => ['construction', 'planned'].includes(effectiveStationStatus(x))); const xg = transferGroup(s).filter(x => x.id !== s.id);
@@ -10370,7 +10412,11 @@ function renderBoardTab() {
     </div>
   </section>`;
 }
-function refreshBoardClock() { if (UI.nav !== 'transit' || UI.tseg !== 'board' || document.hidden) return; const el = $('#board-clock'); if (!el) return; const sc = window.scrollY; renderView(false); window.scrollTo(0, sc); }
+function refreshBoardClock() {
+  if (UI.nav !== 'transit' || UI.tseg !== 'board' || document.hidden) return; const el = $('#board-clock'); if (!el) return;
+  const tmp = document.createElement('div'); tmp.innerHTML = renderBoardTab();   // only the clock, the departures and the line strips change — swap those, keep the rest (and the focus) as it is
+  for (const sel of ['#board-clock', '.board .brows', '.lstatus']) { const a = $(sel), b = tmp.querySelector(sel); if (a && b && a.innerHTML !== b.innerHTML) a.innerHTML = b.innerHTML; }
+}
 setInterval(refreshBoardClock, 15000);
 
 /* ---- projects: stations and lines under construction or planned, sandbox ideas, and a calculator ---- */
@@ -10546,7 +10592,7 @@ function groupMaps(maps, mode, fixed) {
 async function importMapGroups(groups, label) {
   const made = [];
   for (const gp of groups) { const st = await stitchMaps(gp.maps, { name: `${label} ${hyShort(gp.year, gp.half)}` }); const bm = await basemapAdd(st.file); if (!bm) continue; Object.assign(bm, { name: `${label} · ${hyLabel(gp.year, gp.half)}`, x: st.x, z: st.z, scale: st.scale, w: st.w, h: st.h, opacity: 0.85, source: 'mcmap', year: gp.year, half: gp.half || '', maps: gp.maps.length, mapIds: gp.maps.map(m => m.id).sort((a, b) => a - b).slice(0, 400) }); made.push(bm); }
-  commit({ silentRender: true }); if (UI.nav === 'map') { refreshChips(); mapDraw(); } if (HV.open) { hvDraw(); }
+  commit({ silentRender: true }); if (UI.nav === 'map') { refreshChips(); mapDraw(); } if (HV.open) { hvRefreshTrack(); hvUpdateChrome(); hvDraw(); }
   return made;
 }
 /* the import dialog: pick files or the world's data folder, check what was found, choose how to date them */
@@ -10555,6 +10601,7 @@ async function readMapFiles(entries) {
   const out = [], skipped = []; for (const e of entries) { if (!MAP_DAT.test(e.path || e.file.name)) continue; try { const m = await readMapDat(e.file, e.path); if (!m) continue; if (m.bad) skipped.push(`map_${m.id}: ${m.bad}`); else if (!m.overworld) skipped.push(`map_${m.id}: ${m.dimension}`); else out.push(m); } catch (err) { skipped.push(`${e.path || e.file.name}: ${err.message}`); } }
   return { maps: out, skipped };
 }
+const mapGroupRowsHTML = groups => `${groups.map(gp => `<div class="r"><div><div class="t"><span class="mk">${esc(hyLabel(gp.year, gp.half))}</span>${gp.maps.length} map${gp.maps.length === 1 ? '' : 's'}</div><div class="s">ids ${esc(gp.maps.map(m => m.id).sort((a, b) => a - b).slice(0, 12).join(', '))}${gp.maps.length > 12 ? '…' : ''}</div></div></div>`).join('')}`;
 function openMapImportModal() {
   const M = MAPIMPORT; const maps = M?.maps || []; const groups = maps.length ? groupMaps(maps, M.mode, M.fixed) : [];
   const ext = maps.length ? { x1: Math.min(...maps.map(m => m.x)), z1: Math.min(...maps.map(m => m.z)), x2: Math.max(...maps.map(m => m.x + m.size)), z2: Math.max(...maps.map(m => m.z + m.size)) } : null;
@@ -10563,7 +10610,7 @@ function openMapImportModal() {
       <div style="display:flex;gap:8px;margin-top:12px;flex-wrap:wrap"><button class="btn primary" id="mi-dir">${icon('folder')} World or data folder…</button><input type="file" id="mi-dirin" webkitdirectory multiple hidden><button class="btn" id="mi-files">${icon('up')} map_#.dat files…</button><input type="file" id="mi-filein" multiple accept=".dat" hidden></div>
       ${M ? `<div class="callout ${maps.length ? 'info' : 'warn'}" style="margin-top:12px"><b>${maps.length} overworld map${maps.length === 1 ? '' : 's'}</b>${M.skipped.length ? ` · ${M.skipped.length} skipped (${esc(M.skipped.slice(0, 3).join('; '))}${M.skipped.length > 3 ? '…' : ''})` : ''}${ext ? ` · covers X ${ext.x1} → ${ext.x2} · Z ${ext.z1} → ${ext.z2} · scales ${[...new Set(maps.map(m => m.scale))].sort().join(', ')}` : ''}${maps.length && maps.some(m => m.modified) ? ` · files dated ${esc(new Date(Math.min(...maps.map(m => m.modified || Infinity))).toISOString().slice(0, 10))} → ${esc(new Date(Math.max(...maps.map(m => m.modified || 0))).toISOString().slice(0, 10))}` : ''}</div>
       ${maps.length ? `<div class="frow" style="margin-top:12px"><div class="f"><label>Date the maps by</label><select id="mi-mode"><option value="fixed" ${M.mode === 'fixed' ? 'selected' : ''}>One date for all of them</option><option value="files" ${M.mode === 'files' ? 'selected' : ''}>Each file's modified date (grouped by half-year)</option></select></div><div class="f"><label>${M.mode === 'files' ? 'Fallback date (files without one)' : 'They show the city in'}</label><div class="hy"><select id="mi-h"><option value="E" ${M.fixed.half === 'E' ? 'selected' : ''}>Early (Jan–Jun)</option><option value="L" ${M.fixed.half === 'L' ? 'selected' : ''}>Late (Jul–Dec)</option></select><input id="mi-y" type="number" min="${FOUNDED_YEAR}" max="2200" value="${esc(M.fixed.year)}"></div></div><div class="f"><label>Name</label><input id="mi-name" value="${esc(M.label)}"></div></div>
-      <div class="rowlist" style="margin-top:10px">${groups.map(gp => `<div class="r"><div><div class="t"><span class="mk">${esc(hyLabel(gp.year, gp.half))}</span>${gp.maps.length} map${gp.maps.length === 1 ? '' : 's'}</div><div class="s">ids ${esc(gp.maps.map(m => m.id).sort((a, b) => a - b).slice(0, 12).join(', '))}${gp.maps.length > 12 ? '…' : ''}</div></div></div>`).join('')}</div>
+      <div class="rowlist" id="mi-groups" style="margin-top:10px">${mapGroupRowsHTML(groups)}</div>
       <div class="desc-line" style="margin-top:6px">Tip: copy each old backup's <code>data</code> folder in turn and import it with that backup's date. A file's modified date is when the map was last updated in-game — good for backups, unreliable for copies that lost their dates.</div>` : ''}` : ''}`,
     foot: `<button class="btn ghost" data-act="modal-close">Close</button><span class="spacer"></span><button class="btn" data-act="basemap-open">${icon('img')} All basemaps</button>${maps.length ? `<button class="btn primary" id="mi-go">${icon('check')} Add ${groups.length} dated map${groups.length === 1 ? '' : 's'}</button>` : ''}`,
     onOpen: m => {
@@ -10573,6 +10620,8 @@ function openMapImportModal() {
       m.querySelector('#mi-filein').addEventListener('change', e => load([...(e.target.files || [])].map(f => ({ path: f.name, file: f }))));
       const sync = () => { if (!MAPIMPORT) return; MAPIMPORT.mode = m.querySelector('#mi-mode')?.value || 'fixed'; MAPIMPORT.fixed = { year: num(m.querySelector('#mi-y')?.value) ?? CURRENT_YEAR, half: m.querySelector('#mi-h')?.value || 'E' }; MAPIMPORT.label = m.querySelector('#mi-name')?.value.trim() || 'Minecraft maps'; };
       m.querySelector('#mi-mode')?.addEventListener('change', () => { sync(); openMapImportModal(); });
+      const refresh = () => { sync(); if (!MAPIMPORT?.maps?.length) return; const groups = groupMaps(MAPIMPORT.maps, MAPIMPORT.mode, MAPIMPORT.fixed); const rows = m.querySelector('#mi-groups'); if (rows) rows.innerHTML = mapGroupRowsHTML(groups); const go = $('#mi-go'); if (go) go.innerHTML = `${icon('check')} Add ${groups.length} dated map${groups.length === 1 ? '' : 's'}`; };   // the group row and the button follow the typed date
+      m.querySelector('#mi-y')?.addEventListener('input', refresh); m.querySelector('#mi-h')?.addEventListener('change', refresh);
       m.querySelector('#mi-go')?.addEventListener('click', async () => { sync(); const made = await importMapGroups(groupMaps(MAPIMPORT.maps, MAPIMPORT.mode, MAPIMPORT.fixed), MAPIMPORT.label); MAPIMPORT = null; closeModal(); toast(`${made.length} dated map${made.length === 1 ? '' : 's'} added — playback shows each from its date`, 'good'); });
     } });
 }

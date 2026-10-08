@@ -144,6 +144,9 @@ function setMapMode(mode, opts = {}) {
   const st = $('#mapstage'); if (st) st.className = `mapstage mode-${mode}${mapWhen() != null ? ' dated' : ''}`;
   renderMapInstr(); mapDraw();
 }
+/* the tool rail and the mode keys: a line left selected after drawing does not get a second track by accident — a new line starts
+   (the inspector's "Add track" and "Extend" buttons keep the selection) */
+function chooseTool(mode) { if (mode === 'transit' && MAPW.sel?.kind === 'line' && !MAPW.draft?.pts?.length) { MAPW.sel = null; if (MAPW.edit) renderDock(); } setMapMode(mode); }
 const borderTargetNode = () => MAPW.borderTarget ? nodeById(MAPW.borderTarget.id) : null;
 function renderMapInstr() {
   const el = $('#map-instr'); if (!el) return; const m = MODES.find(x => x.id === MAPW.mode);

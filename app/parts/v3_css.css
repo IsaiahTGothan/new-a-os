@@ -586,3 +586,18 @@ details.fsect.dimmed{ opacity:.7; }
 #drawer .photo.empty{ aspect-ratio:auto; min-height:0; padding:14px 18px; }
 #drawer .photo.empty .ph{ flex-direction:row; gap:10px; font-size:12.5px; }
 #drawer .photo.empty .ph svg{ width:18px; height:18px; }
+/* ---- round-4 audit: compare mode, phone layouts, the status strip ---- */
+.hv-stage.compare .hv-maps{ top:236px; }   /* under pane A's counters */
+@media (max-width:760px){
+  .hv .hv-stage .hv-maps{ top:128px; bottom:auto; left:12px; right:auto; max-width:calc(100% - 24px); }   /* under the date, clear of the layer chips */
+  .hv .hv-layers{ max-width:calc(100% - 24px); }
+  .hv .hv-note{ display:none; }
+  .tw-panel{ width:min(380px, calc(100vw - 72px)); }
+  .map-hud #map-coord, .map-hud #map-scale{ display:none; }
+  #status{ gap:10px; padding:0 10px; overflow-x:auto; scrollbar-width:none; }
+  #status::-webkit-scrollbar{ display:none; }
+  #status .sys, #status #st-counts, #status #st-keys, #status .it:has(#st-idb), #status .it:has(#st-os){ display:none; }
+  #status .st-when{ order:-1; }   /* the time chip first, always on screen */
+  #status #st-vault-t, #status #st-os-t{ display:block; max-width:120px; overflow:hidden; text-overflow:ellipsis; }
+  .st-when .xl{ display:none; }
+}

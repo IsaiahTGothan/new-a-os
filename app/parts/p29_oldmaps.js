@@ -58,7 +58,7 @@ function groupMaps(maps, mode, fixed) {
 async function importMapGroups(groups, label) {
   const made = [];
   for (const gp of groups) { const st = await stitchMaps(gp.maps, { name: `${label} ${hyShort(gp.year, gp.half)}` }); const bm = await basemapAdd(st.file); if (!bm) continue; Object.assign(bm, { name: `${label} · ${hyLabel(gp.year, gp.half)}`, x: st.x, z: st.z, scale: st.scale, w: st.w, h: st.h, opacity: 0.85, source: 'mcmap', year: gp.year, half: gp.half || '', maps: gp.maps.length, mapIds: gp.maps.map(m => m.id).sort((a, b) => a - b).slice(0, 400) }); made.push(bm); }
-  commit({ silentRender: true }); if (UI.nav === 'map') { refreshChips(); mapDraw(); } if (HV.open) { hvDraw(); }
+  commit({ silentRender: true }); if (UI.nav === 'map') { refreshChips(); mapDraw(); } if (HV.open) { hvRefreshTrack(); hvUpdateChrome(); hvDraw(); }
   return made;
 }
 /* the import dialog: pick files or the world's data folder, check what was found, choose how to date them */
@@ -67,6 +67,7 @@ async function readMapFiles(entries) {
   const out = [], skipped = []; for (const e of entries) { if (!MAP_DAT.test(e.path || e.file.name)) continue; try { const m = await readMapDat(e.file, e.path); if (!m) continue; if (m.bad) skipped.push(`map_${m.id}: ${m.bad}`); else if (!m.overworld) skipped.push(`map_${m.id}: ${m.dimension}`); else out.push(m); } catch (err) { skipped.push(`${e.path || e.file.name}: ${err.message}`); } }
   return { maps: out, skipped };
 }
+const mapGroupRowsHTML = groups => `${groups.map(gp => `<div class="r"><div><div class="t"><span class="mk">${esc(hyLabel(gp.year, gp.half))}</span>${gp.maps.length} map${gp.maps.length === 1 ? '' : 's'}</div><div class="s">ids ${esc(gp.maps.map(m => m.id).sort((a, b) => a - b).slice(0, 12).join(', '))}${gp.maps.length > 12 ? '…' : ''}</div></div></div>`).join('')}`;
 function openMapImportModal() {
   const M = MAPIMPORT; const maps = M?.maps || []; const groups = maps.length ? groupMaps(maps, M.mode, M.fixed) : [];
   const ext = maps.length ? { x1: Math.min(...maps.map(m => m.x)), z1: Math.min(...maps.map(m => m.z)), x2: Math.max(...maps.map(m => m.x + m.size)), z2: Math.max(...maps.map(m => m.z + m.size)) } : null;
@@ -75,7 +76,7 @@ function openMapImportModal() {
       <div style="display:flex;gap:8px;margin-top:12px;flex-wrap:wrap"><button class="btn primary" id="mi-dir">${icon('folder')} World or data folder…</button><input type="file" id="mi-dirin" webkitdirectory multiple hidden><button class="btn" id="mi-files">${icon('up')} map_#.dat files…</button><input type="file" id="mi-filein" multiple accept=".dat" hidden></div>
       ${M ? `<div class="callout ${maps.length ? 'info' : 'warn'}" style="margin-top:12px"><b>${maps.length} overworld map${maps.length === 1 ? '' : 's'}</b>${M.skipped.length ? ` · ${M.skipped.length} skipped (${esc(M.skipped.slice(0, 3).join('; '))}${M.skipped.length > 3 ? '…' : ''})` : ''}${ext ? ` · covers X ${ext.x1} → ${ext.x2} · Z ${ext.z1} → ${ext.z2} · scales ${[...new Set(maps.map(m => m.scale))].sort().join(', ')}` : ''}${maps.length && maps.some(m => m.modified) ? ` · files dated ${esc(new Date(Math.min(...maps.map(m => m.modified || Infinity))).toISOString().slice(0, 10))} → ${esc(new Date(Math.max(...maps.map(m => m.modified || 0))).toISOString().slice(0, 10))}` : ''}</div>
       ${maps.length ? `<div class="frow" style="margin-top:12px"><div class="f"><label>Date the maps by</label><select id="mi-mode"><option value="fixed" ${M.mode === 'fixed' ? 'selected' : ''}>One date for all of them</option><option value="files" ${M.mode === 'files' ? 'selected' : ''}>Each file's modified date (grouped by half-year)</option></select></div><div class="f"><label>${M.mode === 'files' ? 'Fallback date (files without one)' : 'They show the city in'}</label><div class="hy"><select id="mi-h"><option value="E" ${M.fixed.half === 'E' ? 'selected' : ''}>Early (Jan–Jun)</option><option value="L" ${M.fixed.half === 'L' ? 'selected' : ''}>Late (Jul–Dec)</option></select><input id="mi-y" type="number" min="${FOUNDED_YEAR}" max="2200" value="${esc(M.fixed.year)}"></div></div><div class="f"><label>Name</label><input id="mi-name" value="${esc(M.label)}"></div></div>
-      <div class="rowlist" style="margin-top:10px">${groups.map(gp => `<div class="r"><div><div class="t"><span class="mk">${esc(hyLabel(gp.year, gp.half))}</span>${gp.maps.length} map${gp.maps.length === 1 ? '' : 's'}</div><div class="s">ids ${esc(gp.maps.map(m => m.id).sort((a, b) => a - b).slice(0, 12).join(', '))}${gp.maps.length > 12 ? '…' : ''}</div></div></div>`).join('')}</div>
+      <div class="rowlist" id="mi-groups" style="margin-top:10px">${mapGroupRowsHTML(groups)}</div>
       <div class="desc-line" style="margin-top:6px">Tip: copy each old backup's <code>data</code> folder in turn and import it with that backup's date. A file's modified date is when the map was last updated in-game — good for backups, unreliable for copies that lost their dates.</div>` : ''}` : ''}`,
     foot: `<button class="btn ghost" data-act="modal-close">Close</button><span class="spacer"></span><button class="btn" data-act="basemap-open">${icon('img')} All basemaps</button>${maps.length ? `<button class="btn primary" id="mi-go">${icon('check')} Add ${groups.length} dated map${groups.length === 1 ? '' : 's'}</button>` : ''}`,
     onOpen: m => {
@@ -85,6 +86,8 @@ function openMapImportModal() {
       m.querySelector('#mi-filein').addEventListener('change', e => load([...(e.target.files || [])].map(f => ({ path: f.name, file: f }))));
       const sync = () => { if (!MAPIMPORT) return; MAPIMPORT.mode = m.querySelector('#mi-mode')?.value || 'fixed'; MAPIMPORT.fixed = { year: num(m.querySelector('#mi-y')?.value) ?? CURRENT_YEAR, half: m.querySelector('#mi-h')?.value || 'E' }; MAPIMPORT.label = m.querySelector('#mi-name')?.value.trim() || 'Minecraft maps'; };
       m.querySelector('#mi-mode')?.addEventListener('change', () => { sync(); openMapImportModal(); });
+      const refresh = () => { sync(); if (!MAPIMPORT?.maps?.length) return; const groups = groupMaps(MAPIMPORT.maps, MAPIMPORT.mode, MAPIMPORT.fixed); const rows = m.querySelector('#mi-groups'); if (rows) rows.innerHTML = mapGroupRowsHTML(groups); const go = $('#mi-go'); if (go) go.innerHTML = `${icon('check')} Add ${groups.length} dated map${groups.length === 1 ? '' : 's'}`; };   // the group row and the button follow the typed date
+      m.querySelector('#mi-y')?.addEventListener('input', refresh); m.querySelector('#mi-h')?.addEventListener('change', refresh);
       m.querySelector('#mi-go')?.addEventListener('click', async () => { sync(); const made = await importMapGroups(groupMaps(MAPIMPORT.maps, MAPIMPORT.mode, MAPIMPORT.fixed), MAPIMPORT.label); MAPIMPORT = null; closeModal(); toast(`${made.length} dated map${made.length === 1 ? '' : 's'} added — playback shows each from its date`, 'good'); });
     } });
 }

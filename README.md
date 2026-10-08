@@ -14,7 +14,7 @@ newa-site-patch/  the one CORS header for the site's feed
 ```
 cd app
 python3 build.py            # parts/p00…p31 + css → NewA-Land-Registry.html (node --check on the bundle)
-node test.js                # 292 checks in headless Chromium on the real schema-2 data (sections A–W)
+node test.js                # 326 checks in headless Chromium on the real schema-2 data (sections A–X)
 node smoke.js               # every page, tab and modal with zero console errors
 cd ../os && node test/run.js   # 70 bridge checks (NBT, region formats, scans, backups, routes, item maps)
 ```
@@ -66,6 +66,7 @@ The world folder is only ever read. See `os/README.md`.
 * **Trains** — every open line runs trains on the live map, each headway from each end, within the line's hours, dwelling at every stop — on the same timetable the departure board shows, so the board and the map agree to the second. A **Trains** chip / layer hides them; the Board's line strips show where each train is.
 * **A calmer building editor** — the long form is now eleven collapsible sections (Location, Lifecycle and Building & lot open by default), each closed one carrying a one-line summary of what it holds; a sticky Jump-to bar, Expand all / Collapse all, remembered per browser; a validation error opens the section it belongs to. Nothing was removed; the empty photo box is a slim row.
 * **Valuation v2** — besides the nearest station: +1.5% per extra line within 150 blocks (cap +4.5%), a +25% cap on all transit factors, +3% for a corner lot (drawn outline facing two streets), +4% completed in the last five years, −3% completed ten or more years ago unless a landmark. All editable under Vault & settings; recorded valuations keep the version they were made with.
+* **Round-4 audit — 25 fixes** — a read-only audit of rounds 1–3 on the real data (desktop and phone) found 25 reproducible faults, all fixed and each re-checked by section X: Add a listing / Record a transaction kept neither status nor price (the editor re-read the stale form); saving a station whose expected date had slipped turned it into an open station; the Board re-rendered the whole page every 15 s (focus and dropdowns lost) — it now swaps the clock, departures and strips in place; Enter/Backspace were dead while tracing a lot from the editor; playback showed no old maps until the Map page had been visited; Undo did not undo New shape from… / Rebuilt in…; Projection stretched the slider but not the ticks; the playback speed was never saved; Add → Chronicle image ignored the map date; Esc in an inspector field threw the typing away; a click 200 blocks from a selected line still became its stop; L after drawing a line added a second track to it; cost-model edits dropped the keyboard; empty Board/Times states hid that transit lies outside the current scope; the pencil on a dated shape left the drawer over the map; [ ] did nothing on the just-opened clock and still worked mid-drawing; maps added from playback missed the evidence track; the old-maps dialog ignored the typed year; Removed in… offered a date it then refused; on a phone the OLD MAPS bar covered the layer chips, the time panel was clipped, the status strip hid the time chip and the HUD ran off-screen; in compare mode the bar covered pane A's counters.
 
 ## Time button and a vault that stays linked (3.2.1)
 

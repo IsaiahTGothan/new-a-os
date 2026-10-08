@@ -173,11 +173,11 @@ function paintTimeWidget() { const el = $('#map-time'); if (!el) return; el.clas
 function wireTimeWidget() {
   const r = $('#tw-range'); if (!r) return; let raf = 0;
   r.addEventListener('input', () => { cancelAnimationFrame(raf); raf = requestAnimationFrame(() => setMapWhen(+r.value, { fromSlider: true })); });
-  r.addEventListener('keydown', e => e.stopPropagation());
+  r.addEventListener('keydown', e => { e.stopPropagation(); if (e.key === '[' || e.key === ']') { e.preventDefault(); setMapWhen((MAPW.when ?? presentIdx()) + (e.key === ']' ? 1 : -1), { fromSlider: true }); r.value = MAPW.when ?? presentIdx(); } else if (e.key === 'Escape') { e.preventDefault(); toggleTimeWidget(false); } });   // the slider keeps the focus after opening, so [ ] and Esc work there (painted in place so the focus stays)
 }
 function toggleTimeWidget(open = !MAPW.timeOpen) { MAPW.timeOpen = open; renderTimeWidget(); if (open) $('#tw-range')?.focus({ preventScroll: true }); }
 /* outside the map the date is still in force: a chip in the status bar says so and goes back to today */
-function renderWhenChip() { const el = $('#st-when'); if (!el) return; el.hidden = MAPW.when == null; if (MAPW.when != null) el.innerHTML = `<button data-act="map-when-clear" title="New records take this date — click to go back to today">${icon('clock')} ${esc(timeLabel())} · new records use this date · today ✕</button>`; }
+function renderWhenChip() { const el = $('#st-when'); if (!el) return; el.hidden = MAPW.when == null; if (MAPW.when != null) el.innerHTML = `<button data-act="map-when-clear" title="New records take this date — click to go back to today">${icon('clock')} ${esc(timeLabel())}<span class="xl"> · new records use this date</span> · today ✕</button>`; }
 /* the shape to edit for a road / track at the viewing date (null when nothing stands then) */
 function editableShape(o, kind) {
   const w = mapWhen(); if (w == null) return { pts: o.geometry, target: { kind, id: o.id }, label: '' };
@@ -219,7 +219,7 @@ async function shapeTimelineAction(act, t) {
   const after = () => { if (tgtKind === 'road') JUNCTION_CACHE.key = ''; commit(); if (UI.nav === 'map') { renderDock(); mapDraw(); } if (DR.id) renderDrawer(); };
   if (act === 'per-edit') {
     const p = shapePeriods(o).find(x => x.id === t.dataset.pid); if (!p) return;
-    if (UI.nav !== 'map') { closeDrawer?.(true); setNav('map'); }
+    closeDrawer?.(true); if (UI.nav !== 'map') setNav('map');   // the drawer would sit over the shape to drag
     const go = () => { if (!MAPW.edit) setMapEdit(true, { keepMode: true }); const mid = p.from != null ? (p.to != null ? Math.max(p.from, p.to - 1) : p.from) : null; MAPW.sel = { kind: tgtKind === 'road' ? 'road' : 'line', id: tgtKind === 'road' ? o.id : (linesOnTrack(o)[0]?.id || o.id) }; if (MAPW.sel.kind === 'line' && !lineById(MAPW.sel.id)) MAPW.sel = null; setMapWhen(p.current && p.to == null ? null : mid); setMapMode('select'); const ext = bboxOf(p.geometry); if (ext) mapFlyTo(ext); toast(`Editing the ${hyShortText(p.from)} – ${p.to != null ? hyShortText(p.to) : 'today'} shape · map date ${MAPW.when != null ? hyText(MAPW.when) : 'today'} — drag its vertices`, ''); };
     if (MAPW.mounted) go(); else setTimeout(go, 40); return;
   }
@@ -227,13 +227,14 @@ async function shapeTimelineAction(act, t) {
   const w = mapWhen(); const dflt = w != null ? hyFromIndex(w) : { year: CURRENT_YEAR, half: CURRENT_HALF };
   if (act === 'per-split') {
     const r = await hyPromptDialog({ title: `New shape for ${o.name || o.reg}`, kicker: 'DATED SHAPE', body: '<p>The shape in force on this date ends here and a copy starts — redraw the copy. Earlier years keep the old shape.</p>', ok: 'Start new shape', label: 'New shape starts', year: dflt.year, half: dflt.half }); if (!r || r.year == null) return;
-    const idx = hyIndex(r.year, r.half || 'E'); let res = shapeSplitAt(o, idx);
-    if (!res.ok && /Give the date/.test(res.why)) { const f = await hyPromptDialog({ title: 'When did the earlier shape start?', kicker: 'DATED SHAPE', body: `<p>${esc(o.name || o.reg)} has no opening date yet.</p>`, ok: 'Use this date', label: 'Earlier shape started', year: FOUNDED_YEAR, half: 'E' }); if (!f || f.year == null) return; res = shapeSplitAt(o, idx, { firstFrom: hyIndex(f.year, f.half || 'E') }); }
-    if (!res.ok) { toast(res.why, 'warn'); return; } mapPushUndo(); after(); toast(`New shape from ${hyLabel(r.year, r.half || 'E')} — drag its vertices; earlier years keep the old shape`, 'good');
+    const idx = hyIndex(r.year, r.half || 'E'); mapPushUndo(); let res = shapeSplitAt(o, idx);   // the snapshot goes in before the shape changes, so Undo brings it back
+    if (!res.ok && /Give the date/.test(res.why)) { const f = await hyPromptDialog({ title: 'When did the earlier shape start?', kicker: 'DATED SHAPE', body: `<p>${esc(o.name || o.reg)} has no opening date yet.</p>`, ok: 'Use this date', label: 'Earlier shape started', year: FOUNDED_YEAR, half: 'E' }); if (!f || f.year == null) { MAPW.undo.pop(); return; } res = shapeSplitAt(o, idx, { firstFrom: hyIndex(f.year, f.half || 'E') }); }
+    if (!res.ok) { MAPW.undo.pop(); toast(res.why, 'warn'); return; } after(); toast(`New shape from ${hyLabel(r.year, r.half || 'E')} — drag its vertices; earlier years keep the old shape`, 'good');
     if (UI.nav === 'map') { setMapWhen(idx); } return;
   }
-  if (act === 'per-close') { const r = await hyPromptDialog({ title: `When was ${o.name || o.reg} removed?`, kicker: 'REMOVED', body: '<p>From this half-year it no longer appears in playback. Nothing is deleted; it can be rebuilt later.</p>', ok: 'Date the removal', label: 'Removed in', year: dflt.year, half: dflt.half }); if (!r || r.year == null) return; const cur = shapePeriods(o).find(p => p.current); const idx = hyIndex(r.year, r.half || 'E'); if (cur?.from != null && idx <= cur.from) { toast('The removal must come after the current shape started', 'warn'); return; } mapPushUndo(); o.yearClosed = r.year; o.halfClosed = r.half || ''; o.updated = now(); after(); toast(`Removed from ${hyLabel(r.year, r.half)} — still on file`, 'good'); return; }
-  if (act === 'per-rebuild') { const r = await hyPromptDialog({ title: `When was ${o.name || o.reg} rebuilt?`, kicker: 'REBUILT', body: '<p>The old shape keeps its dates; a new current shape starts here — redraw it.</p>', ok: 'Start rebuilt shape', label: 'Rebuilt in', year: dflt.year, half: dflt.half }); if (!r || r.year == null) return; const idx = hyIndex(r.year, r.half || 'E'); const res = shapeRebuildAt(o, idx); if (!res.ok) { toast(res.why, 'warn'); return; } mapPushUndo(); after(); toast(`Rebuilt from ${hyLabel(r.year, r.half || 'E')}`, 'good'); return; }
+  if (act === 'per-close') { const cur = shapePeriods(o).find(p => p.current); const d2 = cur?.from != null && hyIndex(dflt.year, dflt.half || 'E') <= cur.from ? hyFromIndex(cur.from + 1) : dflt;   // never offer a date the check below refuses
+    const r = await hyPromptDialog({ title: `When was ${o.name || o.reg} removed?`, kicker: 'REMOVED', body: '<p>From this half-year it no longer appears in playback. Nothing is deleted; it can be rebuilt later.</p>', ok: 'Date the removal', label: 'Removed in', year: d2.year, half: d2.half }); if (!r || r.year == null) return; const idx = hyIndex(r.year, r.half || 'E'); if (cur?.from != null && idx <= cur.from) { toast('The removal must come after the current shape started', 'warn'); return; } mapPushUndo(); o.yearClosed = r.year; o.halfClosed = r.half || ''; o.updated = now(); after(); toast(`Removed from ${hyLabel(r.year, r.half)} — still on file`, 'good'); return; }
+  if (act === 'per-rebuild') { const r = await hyPromptDialog({ title: `When was ${o.name || o.reg} rebuilt?`, kicker: 'REBUILT', body: '<p>The old shape keeps its dates; a new current shape starts here — redraw it.</p>', ok: 'Start rebuilt shape', label: 'Rebuilt in', year: dflt.year, half: dflt.half }); if (!r || r.year == null) return; const idx = hyIndex(r.year, r.half || 'E'); mapPushUndo(); const res = shapeRebuildAt(o, idx); if (!res.ok) { MAPW.undo.pop(); toast(res.why, 'warn'); return; } after(); toast(`Rebuilt from ${hyLabel(r.year, r.half || 'E')}`, 'good'); return; }
 }
 /* date edits typed into the timeline */
 function wireShapeTimelines(root) {

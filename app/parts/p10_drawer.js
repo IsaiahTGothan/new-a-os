@@ -378,7 +378,7 @@ function editorListingsHTML(b) {
   return `<div class="rowlist" style="margin:8px 0 0">${ls.map((l, i) => row(l, 'ls', i)).join('')}${tx.map((t, i) => row(t, 'tx', i)).join('')}</div>`;
 }
 /* re-render the editor without losing what has been typed */
-function rerenderEditor() { if (DR.mode !== 'edit') return; readAnyFormInto(DR.draft, false); const top = $('#drawer .dbody')?.scrollTop || 0; renderDrawer(); const body = $('#drawer .dbody'); if (body) body.scrollTop = top; }
+function rerenderEditor({ read = true } = {}) { if (DR.mode !== 'edit') return; if (read) readAnyFormInto(DR.draft, false); const top = $('#drawer .dbody')?.scrollTop || 0; renderDrawer(); const body = $('#drawer .dbody'); if (body) body.scrollTop = top; }
 
 /* searchable code picker for class / zoning */
 function comboHTML(kind, value, attrs) { return `<div class="combo" data-combo="${kind}"><input id="f-${kind}" value="${esc(value || '')}" ${attrs} autocomplete="off" spellcheck="false"><div class="list" role="listbox"></div></div>`; }

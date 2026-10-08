@@ -7,7 +7,7 @@ document.addEventListener('click', async e => {
   if (t.dataset.pi !== undefined && t.closest('#palette')) { openSearchHit(UI.palette.items[+t.dataset.pi]); return; }
   if (t.dataset.nav) { setNav(t.dataset.nav); return; }
   if (t.dataset.scopeKind !== undefined) { const k = t.dataset.scopeKind; setScope(k === 'all' ? { kind: 'all', id: null } : { kind: k, id: t.dataset.scopeId }); return; }
-  if (t.dataset.add) { $('#addmenu').hidden = true; const a = t.dataset.add; if (a === 'building') newBuildingFlow(null, { historical: false }); else if (a === 'historical') newBuildingFlow(null, { historical: true }); else if (a === 'business') newBusinessFlow(); else if (a === 'road') startDrawFlow('road'); else if (a === 'line') startDrawFlow('transit'); else if (a === 'station') startDrawFlow('station'); else if (a === 'district') openDistrictModal(null); else if (a === 'region') openRegionModal(null); else if (a === 'chronicle') openArchiveModal(null, { year: CURRENT_YEAR }); return; }
+  if (t.dataset.add) { $('#addmenu').hidden = true; const a = t.dataset.add; if (a === 'building') newBuildingFlow(null, { historical: false }); else if (a === 'historical') newBuildingFlow(null, { historical: true }); else if (a === 'business') newBusinessFlow(); else if (a === 'road') startDrawFlow('road'); else if (a === 'line') startDrawFlow('transit'); else if (a === 'station') startDrawFlow('station'); else if (a === 'district') openDistrictModal(null); else if (a === 'region') openRegionModal(null); else if (a === 'chronicle') openArchiveModal(null); return; }
   if (t.dataset.openH !== undefined || t.dataset.open !== undefined) {
     if (!(await leaveEditor())) return;
     const v = t.dataset.openH ?? t.dataset.open; const inDrawer = DR.id && $('#drawer').classList.contains('on');
@@ -30,7 +30,7 @@ document.addEventListener('click', async e => {
   if (t.dataset.tseg) { UI.tseg = t.dataset.tseg; renderView(false); return; }
   if (t.dataset.cseg) { UI.cseg = t.dataset.cseg; renderView(false); return; }
   if (t.dataset.cfToggle) { UI.cf[t.dataset.cfToggle] = !UI.cf[t.dataset.cfToggle]; renderView(false); return; }
-  if (t.dataset.mode && !t.dataset.act) { setMapMode(t.dataset.mode); return; }   // the map's tool buttons only — the directions panel's mode buttons carry data-act
+  if (t.dataset.mode && !t.dataset.act) { chooseTool(t.dataset.mode); return; }   // the map's tool buttons only — the directions panel's mode buttons carry data-act
   if (t.dataset.dock) { MAPW.dock = t.dataset.dock; renderDock(); return; }
   const act = t.dataset.act; if (!act) return;
   if (act.startsWith('insp-')) { inspectorAction(act, t); return; }
@@ -140,7 +140,7 @@ document.addEventListener('click', async e => {
     case 'hv-ref': HV.refOverlay = !HV.refOverlay; hvUpdateChrome(); hvDraw(); break;
     case 'hv-follow': HV.follow = !HV.follow; hvUpdateChrome(); break;
     // chronicle
-    case 'arch-new': openArchiveModal(null, { year: t.dataset.year ? +t.dataset.year : (HV.open ? hyFromIndex(HV.to).year : CURRENT_YEAR) }); break;
+    case 'arch-new': openArchiveModal(null, t.dataset.year ? { year: +t.dataset.year } : HV.open ? { year: hyFromIndex(HV.to).year } : {}); break;
     case 'arch-edit': openArchiveModal(t.dataset.id); break;
     case 'arch-save': archiveSave(); break;
     case 'arch-cancel': archiveCancel(); break;
@@ -184,14 +184,14 @@ document.addEventListener('click', async e => {
     case 'place-on-map': pickPointForDraft('xz'); break;
     case 'footprint-draw': drawFootprintForDraft(); break;
     case 'lot-draw': { if (!DR.draft) break; readFormInto(DR.draft, false); startLotDraw(DR.draft.id, { draft: DR.draft }); break; }
-    case 'lot-clear': { if (!DR.draft) break; readFormInto(DR.draft, false); DR.draft.lot = null; DR.draft.lotSource = ''; rerenderEditor(); toast('Lot outline cleared — the typed frontage, depth and area stay', ''); break; }
-    case 'lot-remeasure': { if (!DR.draft) break; readFormInto(DR.draft, false); applyLotMetrics(DR.draft); rerenderEditor(); toast('Measured lot values restored', 'good'); break; }
-    case 'footprint-clear': readFormInto(DR.draft, false); DR.draft.footprint = null; rerenderEditor(); break;
+    case 'lot-clear': { if (!DR.draft) break; readFormInto(DR.draft, false); DR.draft.lot = null; DR.draft.lotSource = ''; rerenderEditor({ read: false }); toast('Lot outline cleared — the typed frontage, depth and area stay', ''); break; }
+    case 'lot-remeasure': { if (!DR.draft) break; readFormInto(DR.draft, false); applyLotMetrics(DR.draft); rerenderEditor({ read: false }); toast('Measured lot values restored', 'good'); break; }
+    case 'footprint-clear': readFormInto(DR.draft, false); DR.draft.footprint = null; rerenderEditor({ read: false }); break;
     case 'place-accept': { const sel = $('#f-district'); if (sel) { sel.value = t.dataset.district; sel.dispatchEvent(new Event('change')); } break; }
-    case 'listing-add': { readFormInto(DR.draft, false); const v = await listingDialog({ title: 'Add a listing' }); if (!v) break; DR.draft.listings = [...(DR.draft.listings || []), v]; if (!DR.draft.market) DR.draft.market = v.kind === 'lease' ? 'for-lease' : 'for-sale'; if (num(DR.draft.listPrice) == null && v.price != null) DR.draft.listPrice = v.price; rerenderEditor(); break; }
-    case 'listing-remove': readFormInto(DR.draft, false); DR.draft.listings.splice(+t.dataset.i, 1); rerenderEditor(); break;
-    case 'tx-add': { readFormInto(DR.draft, false); const v = await listingDialog({ title: 'Record a transaction', tx: true }); if (!v) break; DR.draft.transactions = [...(DR.draft.transactions || []), v]; if (DR.draft.market === 'for-sale' && v.kind === 'sale') DR.draft.market = 'sold'; if (DR.draft.market === 'for-lease' && v.kind === 'lease') DR.draft.market = 'leased'; rerenderEditor(); break; }
-    case 'tx-remove': readFormInto(DR.draft, false); DR.draft.transactions.splice(+t.dataset.i, 1); rerenderEditor(); break;
+    case 'listing-add': { readFormInto(DR.draft, false); const v = await listingDialog({ title: 'Add a listing' }); if (!v) break; DR.draft.listings = [...(DR.draft.listings || []), v]; if (!DR.draft.market) DR.draft.market = v.kind === 'lease' ? 'for-lease' : 'for-sale'; if (num(DR.draft.listPrice) == null && v.price != null) DR.draft.listPrice = v.price; rerenderEditor({ read: false }); break; }
+    case 'listing-remove': readFormInto(DR.draft, false); DR.draft.listings.splice(+t.dataset.i, 1); rerenderEditor({ read: false }); break;
+    case 'tx-add': { readFormInto(DR.draft, false); const v = await listingDialog({ title: 'Record a transaction', tx: true }); if (!v) break; DR.draft.transactions = [...(DR.draft.transactions || []), v]; if (DR.draft.market === 'for-sale' && v.kind === 'sale') DR.draft.market = 'sold'; if (DR.draft.market === 'for-lease' && v.kind === 'lease') DR.draft.market = 'leased'; rerenderEditor({ read: false }); break; }
+    case 'tx-remove': readFormInto(DR.draft, false); DR.draft.transactions.splice(+t.dataset.i, 1); rerenderEditor({ read: false }); break;
     // roads / lines / stations / businesses in the drawer
     case 'vx-add': { readAnyFormInto(DR.draft, false); const g = DR.kind === 'road' ? DR.draft.geometry : null; if (g) { const last = g[g.length - 1] || [0, 0]; g.push([last[0] + 10, last[1]]); rerenderEditor(); } break; }
     case 'vx-del': { readAnyFormInto(DR.draft, false); if (DR.kind === 'road') { DR.draft.geometry.splice(+t.dataset.i, 1); rerenderEditor(); } break; }
@@ -283,8 +283,8 @@ document.addEventListener('change', e => {
   if (el.dataset.jfrom !== undefined) { UI.jfrom = el.value || null; renderView(false); return; }
   if (el.dataset.jto !== undefined) { UI.jto = el.value || null; renderView(false); return; }
   if (el.dataset.boardStation !== undefined) { UI.boardStation = el.value; renderView(false); return; }
-  if (el.closest?.('#calcform')) { const g = id => $('#f-' + id)?.value; UI.calc = { mode: g('cmode'), grade: g('cgrade'), blocks: num(g('cblocks')) || 0, stations: num(g('cstations')) || 0, stationGrade: g('csgrade') }; renderView(false); return; }
-  if (el.dataset.tcost !== undefined) { const v = num(el.value); if (v == null || v < 0) return; S.settings.transitCost = { ...TC(), [el.dataset.tcost]: v }; commit({ silentRender: true }); renderView(false); toast('Cost model updated', 'good'); return; }
+  if (el.closest?.('#calcform')) { const g = id => $('#f-' + id)?.value; UI.calc = { mode: g('cmode'), grade: g('cgrade'), blocks: num(g('cblocks')) || 0, stations: num(g('cstations')) || 0, stationGrade: g('csgrade') }; renderViewKeepingFocus(); return; }
+  if (el.dataset.tcost !== undefined) { const v = num(el.value); if (v == null || v < 0) return; S.settings.transitCost = { ...TC(), [el.dataset.tcost]: v }; commit({ silentRender: true }); renderViewKeepingFocus(); toast('Cost model updated', 'good'); return; }
   if (el.dataset.tline !== undefined) { UI.tline = el.value; UI.tfrom = null; UI.tto = null; renderView(false); return; }
   if (el.dataset.tfrom !== undefined) { UI.tfrom = el.value || null; renderView(false); return; }
   if (el.dataset.tto !== undefined) { UI.tto = el.value || null; renderView(false); return; }
@@ -324,6 +324,7 @@ document.addEventListener('keydown', e => {
   const isModal = modalOpen(); const onMap = UI.nav === 'map' && !DR.id && !isModal && !HV.open;
   if (e.key === 'Escape') {
     if ($('.combo.open')) return;
+    if (inField && e.target.closest?.('#dock-body')) { e.target.blur(); return; }   // Esc in an inspector field just leaves the field — the typed values stay
     if (UI.palette.open) { closePalette(); return; }
     if (SCOPE_POP.open) { closeScopePop(); return; }
     if (!$('#addmenu').hidden) { $('#addmenu').hidden = true; return; }
@@ -347,14 +348,18 @@ document.addEventListener('keydown', e => {
   }
   if (inField || isModal || e.metaKey || e.ctrlKey || e.altKey) return;
   const k = e.key;
+  if (UI.nav === 'map' && DR.id && MAPW.draft && MAPW.pending && !isModal && !HV.open) {   // tracing a lot or footprint for the open editor (the drawer is hidden meanwhile)
+    if (k === 'Enter') { e.preventDefault(); mapFinishDraft(); return; }
+    if (k === 'Backspace') { e.preventDefault(); mapDraftUndo(); return; }
+  }
   if (onMap) {
     if (k === 'Enter' && MAPW.draft) { e.preventDefault(); mapFinishDraft(); return; }
     if (k === 'Backspace' && MAPW.draft) { e.preventDefault(); mapDraftUndo(); return; }
     if ((k === 'Delete' || k === 'Backspace') && MAPW.sel?.vertex != null) { e.preventDefault(); deleteSelectedVertex(); return; }
     if ((k === 't' || k === 'T') && MAPW.mode === 'transit') { MAPW.stopMode = !MAPW.stopMode; renderMapInstr(); toast(MAPW.stopMode ? 'Every click places a stop' : 'Clicks place track points (Alt-click for a stop)', ''); return; }
-    if (k === '[' || k === ']') { e.preventDefault(); setMapWhen((MAPW.when ?? presentIdx()) + (k === ']' ? 1 : -1)); return; }
+    if (k === '[' || k === ']') { e.preventDefault(); if (MAPW.draft?.pts?.length) { toast('Finish the drawing (Enter) or cancel it (Esc) first', 'warn'); return; } setMapWhen((MAPW.when ?? presentIdx()) + (k === ']' ? 1 : -1)); return; }
     const modeKey = { s: 'select', p: 'pan', b: 'border', d: 'road', l: 'transit', x: 'station', a: 'place' }[k.toLowerCase()];
-    if (modeKey && !e.shiftKey && MAPW.edit) { if (MAPW.draft?.pts?.length && modeKey !== MAPW.mode) { toast('Finish the drawing (Enter) or cancel it (Esc) first', 'warn'); return; } setMapMode(modeKey); return; }
+    if (modeKey && !e.shiftKey && MAPW.edit) { if (MAPW.draft?.pts?.length && modeKey !== MAPW.mode) { toast('Finish the drawing (Enter) or cancel it (Esc) first', 'warn'); return; } chooseTool(modeKey); return; }
     if ((k === 'e' || k === 'E') && !DR.id) { setMapEdit(!MAPW.edit); return; }
   }
   if (DR.id && DR.mode === 'edit' && k !== '/' && k !== '?') return;   // never throw away an open editor from the keyboard
@@ -382,3 +387,11 @@ document.addEventListener('keydown', e => {
   else if (/^[1-9]$/.test(k)) { const n = NAV[+k - 1]; if (n) setNav(n.id); }
   else if (k === '[' || k === ']') { const i = NAV.findIndex(n => n.id === UI.nav); setNav(NAV[(i + (k === ']' ? 1 : NAV.length - 1)) % NAV.length].id); }
 });
+/* re-render the view after a form change without losing the keyboard: a tick later the browser has moved the focus
+   (Tab lands after the change event); the field that has it then gets it back on the fresh DOM */
+function renderViewKeepingFocus() {
+  setTimeout(() => {
+    const a = document.activeElement; const key = a?.id ? `#${CSS.escape(a.id)}` : a?.dataset?.tcost != null ? `[data-tcost="${CSS.escape(a.dataset.tcost)}"]` : null; let ss = null; try { ss = a?.selectionStart ?? null; } catch { }
+    renderView(false); if (!key) return; const el = $(key); if (!el) return; el.focus({ preventScroll: true }); try { if (ss != null && el.setSelectionRange) el.setSelectionRange(ss, ss); } catch { }
+  }, 0);
+}

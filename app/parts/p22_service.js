@@ -69,7 +69,7 @@ function renderServiceTab() {
 }
 function renderTimesTab() {
   const lines = S.lines.filter(l => UI.tf.all || lineInScope(l)).sort((a, b) => lineLabel(a).localeCompare(lineLabel(b)));
-  if (!lines.length) return `<div class="panel empty"><b>No lines</b>Draw a line on the map and add its stops to see travel times.</div>`;
+  if (!lines.length) return S.lines.length && !UI.tf.all ? `<div class="panel empty"><b>No lines in ${esc(scopeName())}</b>${S.lines.length} line${S.lines.length === 1 ? ' is' : 's are'} on file outside its borders.<br><button class="btn primary" data-tf-toggle="all">${icon('globe')} Show all jurisdictions</button></div>` : `<div class="panel empty"><b>No lines</b>Draw a line on the map and add its stops to see travel times.</div>`;
   const l = lineById(UI.tline) || lines[0]; UI.tline = l.id; if (!lines.includes(l)) lines.unshift(l); const svc = lineService(l); const tt = lineTimetable(l); const e2e = lineEndToEnd(l); const stops = stationsOf(l);
   const jt = UI.tfrom && UI.tto ? lineJourneyTime(l, UI.tfrom, UI.tto) : null;
   const basisChip = b => `<span class="mk ${TIME_BASIS[b]?.tone || 'muted'}">${(TIME_BASIS[b]?.label || b).toUpperCase()}</span>`;

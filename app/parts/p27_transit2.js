@@ -106,10 +106,12 @@ function placeStationSmart(raw) {
     if (sel && !sel.stopIds.includes(existing.id)) { mapPushUndo(); addStopOrdered(sel, existing.id); commit(); MAPW.sel = { kind: 'line', id: sel.id }; renderDock(); mapDraw(); toast(`${existing.name || existing.reg} is now a stop of ${lineLabel(sel)}${linesAtStation(existing).length > 1 ? ' — transfer with ' + linesAtStation(existing).filter(x => x.id !== sel.id).map(lineLabel).join(', ') : ''}`, 'good'); return; }
     MAPW.sel = { kind: 'station', id: existing.id }; setMapMode('select'); renderDock(); mapDraw(); toast(`${existing.name || existing.reg} is already here — selected`, ''); return;
   }
-  const tol = Math.max(4, 10 / MAPW.cam.k); const lines = [...new Map([...(sel ? [{ l: sel }] : []), ...linesNear(p, tol)].map(x => [x.l.id, x.l])).values()];
+  const tol = Math.max(4, 10 / MAPW.cam.k); const selD = sel ? Math.min(Infinity, ...lineGeometries(sel).map(g => polylineClosest(p, g)?.d ?? Infinity)) : Infinity; const joinSel = !!sel && selD <= Math.max(tol * 3, 30);   // a click well away from the selected line makes a free station, not a stop of it
+  const lines = [...new Map([...(joinSel ? [{ l: sel }] : []), ...linesNear(p, tol)].map(x => [x.l.id, x.l])).values()];
   mapPushUndo(); const s = newStationAt(p, lines); for (const l of lines) addStopOrdered(l, s.id);
   commit(); MAPW.sel = sel ? { kind: 'line', id: sel.id } : { kind: 'station', id: s.id }; if (!sel) setMapMode('select'); renderDock(); refreshTools(); mapDraw();
-  toast(`${s.reg} placed${lines.length ? ` on ${lines.map(lineLabel).join(' · ')}${lines.length > 1 ? ' — a transfer' : ''}` : ' — not on any line yet (click it with a line selected, or draw a line through it)'}${sel ? ' · keep clicking to add more stops' : ''}`, 'good');
+  const tail = sel ? (joinSel ? ' · keep clicking to add more stops' : ` · ${fmtInt(Math.round(selD))} blk off ${lineLabel(sel)}, so not a stop of it — click on or near its track to add stops`) : '';
+  toast(`${s.reg} placed${lines.length ? ` on ${lines.map(lineLabel).join(' · ')}${lines.length > 1 ? ' — a transfer' : ''}` : (sel && !joinSel ? '' : ' — not on any line yet (click it with a line selected, or draw a line through it)')}${tail}`, lines.length || !sel ? 'good' : 'warn');
   if (!sel) setTimeout(() => $('#insp-name')?.focus(), 60);
 }
 
@@ -148,12 +150,12 @@ function stationInspectorHTML(s) {
     <div class="frow" style="margin-top:8px"><div class="f"><label>X</label>${numF('insp-x', s.x, 'step="1"')}</div><div class="f"><label>Z</label>${numF('insp-z', s.z, 'step="1"')}</div></div>
     <div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:10px"><button class="btn sm primary" data-act="insp-save-station">${icon('check')} Save</button><button class="btn sm" data-act="insp-move">${icon('pin')} Move</button><button class="btn sm danger" data-act="insp-delete">${icon('trash')}</button></div>`;
 }
-/* save the station inspector: status, hours, dates; an opening date in the future is stored as expected */
+/* save the station inspector: status, hours, dates; the date of a station still planned or being built is its expected opening (even once it has slipped past today) */
 function saveStationInspector(s) {
   const g = id => $('#f-' + id)?.value ?? ''; const hy = id => { const y = num($(`#f-${id}-y`)?.value); const h = $(`#f-${id}-h`)?.value; return { y, h: y != null && ['E', 'L'].includes(h) ? h : '' }; };
   s.name = $('#insp-name').value.trim(); s.kind = g('insp-kind') || 'station'; s.status = g('insp-status') || 'open'; s.hours = g('insp-hours'); s.grade = g('insp-grade'); s.hoursFrom = num(g('insp-hfrom')); s.hoursTo = num(g('insp-hto'));
   const st = hy('insp-sstart'), op = hy('insp-sopen'), cl = hy('insp-sclose'); s.yearStarted = st.y; s.halfStarted = st.h; s.yearClosed = cl.y; s.halfClosed = cl.h;
-  const future = op.y != null && hyIndex(op.y, op.h) > hyIndex(CURRENT_YEAR, CURRENT_HALF) && ['construction', 'planned'].includes(s.status);
+  const future = op.y != null && ['construction', 'planned'].includes(s.status);
   if (future) { s.yearExpected = op.y; s.halfExpected = op.h; s.yearOpened = null; s.halfOpened = ''; } else { s.yearOpened = op.y; s.halfOpened = op.h; }
   s.costActual = num(g('insp-cost')); const x = num(g('insp-x')), z = num(g('insp-z')); if (x != null && z != null && (x !== s.x || z !== s.z)) { s.x = x; s.z = z; s.districtId = placeSuggest(x, z).districts[0]?.d.id || null; for (const l of linesAtStation(s)) sortStopsAlong(l); }
   s.updated = now();
@@ -227,7 +229,7 @@ function boardDepartures(s, m = null, count = 3) {
 const minsText = m => m < 0.75 ? 'due' : `${Math.round(m)} min`;
 function renderBoardTab() {
   const all = S.stations.filter(s => UI.tf.all || stationInScope(s)).filter(s => s.x != null || linesAtStation(s).length);
-  if (!all.length) return `<div class="panel empty"><b>No stations yet</b>Draw a line on the map and drop stops along it — the board fills in from the line's headway and hours.<br><button class="btn primary" data-act="draw-line">${icon('draw')} Draw a line</button></div>`;
+  if (!all.length) { const onFile = S.stations.filter(s => s.x != null || linesAtStation(s).length).length; return onFile && !UI.tf.all ? `<div class="panel empty"><b>No stations in ${esc(scopeName())}</b>${onFile} station${onFile === 1 ? ' is' : 's are'} on file outside its borders.<br><button class="btn primary" data-tf-toggle="all">${icon('globe')} Show all jurisdictions</button></div>` : `<div class="panel empty"><b>No stations yet</b>Draw a line on the map and drop stops along it — the board fills in from the line's headway and hours.<br><button class="btn primary" data-act="draw-line">${icon('draw')} Draw a line</button></div>`; }
   const s = stationById(UI.boardStation) && all.some(x => x.id === UI.boardStation) ? stationById(UI.boardStation) : all.slice().sort((a, b) => linesAtComplex(b).length - linesAtComplex(a).length || (a.name || a.reg).localeCompare(b.name || b.reg))[0]; UI.boardStation = s.id;
   const deps = boardDepartures(s); const clock = new Date(); const lines = S.lines.filter(l => UI.tf.all || lineInScope(l));
   const uc = all.filter(x => ['construction', 'planned'].includes(effectiveStationStatus(x))); const xg = transferGroup(s).filter(x => x.id !== s.id);
@@ -250,7 +252,11 @@ function renderBoardTab() {
     </div>
   </section>`;
 }
-function refreshBoardClock() { if (UI.nav !== 'transit' || UI.tseg !== 'board' || document.hidden) return; const el = $('#board-clock'); if (!el) return; const sc = window.scrollY; renderView(false); window.scrollTo(0, sc); }
+function refreshBoardClock() {
+  if (UI.nav !== 'transit' || UI.tseg !== 'board' || document.hidden) return; const el = $('#board-clock'); if (!el) return;
+  const tmp = document.createElement('div'); tmp.innerHTML = renderBoardTab();   // only the clock, the departures and the line strips change — swap those, keep the rest (and the focus) as it is
+  for (const sel of ['#board-clock', '.board .brows', '.lstatus']) { const a = $(sel), b = tmp.querySelector(sel); if (a && b && a.innerHTML !== b.innerHTML) a.innerHTML = b.innerHTML; }
+}
 setInterval(refreshBoardClock, 15000);
 
 /* ---- projects: stations and lines under construction or planned, sandbox ideas, and a calculator ---- */

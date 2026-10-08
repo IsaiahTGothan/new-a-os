@@ -258,7 +258,7 @@ function closeDirections() { EXPLORE.dir = false; EXPLORE.picking = null; MAPW.r
    settings.basemaps[] = { id, name, x, z (world coords of the image's top-left pixel), scale (blocks per pixel), opacity, w, h }
    The image itself lives in the images store under 'basemap:<id>' and in the vault as images/basemap-<id>.<ext>. */
 const BASEMAP_IMG = new Map();
-async function loadBasemaps() { for (const bm of S.settings.basemaps || []) { if (BASEMAP_IMG.has(bm.id)) continue; try { const rec = await idbGet('images', 'basemap:' + bm.id); if (!rec?.full) continue; const img = new Image(); img.onload = () => { BASEMAP_IMG.set(bm.id, img); if (!bm.w) { bm.w = img.naturalWidth; bm.h = img.naturalHeight; } mapDraw(); }; img.src = URL.createObjectURL(rec.full); BASEMAP_IMG.set(bm.id, img); } catch { } } }
+async function loadBasemaps() { for (const bm of S.settings.basemaps || []) { if (BASEMAP_IMG.has(bm.id)) continue; try { const rec = await idbGet('images', 'basemap:' + bm.id); if (!rec?.full) continue; const img = new Image(); img.onload = () => { BASEMAP_IMG.set(bm.id, img); if (!bm.w) { bm.w = img.naturalWidth; bm.h = img.naturalHeight; } mapDraw(); if (HV.open) hvDraw(); }; img.src = URL.createObjectURL(rec.full); BASEMAP_IMG.set(bm.id, img); } catch { } } }
 /* which basemaps belong at a moment. Today: every undated render plus the dated ones still in force. At a past date:
    every dated map that had been made by then and is not retired ("shown until"), oldest first so a newer map always
    sits on top of an older one — never the other way round; transparent (unexplored) pixels let older maps show through. */

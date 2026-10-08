@@ -931,6 +931,144 @@ const FEED = (extra = '') => `<?xml version="1.0"?><rss version="2.0"><channel><
   ok(val2T.f.transit === 15 && val2T.f['transit-lines'] === 3 && val2T.f.corner === 3 && val2T.f.era === 4 && val2T.aged === -3, `valuation v2: +15% station at the door, +3% for two extra lines in reach (1.5 each), +3% corner lot from the drawn outline, +4% new build, −3% at 12 years old`);
   noErrors('editor sections, valuation');
 
+  // ---------- X · round-4 audit: 25 reproduced bugs and frictions, each fixed and re-checked ----------
+  console.log('\nX · round-4 audit fixes — editor re-render, station dates, board refresh, lot tracing keys, playback, undo, phone layouts');
+  await page.evaluate(() => { closeModal(); closeDrawer(true); setMapWhen(null); setNav('map'); setMapEdit(false); }); await page.waitForTimeout(300);
+  // fixtures when the data has none: a line with two stops and an undated road (removed again at the end of the section)
+  const fxX = await page.evaluate(() => { const out = { line: null, road: null }; if (!S.lines.some(l => (l.stopIds || []).length >= 2)) { const t = newTrack(S); t.geometry = [[40000, 41000], [40400, 41000]]; S.tracks.push(t); const l = newLine(S); l.name = 'Audit Line'; l.shortName = 'A'; l.trackIds = [t.id]; S.lines.push(l); const a = newStationAt([40000, 41000]), b = newStationAt([40400, 41000]); addStopOrdered(l, a.id); addStopOrdered(l, b.id); out.line = { l: l.id, t: t.id, s: [a.id, b.id] }; }
+    if (!S.roads.some(x => (x.geometry || []).length >= 2 && !(x.versions || []).length && x.yearOpened == null && x.yearClosed == null)) { const r = newRoad(S); r.name = 'Audit Road'; r.geometry = [[40000, 40000], [40200, 40000]]; r.width = 6; S.roads.push(r); out.road = r.id; } commit(); JUNCTION_CACHE.key = ''; ROAD_GRAPH.key = ''; return out; });
+  // 1 · "Add a listing" keeps the status and price it set; "restore measured lot values" really restores them
+  const lsT = await page.evaluate(async () => {
+    const b = S.buildings.find(x => isActive(x) && x.x != null && !(x.listings || []).length); openRecord('building', b.id, 'edit'); await new Promise(r => setTimeout(r, 250));
+    $('#bform details[data-sec="valuation"]').open = true; $('#bform [data-act="listing-add"]').click(); await new Promise(r => setTimeout(r, 200));
+    $('#ls-kind').value = 'sale'; $('#ls-price').value = '750000'; $('#modal-root [data-r="ok"]').click(); await new Promise(r => setTimeout(r, 300));
+    const after = { market: $('#f-market')?.value, price: $('#f-listPrice')?.value, n: (DR.draft.listings || []).length };
+    DR.draft.lot = [[b.x - 20, b.z - 15], [b.x + 20, b.z - 15], [b.x + 20, b.z + 15], [b.x - 20, b.z + 15]]; applyLotMetrics(DR.draft); rerenderEditor({ read: false }); await new Promise(r => setTimeout(r, 100));
+    const measured = lotMetrics(DR.draft).frontage; $('#bform details[data-sec="lot"]').open = true; $('#f-lotFront').value = '999'; rerenderEditor(); await new Promise(r => setTimeout(r, 100));   // a typed value marks the lot "typed values kept" on the next re-render
+    const typed = { source: DR.draft.lotSource, btn: !!$('#bform [data-act="lot-remeasure"]') }; $('#bform [data-act="lot-remeasure"]')?.click(); await new Promise(r => setTimeout(r, 200));
+    const lot = { front: $('#f-lotFront').value, measured, source: DR.draft.lotSource, typed };
+    closeDrawer(true); return { after, lot, saved: (byId(b.id).listings || []).length };
+  });
+  ok(lsT.after.market === 'for-sale' && +lsT.after.price === 750000 && lsT.after.n === 1 && lsT.saved === 0, `Add a listing: the form shows For sale · 750000 after the re-render (${JSON.stringify(lsT.after)}; nothing saved — the editor was discarded)`);
+  ok(lsT.lot.typed.source === 'manual' && lsT.lot.typed.btn && +lsT.lot.front === lsT.lot.measured && lsT.lot.source === 'drawn', `a typed frontage is kept as typed; "use the measured ones" puts the measured frontage back (999 → ${lsT.lot.front} = ${lsT.lot.measured}, source ${lsT.lot.typed.source} → ${lsT.lot.source})`);
+  // 2 · a slipped project stays a project when its inspector is saved
+  const slipT = await page.evaluate(async () => {
+    setMapEdit(true); const s = newStationAt([30500, 30500], []); s.name = 'Slipped Yard'; s.status = 'construction'; s.yearExpected = CURRENT_YEAR; s.halfExpected = 'E'; commit();
+    MAPW.sel = { kind: 'station', id: s.id }; renderDock(); await new Promise(r => setTimeout(r, 100)); const shown = { status: $('#f-insp-status')?.value, y: $('#f-insp-sopen-y')?.value, h: $('#f-insp-sopen-h')?.value };
+    $('#dock-body [data-act="insp-save-station"]').click(); await new Promise(r => setTimeout(r, 150));
+    const out = { shown, yearOpened: s.yearOpened, yearExpected: s.yearExpected, halfExpected: s.halfExpected, status: s.status, now: stationStateAt(s, presentIdx()), eff: effectiveStationStatus(s) };
+    S.stations = S.stations.filter(x => x.id !== s.id); MAPW.sel = null; commit(); renderDock(); return out;
+  });
+  ok(slipT.yearOpened == null && slipT.yearExpected === 2026 && slipT.halfExpected === 'E' && slipT.status === 'construction' && slipT.now !== 'open', `station inspector: an expected date already past stays "expected" on save (${JSON.stringify(slipT)})`);
+  // 3 · the board refreshes in place: typing in Find survives the 15-second tick
+  const boardX = await page.evaluate(async () => {
+    setNav('transit'); const wasAll = UI.tf.all; UI.tf.all = true; UI.tseg = 'board'; renderView(false); await new Promise(r => setTimeout(r, 150)); const q = $('#tq'); if (!q) { UI.tf.all = wasAll; return { noBox: true }; }
+    q.focus(); q.value = 'har'; q.setSelectionRange(2, 2); const clock0 = $('#board-clock')?.textContent; refreshBoardClock(); await new Promise(r => setTimeout(r, 50));
+    const out = { focus: document.activeElement?.id, val: $('#tq')?.value, caret: $('#tq')?.selectionStart, clock: $('#board-clock')?.textContent, clock0, rows: $$('.board .brow').length, strips: $$('.lstatus .lstrip').length }; UI.tf.all = wasAll; return out;
+  });
+  ok(boardX.focus === 'tq' && boardX.val === 'har' && boardX.caret === 2 && boardX.clock && boardX.rows >= 1, `Board: the 15-second refresh keeps the Find box focused with its caret, departures and strips refreshed in place (${JSON.stringify(boardX)})`);
+  // 4 · Enter closes and Backspace trims a lot traced for the open editor
+  const lotKeyT = await page.evaluate(async () => {
+    setNav('map'); const b = S.buildings.find(x => isActive(x) && x.x != null); openRecord('building', b.id, 'edit'); await new Promise(r => setTimeout(r, 250)); $('#bform details[data-sec="lot"]').open = true;
+    $('#bform [data-act="lot-draw"]').click(); await new Promise(r => setTimeout(r, 200));
+    MAPW.draft = { kind: 'polygon', pts: [[b.x - 30, b.z - 20], [b.x + 30, b.z - 20], [b.x + 30, b.z + 20], [b.x - 30, b.z + 20], [b.x - 50, b.z]], forKind: 'footprint' }; mapDraw();
+    return { mode: MAPW.mode, pending: MAPW.pending?.kind, drawerOn: $('#drawer').classList.contains('on'), drId: !!DR.id, pts: MAPW.draft.pts.length };
+  });
+  await page.keyboard.press('Backspace'); await page.waitForTimeout(80); const lotKeyPts = await page.evaluate(() => MAPW.draft?.pts?.length);
+  await page.keyboard.press('Enter'); await page.waitForTimeout(400);
+  const lotKeyAfter = await page.evaluate(() => { const r = { draft: !!MAPW.draft, pending: !!MAPW.pending, lot: DR.draft?.lot?.length, drawerOn: $('#drawer').classList.contains('on'), mode: MAPW.mode }; closeDrawer(true); return r; });
+  ok(lotKeyT.mode === 'footprint' && lotKeyT.pending === 'lot' && !lotKeyT.drawerOn && lotKeyT.drId && lotKeyPts === 4 && lotKeyAfter.lot === 4 && !lotKeyAfter.draft && lotKeyAfter.drawerOn, `tracing a lot from the editor: Backspace removes the last point (5 → ${lotKeyPts}) and Enter closes it (${lotKeyAfter.lot} points, editor back)`);
+  // 5 · playback loads the dated maps itself · 7 · projection rebuilds the track · 8 · the speed is saved · 21 · a new dated map joins the evidence track · 24 · compare mode keeps the counters clear
+  const hvT = await page.evaluate(async () => {
+    setNav('history'); const o = loadBasemaps; let loads = 0; loadBasemaps = async () => { loads++; }; openHistoryViewer({ index: 0 }); await new Promise(r => setTimeout(r, 200)); loadBasemaps = o;
+    const ticks0 = $$('#hv-ticks span').length, max0 = +$('#hv-range').max, i10 = HV.i1; hvToggleProjection(); await new Promise(r => setTimeout(r, 100));
+    const proj = { ticks: $$('#hv-ticks span').length, max: +$('#hv-range').max, i1: HV.i1, expectTicks: hyFromIndex(HV.i1).year - FOUNDED_YEAR + 1, jumpMax: +$('#hv-jump-y').max }; hvToggleProjection();
+    const oc = commit; let commits = 0; commit = opts => { commits++; return oc(opts); }; const sp = $('#hv-speed'); sp.value = sp.options[sp.options.length - 1].value; sp.dispatchEvent(new Event('change', { bubbles: true })); commit = oc;
+    const speed = { commits, rate: S.settings.tlRate, sel: +sp.value };
+    const maps0 = $$('#hv-evidence .evd.maps').length; const usedI = new Set($$('#hv-evidence .evd.maps').map(e => +e.dataset.i)); let freeI = hyIndex(2014, 'E'); while (usedI.has(freeI)) freeI++; const fh = hyFromIndex(freeI);   // a half-year with no map marker yet, so the count must grow by one
+    const fake = { id: 'bm_audit_fake', name: 'audit map', year: fh.year, half: fh.half, x: 0, z: 0, w: 10, h: 10, scale: 1, source: 'mcmap' }; S.settings.basemaps = [...(S.settings.basemaps || []), fake]; hvRefreshTrack(); const maps1 = $$('#hv-evidence .evd.maps').length; S.settings.basemaps = S.settings.basemaps.filter(x => x.id !== fake.id); hvRefreshTrack();
+    hvToggleCompare(); await new Promise(r => setTimeout(r, 150)); const R = s => { const e = $(s); if (!e) return null; const r = e.getBoundingClientRect(); return [r.left, r.top, r.right, r.bottom]; }; const m = R('.hv-maps'), c = R('#hv-counts'); const hit = m && c && m[0] < c[2] && m[2] > c[0] && m[1] < c[3] && m[3] > c[1]; hvToggleCompare();
+    closeHistoryViewer(); return { loads, ticks0, max0, i10, proj, speed, maps0, maps1, compare: { m, c, hit } };
+  });
+  ok(hvT.loads === 1, `opening playback loads the dated maps itself (loadBasemaps called ${hvT.loads}×)`);
+  ok(hvT.proj.i1 > hvT.i10 && hvT.proj.ticks === hvT.proj.expectTicks && hvT.proj.ticks === hvT.ticks0 + 1 && Math.abs(hvT.proj.max - (hvT.proj.i1 + 0.999)) < 1e-6 && hvT.proj.jumpMax === 2013 + hvT.proj.ticks - 1, `Projection rebuilds the year ticks with the slider (${hvT.ticks0} → ${hvT.proj.ticks} ticks, max ${hvT.max0} → ${hvT.proj.max})`);
+  ok(hvT.speed.commits === 1 && hvT.speed.rate === hvT.speed.sel, `the playback speed is committed when changed (rate ${hvT.speed.rate}, ${hvT.speed.commits} commit)`);
+  ok(hvT.maps1 === hvT.maps0 + 1, `a dated map added while playback is open appears on the evidence track (${hvT.maps0} → ${hvT.maps1} markers)`);
+  ok(hvT.compare.m && hvT.compare.c && !hvT.compare.hit, `compare mode: the OLD MAPS bar sits clear of pane A's counters (${JSON.stringify(hvT.compare)})`);
+  // 6 · Undo brings back the shape "New shape from…" changed · 23 · "Removed in…" never offers a refused date · 18 · the pencil clears the drawer
+  const splitT = await page.evaluate(async () => {
+    setNav('map'); setMapEdit(true); const r = S.roads.find(x => (x.geometry || []).length >= 2 && !(x.versions || []).length && x.yearOpened == null && x.yearClosed == null); if (!r) return { none: true };
+    const keep = JSON.stringify(r); r.yearOpened = 2015; r.halfOpened = 'E'; commit(); const T = pid => ({ dataset: { kind: 'road', id: r.id, pid } });
+    const oh = hyPromptDialog; hyPromptDialog = async () => ({ year: 2020, half: 'E' }); await shapeTimelineAction('per-split', T()); await new Promise(res => setTimeout(res, 100));
+    const split = { versions: (r.versions || []).length, from: r.geometryFromYear, when: MAPW.when, undo: MAPW.undo.length };
+    let captured = null; hyPromptDialog = async opts => { captured = { year: opts.year, half: opts.half }; return null; }; setMapWhen(hyIndex(2020, 'E')); await shapeTimelineAction('per-close', T()); hyPromptDialog = oh;
+    mapUndo(); await new Promise(res => setTimeout(res, 100)); const r2 = roadById(r.id); const undone = { versions: (r2.versions || []).length, from: r2.geometryFromYear ?? null, closed: r2.yearClosed ?? null };
+    openRecord('road', r.id); await new Promise(res => setTimeout(res, 200)); const drawerBefore = $('#drawer').classList.contains('on'); await shapeTimelineAction('per-edit', T('current')); await new Promise(res => setTimeout(res, 200)); const drawerAfter = $('#drawer').classList.contains('on');
+    Object.assign(roadById(r.id), JSON.parse(keep)); commit(); setMapWhen(null); MAPW.sel = null; renderDock(); return { split, captured, undone, drawerBefore, drawerAfter, nav: UI.nav };
+  });
+  ok(splitT.split.versions === 1 && splitT.split.from === 2020 && splitT.undone.versions === 0 && splitT.undone.from === null, `Undo after "New shape from…" removes the dated shape again (versions 1 → ${splitT.undone.versions}, current from ${splitT.split.from} → ${splitT.undone.from})`);
+  ok(splitT.captured && splitT.captured.year === 2020 && splitT.captured.half === 'L', `"Removed in…" offers the half-year after the current shape started, not the refused one (${JSON.stringify(splitT.captured)})`);
+  ok(splitT.drawerBefore && !splitT.drawerAfter && splitT.nav === 'map', `the pencil on a shape in the record closes the drawer over the map (drawer ${splitT.drawerBefore} → ${splitT.drawerAfter})`);
+  // 9 · Add → Chronicle image follows the map date
+  const archT = await page.evaluate(async () => { setMapWhen(hyIndex(2017, 'E')); $('[data-add="chronicle"]').click(); await new Promise(r => setTimeout(r, 150)); const y = $('#a-year')?.value; closeModal(); setMapWhen(null); return y; });
+  ok(archT === '2017', `Add → Chronicle image is dated with the map date (${archT})`);
+  // 13 · Esc in an inspector field keeps the typing · 15 · the Transit tool starts a new line, "Add track" keeps the selection · 14 · a far click is a free station · 20 · [ ] refused mid-drawing
+  const inspT = await page.evaluate(async () => { const l = S.lines.find(x => (x.stopIds || []).length >= 2); if (!l) return { none: true }; setMapEdit(true); MAPW.sel = { kind: 'line', id: l.id }; setMapMode('select'); renderDock(); await new Promise(r => setTimeout(r, 100)); const f = $('#insp-name'); f.focus(); f.value = (l.name || '') + ' Q'; return { id: l.id, typed: f.value }; });
+  await page.keyboard.press('Escape'); await page.waitForTimeout(100);
+  const inspEsc = await page.evaluate(() => ({ sel: MAPW.sel?.id, val: $('#insp-name')?.value, focus: document.activeElement?.id || document.activeElement?.tagName }));
+  ok(inspEsc.sel === inspT.id && inspEsc.val === inspT.typed && inspEsc.focus !== 'insp-name', `Esc in the inspector name field leaves the field without deselecting or losing the text (${JSON.stringify(inspEsc)})`);
+  await page.keyboard.press('l'); await page.waitForTimeout(100);
+  const lT = await page.evaluate(id => { const r = { sel: MAPW.sel, mode: MAPW.mode, instr: $('#map-instr')?.textContent || '' }; MAPW.sel = { kind: 'line', id }; setMapMode('select'); renderDock(); $('#dock-body [data-act="insp-add-track"]').click(); r.add = { sel: MAPW.sel?.id, mode: MAPW.mode, instr: $('#map-instr')?.textContent || '' }; return r; }, inspT.id);
+  ok(lT.sel === null && lT.mode === 'transit' && /new line/.test(lT.instr) && lT.add.sel === inspT.id && lT.add.mode === 'transit' && /new track for/.test(lT.add.instr), `L after a line is selected starts a new line; the inspector's Add track still adds to it ("${lT.instr.slice(0, 40)}…" / "${lT.add.instr.slice(0, 48)}…")`);
+  const farT = await page.evaluate(async id => { const l = lineById(id); MAPW.draft = null; MAPW.sel = { kind: 'line', id }; setMapMode('station'); const g = lineGeometries(l)[0]; const p0 = g[0]; const dir = [g[1][0] - g[0][0], g[1][1] - g[0][1]]; const L = Math.hypot(...dir) || 1; const nrm = [-dir[1] / L, dir[0] / L]; const far = [Math.round(p0[0] + nrm[0] * 200), Math.round(p0[1] + nrm[1] * 200)]; const n0 = S.stations.length, s0 = l.stopIds.length;
+    placeStationSmart(far); await new Promise(r => setTimeout(r, 50)); const farS = S.stations[S.stations.length - 1]; const out = { made: S.stations.length - n0, joined: l.stopIds.includes(farS.id), stops: l.stopIds.length - s0, toast: $('#toast')?.textContent || $$('.toast').map(x => x.textContent).join(' ') };
+    const near = [Math.round(p0[0] + nrm[0] * 6 + dir[0] / L * 5), Math.round(p0[1] + nrm[1] * 6 + dir[1] / L * 5)]; placeStationSmart(near); await new Promise(r => setTimeout(r, 50)); const nearS = S.stations[S.stations.length - 1]; out.nearJoined = l.stopIds.includes(nearS.id);
+    l.stopIds = l.stopIds.filter(x => x !== nearS.id && x !== farS.id); S.stations = S.stations.filter(x => x !== nearS && x !== farS); MAPW.sel = null; setMapMode('select'); commit(); renderDock(); return out; }, inspT.id);
+  ok(farT.made === 1 && !farT.joined && farT.stops === 0 && farT.nearJoined, `Station mode with a line selected: a click 200 blk away makes a free station (not a stop), a click beside the track joins the line (${JSON.stringify({ joined: farT.joined, nearJoined: farT.nearJoined })})`);
+  await page.evaluate(() => { setMapMode('road'); MAPW.draft = { kind: 'polyline', pts: [[100, 100], [160, 100]], forKind: 'road' }; mapDraw(); });
+  await page.keyboard.press('['); await page.waitForTimeout(80);
+  const bracketT = await page.evaluate(() => { const r = { when: MAPW.when, draft: MAPW.draft?.pts?.length }; mapCancel(); setMapMode('select'); return r; });
+  ok(bracketT.when === null && bracketT.draft === 2, `[ is refused while a road is being drawn (map date stays today, draft intact)`);
+  // 19 · [ ] and Esc work on the focused slider right after the clock opens
+  await page.evaluate(() => setMapEdit(false)); await page.waitForTimeout(400); await page.evaluate(() => toggleTimeWidget(true)); await page.waitForTimeout(150); const twF = await page.evaluate(() => document.activeElement?.id);
+  await page.keyboard.press('['); await page.waitForTimeout(80); const twA = await page.evaluate(() => ({ when: MAPW.when, present: presentIdx(), focus: document.activeElement?.id }));
+  await page.keyboard.press(']'); await page.waitForTimeout(80); const twB = await page.evaluate(() => MAPW.when);
+  await page.keyboard.press('Escape'); await page.waitForTimeout(80); const twC = await page.evaluate(() => ({ open: MAPW.timeOpen, panel: !!$('.tw-panel') && !$('.tw-panel').hidden }));
+  ok(twF === 'tw-range' && twA.focus === 'tw-range' && twA.when === twA.present - 1 && twB === null && !twC.open && !twC.panel, `the slider has the focus after opening the clock and [ ] step the date there, Esc closes the panel (${JSON.stringify({ twF, twA, twB, twC })})`);
+  // 16 · Projects: cost-model and estimate-form edits keep the keyboard
+  const costT = await page.evaluate(async () => {
+    setNav('transit'); UI.tseg = 'projects'; renderView(false); await new Promise(r => setTimeout(r, 150)); const keep = JSON.stringify(S.settings.transitCost || null);
+    const inp = $('[data-tcost]'); if (!inp) return { none: true }; const key = inp.dataset.tcost; inp.focus(); inp.value = String((num(inp.value) || 0) + 1); inp.dispatchEvent(new Event('change', { bubbles: true })); await new Promise(r => setTimeout(r, 60));
+    const a = document.activeElement; const cost = { same: a?.dataset?.tcost === key, saved: TC()[key] === num(inp.value) };
+    const cb = $('#f-cblocks'); if (cb) { cb.focus(); cb.value = '123'; cb.dispatchEvent(new Event('change', { bubbles: true })); await new Promise(r => setTimeout(r, 60)); }
+    const calc = { focus: document.activeElement?.id, blocks: UI.calc?.blocks }; S.settings.transitCost = keep === 'null' ? undefined : JSON.parse(keep); commit({ silentRender: true }); renderView(false); return { cost, calc };
+  });
+  ok(costT.cost?.same && costT.cost?.saved && costT.calc?.focus === 'f-cblocks' && costT.calc?.blocks === 123, `Projects: a cost-model edit and an estimate-form edit re-render without dropping the focus (${JSON.stringify(costT)})`);
+  // 17 · empty states say when transit is merely out of scope
+  const scopeT = await page.evaluate(async () => { const was = UI.scope; const d = S.districts.find(x => !S.stations.some(s => stationInScope(s, { kind: 'district', id: x.id })) && !S.lines.some(l => lineInScope(l, { kind: 'district', id: x.id }))); if (!d) return { none: true }; UI.tf.all = false; setScope({ kind: 'district', id: d.id }); UI.tseg = 'board'; renderView(false); await new Promise(r => setTimeout(r, 100)); const board = $('#main .panel.empty')?.textContent || ''; UI.tseg = 'times'; renderView(false); await new Promise(r => setTimeout(r, 100)); const times = $('#main .panel.empty')?.textContent || ''; $('#main .panel.empty [data-tf-toggle="all"]')?.click(); await new Promise(r => setTimeout(r, 100)); const after = { all: UI.tf.all, empty: !!$('#main .panel.empty') }; UI.tf.all = false; setScope(was); UI.tseg = 'board'; renderView(false); return { d: d.name, board, times, after }; });
+  ok(scopeT.none || (/outside its borders/.test(scopeT.board) && /outside its borders/.test(scopeT.times) && scopeT.after.all && !scopeT.after.empty), `Board and Times in a place without transit point at the stations on file elsewhere, one click shows them (${scopeT.none ? 'no such place in the data' : scopeT.d + ': ' + scopeT.board.slice(0, 60)})`);
+  // 22 · the old-maps dialog follows the typed date
+  const miT = await page.evaluate(async () => { MAPIMPORT = { maps: [{ id: 7, x: 0, z: 0, size: 128, scale: 0, modified: 0, overworld: true, dimension: 'overworld' }], skipped: [], mode: 'fixed', fixed: { year: 2018, half: 'L' }, label: 'Minecraft maps' }; openMapImportModal(); await new Promise(r => setTimeout(r, 100)); const before = $('#mi-groups')?.textContent || ''; const y = $('#mi-y'); y.value = '2015'; y.dispatchEvent(new Event('input', { bubbles: true })); const h = $('#mi-h'); h.value = 'E'; h.dispatchEvent(new Event('change', { bubbles: true })); await new Promise(r => setTimeout(r, 50)); const after = $('#mi-groups')?.textContent || ''; const go = $('#mi-go')?.textContent || ''; closeModal(); MAPIMPORT = null; return { before, after, go }; });
+  ok(/2018/.test(miT.before) && /Early 2015/.test(miT.after) && /Add 1 dated map/.test(miT.go), `old-maps dialog: the group row follows the typed date (${miT.before.trim().slice(0, 16)} → ${miT.after.trim().slice(0, 16)})`);
+  noErrors('audit fixes (desktop)');
+  // 10 · 11 · 12 · 25 · phone layouts at 390 px
+  await page.setViewportSize({ width: 390, height: 844 }); await page.waitForTimeout(150);
+  const phoneX = await page.evaluate(async () => {
+    const R = el => { if (!el) return null; const r = el.getBoundingClientRect(); return [Math.round(r.left), Math.round(r.top), Math.round(r.right), Math.round(r.bottom)]; }; const hits = (a, b) => a && b && a[0] < b[2] && a[2] > b[0] && a[1] < b[3] && a[3] > b[1];
+    setNav('history'); openHistoryViewer({ index: 0 }); await new Promise(r => setTimeout(r, 250)); const maps = R($('.hv-maps')); const chips = $$('.hv-layers .crumb').map(R); const stage = R($('#hv-stage')); const pb = { mapsOverChips: chips.some(c => hits(maps, c)), mapsInStage: maps && stage && maps[0] >= stage[0] && maps[2] <= stage[2] && maps[1] >= stage[1], noteHidden: !$('.hv-note') || getComputedStyle($('.hv-note')).display === 'none' }; closeHistoryViewer();
+    setNav('map'); setMapEdit(false); await new Promise(r => setTimeout(r, 150)); toggleTimeWidget(true); await new Promise(r => setTimeout(r, 100)); const panel = R($('.tw-panel')); toggleTimeWidget(false);
+    setMapWhen(hyIndex(2017, 'E')); await new Promise(r => setTimeout(r, 50)); const st = $('#status'); const when = R($('#st-when')); const status = { overflow: getComputedStyle(st).overflowX, scrollW: st.scrollWidth, clientW: st.clientWidth, whenVisible: when && when[0] >= 0 && when[2] <= 390, countsHidden: getComputedStyle($('#st-counts')).display === 'none', idbHidden: getComputedStyle($('#st-idb').parentElement).display === 'none' }; setMapWhen(null);
+    setMapEdit(true); await new Promise(r => setTimeout(r, 150)); const hud = $('.map-hud'); const hudT = { scrollW: hud.scrollWidth, clientW: hud.clientWidth, coordHidden: getComputedStyle($('#map-coord')).display === 'none', groups: $$('.map-hud .grp').map(R).filter(r => r[2] - r[0] > 0).every(r => r[0] >= 0 && r[2] <= 390) }; setMapEdit(false);
+    return { pb, panel, status, hudT };
+  });
+  await page.setViewportSize({ width: 1440, height: 900 }); await page.waitForTimeout(100);
+  ok(!phoneX.pb.mapsOverChips && phoneX.pb.mapsInStage && phoneX.pb.noteHidden, `phone playback: the OLD MAPS bar sits under the date, clear of the layer chips (${JSON.stringify(phoneX.pb)})`);
+  ok(phoneX.panel && phoneX.panel[0] >= 0 && phoneX.panel[2] <= 390, `phone map: the open time panel fits on the screen (${JSON.stringify(phoneX.panel)})`);
+  ok(phoneX.status.overflow === 'auto' && phoneX.status.whenVisible && phoneX.status.countsHidden && phoneX.status.idbHidden, `phone status strip: scrolls instead of clipping, the time chip is on screen, the long counts are hidden (${JSON.stringify(phoneX.status)})`);
+  ok(phoneX.hudT.scrollW <= phoneX.hudT.clientW + 1 && phoneX.hudT.coordHidden && phoneX.hudT.groups, `phone edit map: the HUD fits the screen, coordinates and scale hidden (${JSON.stringify(phoneX.hudT)})`);
+  noErrors('audit fixes (phone)');
+  await page.evaluate(fx => { if (fx.line) { S.lines = S.lines.filter(l => l.id !== fx.line.l); S.tracks = S.tracks.filter(t => t.id !== fx.line.t); S.stations = S.stations.filter(s => !fx.line.s.includes(s.id)); } if (fx.road) S.roads = S.roads.filter(r => r.id !== fx.road); commit(); JUNCTION_CACHE.key = ''; ROAD_GRAPH.key = ''; }, fxX);
+
   await ctx.close(); await browser.close();
   console.log(`\n${checks - failures}/${checks} checks passed${failures ? ` · ${failures} FAILED` : ''}`);
   process.exit(failures ? 1 : 0);
