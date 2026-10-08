@@ -27,7 +27,7 @@ const fmtCur = (n, cur = 'USD') => n == null ? '—' : (cur === 'EMR' ? '◆' : 
 const fmtCurCompact = (n, cur = 'USD') => n == null ? '—' : (cur === 'EMR' ? '◆' : '$') + fmtCompact(n);
 const fmtDate = iso => { try { return new Date(iso).toLocaleString('en-US', { month: 'short', day: 'numeric', year: 'numeric', hour: 'numeric', minute: '2-digit' }); } catch { return iso; } };
 const fmtDay = iso => { try { return new Date(iso).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }); } catch { return iso; } };
-const fmtTime = d => d.toLocaleTimeString('en-US', { hour12: false });
+const fmtTime = d => d.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', second: '2-digit' });   // 12-hour, like the site
 const prefersReducedMotion = () => window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 const motionOn = () => S?.settings?.motion !== false && !prefersReducedMotion();
 const icon = (name, cls = '') => `<svg class="${cls}" aria-hidden="true"><use href="#i-${name}"/></svg>`;

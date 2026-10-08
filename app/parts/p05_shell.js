@@ -42,12 +42,13 @@ function renderChrome() {
 
 function renderView(enter = false) {
   hideHover(); closePalette(); const main = $('#main');
-  const html = UI.nav === 'overview' ? renderOverview() : UI.nav === 'registry' ? renderRegistryTab() : UI.nav === 'map' ? renderMapWorkspace() : UI.nav === 'transit' ? renderTransit() : UI.nav === 'civic' ? renderCivic() : UI.nav === 'businesses' ? renderBusinesses() : renderHistory();
+  const html = UI.nav === 'overview' ? renderOverview() : UI.nav === 'registry' ? renderRegistryTab() : UI.nav === 'map' ? renderMapWorkspace() : UI.nav === 'transit' ? renderTransit() : UI.nav === 'civic' ? renderCivic() : UI.nav === 'businesses' ? renderBusinesses() : UI.nav === 'site' ? renderSite() : renderHistory();
   main.innerHTML = `<div class="view ${enter && motionOn() && UI.nav !== 'map' ? 'enter' : ''}">${html}</div>`;
   afterRender();
 }
 function afterRender() {
   if (['overview', 'history', 'transit', 'businesses', 'civic'].includes(UI.nav)) runCountUps();
+  slAfterRender();
   if (UI.nav === 'map') mapMount();
   if (UI.nav === 'history') historyAfterRender();
   UI.animateRows = false;

@@ -435,7 +435,7 @@ const FEED = (extra = '') => `<?xml version="1.0"?><rss version="2.0"><channel><
   await page.evaluate(() => setNav('overview')); await page.waitForTimeout(300);
   const fonts = await page.evaluate(() => ({ title: document.title, brand: getComputedStyle($('.brand h1 .px')).fontFamily, h2: getComputedStyle($('.hero .title h2')).fontFamily, tile: getComputedStyle($('.tile .val')).fontFamily, nav: $$('#side .tab.nav .lbl').map(l => l.textContent), navCol: getComputedStyle($('#side')).gridColumn || '' }));
   ok(fonts.title === 'NEW A OS' && /Silkscreen/i.test(fonts.brand) && /Bricolage/i.test(fonts.h2) && /Silkscreen/i.test(fonts.tile), `V3 typography: Silkscreen brand + tiles, Bricolage Grotesque display (title “${fonts.title}”)`);
-  ok(fonts.nav.join() === 'Home,Map,Registry,Transit,Civic,Business,History', 'left navigation: ' + fonts.nav.join(' · '));
+  ok(fonts.nav.join() === 'Home,Map,Registry,Transit,Civic,Business,History,Site', 'left navigation: ' + fonts.nav.join(' · '));
   noErrors('explore');
 
   // ---------- O · playback V3: speeds, change stepping, filters, compare, inferred marking, dated basemaps ----------
@@ -470,7 +470,7 @@ const FEED = (extra = '') => `<?xml version="1.0"?><rss version="2.0"><channel><
   console.log('\nP · civic, service, valuations, health, digest, quality, projects');
   await page.evaluate(() => { UI.mapColor = 'district'; setScope({ kind: 'region', id: 'new-a-city' }); setNav('overview'); }); await page.waitForTimeout(250);
   const p0 = await page.evaluate(() => ({ schema: S.schema, nav: $$('#tabs .tab .lbl').map(x => x.textContent), health: $$('.health .hcard').length, overall: $('.health .hcard.overall .count')?.dataset.to, profile: $('.profile .ptext p')?.textContent || '', projects: !!$('.panel.projects'), tiles: $$('.tiles .tile .lbl').map(x => x.textContent), quality: $$('.qrows .qr').length }));
-  ok(p0.schema === 4 && p0.nav.join() === 'Home,Map,Registry,Transit,Civic,Business,History', 'schema 4 · Civic in the navigation: ' + p0.nav.join(' · '));
+  ok(p0.schema === 4 && p0.nav.join() === 'Home,Map,Registry,Transit,Civic,Business,History,Site', 'schema 4 · Civic in the navigation: ' + p0.nav.join(' · '));
   ok(p0.health === 8 && +p0.overall >= 0 && +p0.overall <= 100, `city health: 7 measures + overall ${p0.overall}/100`);
   ok(/standing building/.test(p0.profile) && p0.projects && p0.tiles.includes('ESTIMATED VALUE'), `profile written from the records (“${p0.profile.slice(0, 80)}…”), project tracker and estimated-value tile on Home`);
   await page.screenshot({ path: path.join(SHOTS, 'P-home.png'), fullPage: false });
@@ -789,6 +789,41 @@ const FEED = (extra = '') => `<?xml version="1.0"?><rss version="2.0"><channel><
   await page.setViewportSize({ width: 1440, height: 900 }); await page.waitForTimeout(100);
   ok(Object.values(phoneT).every(Boolean), `phone (390 px): no page scrolls sideways and the map zoom buttons sit above the tab bar (${JSON.stringify(phoneT)})`);
   noErrors('round 3 · old maps, usability');
+
+  // ---------- U · the Site link merged onto round 3 (a stand-in site answers; the real site is never contacted) ----------
+  console.log('\nU · Site link (merged) — against a stand-in site');
+  const GOOD = 'harness-key-not-real'; const pushes = [];
+  await page.route('https://newa-site.vercel.app/**', async route => {
+    const req = route.request(); const u = new URL(req.url()); const auth = req.headers()['authorization'] || ''; const good = auth === 'Bearer ' + GOOD;
+    const json = (status, body) => route.fulfill({ status, contentType: 'application/json', headers: { 'access-control-allow-origin': '*' }, body: JSON.stringify(body) });
+    if (u.pathname === '/api/registry' && req.method() === 'GET') return auth && !good ? json(401, { error: 'The site refused the access key' }) : json(200, { source: 'bundled', counts: { buildings: 119, historical: 34 }, hash: 'h-bundled', authorized: good, limits: { masterBytes: 8388608 }, ignored: null });
+    if (u.pathname === '/api/agent' && req.method() === 'GET') return good ? json(200, { ok: true, featureActions: [] }) : json(401, { error: 'Bearer token required' });
+    if (u.pathname === '/api/registry' && req.method() === 'POST') { if (!good) return json(401, { error: 'The site refused the access key' }); const raw = req.postDataBuffer(); let body; try { body = JSON.parse(require('zlib').gunzipSync(raw).toString('utf8')); } catch { body = JSON.parse(raw.toString('utf8')); } pushes.push({ body, gz: req.headers()['content-type'] }); return json(200, { hash: 'h-' + pushes.length, prevHash: 'h-bundled', counts: { buildings: body.master.buildings.length }, summary: 'published', changes: [], source: 'registry-app' }); }
+    return json(200, {});
+  });
+  await page.evaluate(() => { closeModal(); closeDrawer(true); setMapEdit(false); setNav('map'); }); await page.waitForTimeout(250);
+  await page.keyboard.press('s'); await page.waitForTimeout(120); const navMap = await page.evaluate(() => UI.nav);
+  await page.evaluate(() => setNav('overview')); await page.waitForTimeout(150); await page.keyboard.press('s'); await page.waitForTimeout(300);
+  const siteU = await page.evaluate(() => ({ dbg: [document.activeElement?.tagName, document.activeElement?.id, modalOpen(), HV.open, DR.id, DR.mode, CLAW.open].join('/'), nav: UI.nav, head: document.querySelector('#main')?.textContent.includes('Site link'), url: !!$('#sl-url'), key: !!$('#sl-key') }));
+  ok(navMap === 'map' && siteU.nav === 'site' && siteU.head && siteU.url && siteU.key, `S opens the Site link screen from Home (and does nothing on the Map: still ${navMap}) ${siteU.nav !== 'site' ? siteU.dbg : ''}`);
+  if (siteU.nav !== 'site') { await page.evaluate(() => setNav('site')); await page.waitForTimeout(300); }
+  const fill = async key => { await page.evaluate(() => { if (!$('#sl-url')) $('[data-sl="setup-focus"]')?.click(); }); await page.waitForTimeout(80); await page.fill('#sl-url', 'https://newa-site.vercel.app'); await page.fill('#sl-key', key); await page.press('#sl-key', 'Enter'); await page.waitForTimeout(600); return page.evaluate(() => ({ state: SITE.conn.state, pill: [...document.querySelectorAll('#main .sl-pill')].map(p => p.textContent.trim()).join(' | ') })); };
+  const wrongU = await fill('definitely-wrong');
+  ok(wrongU.state === 'badkey' && /WRONG KEY/.test(wrongU.pill), `a refused key shows WRONG KEY (${wrongU.state}: ${wrongU.pill})`);
+  const goodU = await fill(GOOD);
+  ok(goodU.state === 'ok' && /CONNECTED/.test(goodU.pill), `the right key shows CONNECTED (${goodU.state}: ${goodU.pill})`);
+  const leakU = await page.evaluate(k => ({ inState: JSON.stringify(S).includes(k), inMaster: JSON.stringify(serializeMaster()).includes(k) }), GOOD);
+  ok(!leakU.inState && !leakU.inMaster, 'the access key is never in the registry or the master file (browser storage only)');
+  await page.evaluate(() => { window.confirmDialog = async () => 'ok'; const b = S.buildings.find(x => x.lot); if (!b) { const x = S.buildings.find(y => isActive(y)); x.lot = [[0, 0], [10, 0], [10, 10], [0, 10]]; } commit({ now: true }); });
+  await page.evaluate(() => slPublishClick()); await page.waitForTimeout(800);
+  const pubU = pushes[pushes.length - 1]; const m = pubU?.body?.master || {};
+  const r3 = { lot: (m.buildings || []).some(b => Array.isArray(b.lot)), versions: (m.roads || []).some(r => (r.versions || []).some(v => 'toYear' in v)), hours: (m.lines || []).some(l => 'hours' in l), transfers: (m.stations || []).some(s => Array.isArray(s.transferIds)), news: 'news' in m, world: 'world' in m, ai: !!m.settings?.ai, keys: JSON.stringify(pubU?.body || {}).includes(GOOD) };
+  ok(pubU && pubU.gz === 'application/octet-stream' && pubU.body.version === '3.2.0' && r3.lot && r3.versions && r3.hours && r3.transfers, `Publish to site sends the round-3 registry gzipped as version 3.2.0 (lots, dated shapes, line hours, transfers): ${JSON.stringify(r3)}`);
+  ok(!r3.news && !r3.world && !r3.ai && !r3.keys, 'what never leaves the computer stays home: news inbox, world scans, AI settings and the key are not in the publish');
+  const lastU = await page.evaluate(() => ({ state: SITE.conn.state, hash: SITE.conn.info?.hash, bar: $('#st-site-t')?.textContent || '' }));
+  ok(lastU.hash === 'h-' + pushes.length && /newa-site|connected|site/i.test(lastU.bar), `the dashboard records the site's new fingerprint (${lastU.hash}) and the status bar shows the link (${lastU.bar})`);
+  await page.unroute('https://newa-site.vercel.app/**');
+  noErrors('Site link');
 
   await ctx.close(); await browser.close();
   console.log(`\n${checks - failures}/${checks} checks passed${failures ? ` · ${failures} FAILED` : ''}`);

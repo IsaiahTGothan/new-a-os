@@ -36,6 +36,7 @@ function showDrawer() { $('#drawer').classList.add('on'); $('#backdrop').classLi
 function closeDrawer(force = false) {
   if (!force && DR.mode === 'edit' && formDirty()) { confirmDialog({ title: 'Discard changes?', body: '<p>This record has unsaved edits.</p>', ok: 'Discard', cancel: 'Keep editing', danger: true }).then(r => { if (r === 'ok') closeDrawer(true); }); return; }
   if (DR.isNew && DR.draft?.image) removeBuildingImage(DR.draft);   // discard the photo of an abandoned new record
+  if ($('#drawer').contains(document.activeElement)) document.activeElement.blur();   // a hidden form must not keep the keyboard
   $('#drawer').classList.remove('on'); $('#backdrop').classList.remove('on');
   DR.id = null; DR.kind = 'building'; DR.mode = null; DR.draft = null; DR.isNew = false; DR.stack = []; UI.selected = null;
   $$('table.reg tbody tr.sel').forEach(tr => tr.classList.remove('sel'));

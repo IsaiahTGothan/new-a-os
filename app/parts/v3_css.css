@@ -522,3 +522,9 @@ table.reg th{ font-family:var(--font-pixel); font-size:8.5px; letter-spacing:.04
 }
 .form input.err, .form select.err{ border-color:var(--bad) !important; box-shadow:0 0 0 2px rgba(255,90,90,.25); }
 @media (max-width:1700px){ #map-save-note{ display:none !important; } }
+@media (max-width:760px){
+  #app #side .tabs{ overflow:visible; min-width:0; flex:1 1 auto; scroll-snap-type:none; }
+  #app #side .tab.nav{ flex:1 1 0; min-width:0; padding:0 1px; font-size:7.5px; letter-spacing:0; overflow:hidden; }
+  #side .tab.nav svg{ width:17px; height:17px; }
+  #side .side-end .clawson{ width:40px; padding:0; }
+}

@@ -15,7 +15,7 @@ const v2 = JSON.parse(fs.readFileSync(path.join(DIR, 'v2-state.json'), 'utf8'));
   await page.goto(FILE); await booted(page);
   console.log('fresh:', await page.evaluate(() => ({ schema: S.schema, n: S.buildings.length, regions: S.regions.length, nav: UI.nav, scope: UI.scope })));
   report('fresh boot');
-  for (const nav of ['overview', 'registry', 'map', 'transit', 'civic', 'businesses', 'history']) { await page.evaluate(id => setNav(id), nav); await page.waitForTimeout(300); await page.screenshot({ path: path.join(SHOTS, `fresh-${nav}.png`) }); report('fresh ' + nav); }
+  for (const nav of ['overview', 'registry', 'map', 'transit', 'civic', 'businesses', 'history', 'site']) { await page.evaluate(id => setNav(id), nav); await page.waitForTimeout(300); await page.screenshot({ path: path.join(SHOTS, `fresh-${nav}.png`) }); report('fresh ' + nav); }
   await ctx.close();
 
   ctx = await browser.newContext(); page = await newPage(ctx);
@@ -27,7 +27,7 @@ const v2 = JSON.parse(fs.readFileSync(path.join(DIR, 'v2-state.json'), 'utf8'));
   report('upgrade boot');
   await page.screenshot({ path: path.join(SHOTS, 'real-upgrade-report.png') });
   await page.evaluate(() => closeModal());
-  for (const nav of ['overview', 'registry', 'map', 'transit', 'civic', 'businesses', 'history']) { await page.evaluate(id => setNav(id), nav); await page.waitForTimeout(400); await page.screenshot({ path: path.join(SHOTS, `real-${nav}.png`) }); report('real ' + nav); }
+  for (const nav of ['overview', 'registry', 'map', 'transit', 'civic', 'businesses', 'history', 'site']) { await page.evaluate(id => setNav(id), nav); await page.waitForTimeout(400); await page.screenshot({ path: path.join(SHOTS, `real-${nav}.png`) }); report('real ' + nav); }
   await page.evaluate(() => { setNav('history'); UI.hseg = 'records'; renderView(false); }); await page.waitForTimeout(200); report('history records');
   await page.evaluate(() => { UI.hseg = 'chronicle'; renderView(false); }); await page.waitForTimeout(200); report('history chronicle');
   for (const seg of ['board', 'projects', 'lines', 'stations', 'service', 'times', 'sandbox', 'checks']) { await page.evaluate(s => { setNav('transit'); UI.tseg = s; renderView(false); }, seg); await page.waitForTimeout(200); report('transit ' + seg); }

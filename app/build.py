@@ -5,7 +5,7 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 P = lambda *a: os.path.join(HERE, 'parts', *a)
 JS_PARTS = ['p00_config.js', 'p01_refdata.js', 'p02_utils.js', 'p03_state.js', 'p04_persist.js', 'p05_shell.js', 'p06_charts.js', 'p07_engine.js',
             'p08_overview.js', 'p09_registry.js', 'p10_drawer.js', 'p11_records.js', 'p12_modals.js', 'p13_map.js', 'p14_history.js', 'p15_transit.js',
-            'p16_business.js', 'p17_news.js', 'p18_assistant.js', 'p19_interactions.js', 'p19a_explore.js', 'p21_civic.js', 'p22_service.js', 'p23_city.js', 'p24_clawson.js', 'p25_os.js', 'p26_periods.js', 'p27_transit2.js', 'p28_lots.js', 'p29_oldmaps.js', 'p20_boot.js']
+            'p16_business.js', 'p17_news.js', 'p18_assistant.js', 'p19_interactions.js', 'p19a_explore.js', 'p21_civic.js', 'p22_service.js', 'p23_city.js', 'p24_clawson.js', 'p25_os.js', 'p26_periods.js', 'p27_transit2.js', 'p28_lots.js', 'p29_oldmaps.js', 'p30_site.js', 'p20_boot.js']
 head = '''<!doctype html>
 <html lang="en">
 <head>
@@ -20,7 +20,7 @@ head = '''<!doctype html>
 <link href="https://fonts.googleapis.com/css2?family=Silkscreen:wght@400;700&family=Bricolage+Grotesque:opsz,wght@12..96,300;12..96,400;12..96,500;12..96,600;12..96,700;12..96,800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
 <style>
 '''
-css = open(P('v2_css.css')).read() + '\n' + open(P('css_25.css')).read() + '\n' + open(P('v3_css.css')).read()
+css = open(P('v2_css.css')).read() + '\n' + open(P('css_25.css')).read() + '\n' + open(P('v3_css.css')).read() + '\n' + open(P('site_css.css')).read()
 body = open(P('body.html')).read()
 js = '\n\n'.join(open(P(f)).read().rstrip() + '\n' for f in JS_PARTS)
 open(os.path.join(HERE, 'script.js'), 'w').write(js)

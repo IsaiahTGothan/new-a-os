@@ -13,8 +13,8 @@ newa-site-patch/  the one CORS header for the site's feed
 
 ```
 cd app
-python3 build.py            # parts/p00…p29 + css → NewA-Land-Registry.html (node --check on the bundle)
-node test.js                # 264 checks in headless Chromium on the real schema-2 data (sections A–T)
+python3 build.py            # parts/p00…p30 + css → NewA-Land-Registry.html (node --check on the bundle)
+node test.js                # 272 checks in headless Chromium on the real schema-2 data (sections A–U)
 node smoke.js               # every page, tab and modal with zero console errors
 cd ../os && node test/run.js   # 70 bridge checks (NBT, region formats, scans, backups, routes, item maps)
 ```
@@ -58,6 +58,10 @@ The world folder is only ever read. See `os/README.md`.
 * **Playback** — the slider glides (six speeds, a year per 20 s to two years per second), shows the month, and roads grow, lines extend, stations appear and buildings rise or fall the moment the playhead crosses the date. Ghosts fade within a year.
 * **Old maps** — Minecraft's own `map_#.dat` files (from the world's or a backup's `data` folder) are read in the browser, placed from their centres and scale, dated early/late (or by file date) and stacked oldest → newest under playback, with an opacity slider. `node os/tools/mcmaps.js <world> --out maps.png` does the same from the command line.
 * **Usability** — 20 audited fixes (Pick on the map fills the editor, shortcut keys never discard work, pickers return to their form, inbox keeps its place, validation focuses the field, phone layout without sideways scroll…). Ideas for what next: `docs/IDEAS.md`.
+
+## Site link (3.2.0)
+
+The **Site** screen (left bar, or `S` from any screen but the Map) links New A OS to newa-site.vercel.app: publish the registry by hand or automatically while open, push photos and the basemap, read the site back, and run the newsroom, City Hall and the market queue. It was built in the site repo on top of round 2 and is merged here onto round 3. Setup, auto-publish, errors and troubleshooting: `docs/SITE-LINK.md`.
 
 ## Rules the code keeps
 

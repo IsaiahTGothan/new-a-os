@@ -7,7 +7,7 @@
 /* =====================================================================
    §0  CONFIG
    ===================================================================== */
-const APP = { name: 'New A OS', version: '3.0.0', schema: 4, site: 'zays.us/new-a', newsSite: 'https://newa-site.vercel.app', feedUrl: 'https://newa-site.vercel.app/feed.xml', marketsUrl: 'https://newa-site.vercel.app/api/markets' };
+const APP = { name: 'New A OS', version: '3.2.0', schema: 4, site: 'zays.us/new-a', newsSite: 'https://newa-site.vercel.app', feedUrl: 'https://newa-site.vercel.app/feed.xml', marketsUrl: 'https://newa-site.vercel.app/api/markets' };
 const FOUNDED_YEAR = 2013;                       // Jan 27, 2013 — the timeline starts here
 const CURRENT_YEAR = new Date().getFullYear();   // the "present" end of the timeline
 const CURRENT_HALF = new Date().getMonth() < 6 ? 'E' : 'L';
@@ -141,6 +141,7 @@ const NAV = [
   { id: 'civic', label: 'Civic', icon: 'civic', key: 'C', title: 'Civic — hospitals, police, fire, city halls, government offices, officials and their residences, coverage (C)' },
   { id: 'businesses', label: 'Business', icon: 'biz', key: 'B', title: 'Businesses — operators, tenants, listings, revenue (B)' },
   { id: 'history', label: 'History', icon: 'hist', key: 'H', title: 'History — playback, demolished records, chronicle, statistics (H)' },
+  { id: 'site', label: 'Site', icon: 'site', key: 'S', title: 'Site link — City Hall: publish the registry, photos and the basemap; read the site back; stories, alerts, approvals and the market queue (S)' },
 ];
 
 /* ---- civic facilities & government ---- */

@@ -371,12 +371,13 @@ document.addEventListener('keydown', e => {
   else if (k === 't' || k === 'T') setNav('transit');
   else if ((k === 'b' || k === 'B') && !(onMap && MAPW.edit)) setNav('businesses');
   else if ((k === 'c' || k === 'C') && !(onMap && MAPW.edit)) setNav('civic');
+  else if ((k === 's' || k === 'S') && !onMap) setNav('site');
   else if (k === 'k' || k === 'K') clawToggle();
   else if (k === 'h' || k === 'H') setNav('history');
   else if (k === 'e' || k === 'E') { if (DR.id && DR.mode === 'view') openRecord(DR.kind, DR.id, 'edit', { keepStack: true }); }
   else if (k === 'Backspace' && DR.id && DR.mode === 'view' && DR.stack.length) { e.preventDefault(); drawerBack(); }
   else if (k === 'ArrowDown' && DR.id) { e.preventDefault(); stepRecord(1); }
   else if (k === 'ArrowUp' && DR.id) { e.preventDefault(); stepRecord(-1); }
-  else if (/^[1-7]$/.test(k)) { const n = NAV[+k - 1]; if (n) setNav(n.id); }
+  else if (/^[1-9]$/.test(k)) { const n = NAV[+k - 1]; if (n) setNav(n.id); }
   else if (k === '[' || k === ']') { const i = NAV.findIndex(n => n.id === UI.nav); setNav(NAV[(i + (k === ']' ? 1 : NAV.length - 1)) % NAV.length].id); }
 });

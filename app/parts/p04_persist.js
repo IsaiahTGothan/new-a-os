@@ -38,6 +38,7 @@ function commit(opts = {}) {
   S.meta.updated = now(); SAVE.dirty = true; setSaveState('pending');
   clearTimeout(SAVE.timer); SAVE.timer = setTimeout(flush, opts.now ? 0 : 500);
   if (!opts.silentRender) { renderChrome(); renderStatus(); }
+  if (typeof SITE !== 'undefined') slOnCommit();      // Site link: compare with the last publish once edits settle (and auto-publish)
 }
 async function flush() {
   if (SAVE.busy) { clearTimeout(SAVE.timer); SAVE.timer = setTimeout(flush, 300); return; }

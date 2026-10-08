@@ -1,10 +1,10 @@
 # app/ — the single-file New A OS
 
-`build.py` concatenates `parts/p00…p29` (p20_boot last) and the three CSS files into `NewA-Land-Registry.html`, running `node --check` on the bundle first. Edit the parts, never the HTML.
+`build.py` concatenates `parts/p00…p30` (p20_boot last) and the four CSS files (v2, 2.5, v3, site) into `NewA-Land-Registry.html`, running `node --check` on the bundle first. Edit the parts, never the HTML.
 
 ```
 python3 build.py        # rebuild
-node test.js            # 264 checks in headless Chromium on the real schema-2 data (sections A–T), ~4 min
+node test.js            # 272 checks in headless Chromium on the real schema-2 data (sections A–U), ~4 min
 node smoke.js           # every page, tab and modal; prints "[view] errors: N", 0 expected everywhere
 node shots-resp.js      # responsive screenshots at 1024 and 390 px
 ```
