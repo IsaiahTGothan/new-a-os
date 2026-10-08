@@ -23,7 +23,7 @@ function renderRoadRecord(r) {
       <div class="reg road">${esc(r.reg)} <span class="dist" style="--c:var(--road)"><i></i>${juris.map(d => esc(d.name)).join(' · ') || (regs.length ? regs.map(x => esc(x.name)).join(' · ') : 'no jurisdiction on the map yet')}</span></div>
       <h2>${esc(roadLabel(r))}</h2>
       ${r.aliases?.length || r.formerNames?.length ? `<div class="nm">${r.aliases?.length ? 'also ' + esc(r.aliases.join(', ')) : ''}${r.aliases?.length && r.formerNames?.length ? ' · ' : ''}${r.formerNames?.length ? 'formerly ' + esc(r.formerNames.join(', ')) : ''}</div>` : ''}
-      <div class="badges"><span class="mk road">${esc(ROAD_TYPE_LABEL[r.type] || r.type).toUpperCase()}</span><span class="mk">${esc(GRADE_LABEL[r.grade] || r.grade).toUpperCase()}</span><span class="mk">${esc((DIRECTIONS.find(x => x[0] === r.direction) || [])[1] || r.direction).toUpperCase()}</span>${openBadge(r)}${confHTML(r.confidence, r.verified)}</div>
+      <div class="badges"><span class="mk road">${esc(ROAD_TYPE_LABEL[r.type] || r.type).toUpperCase()}</span><span class="mk">${esc(GRADE_LABEL[r.grade] || r.grade).toUpperCase()}</span><span class="mk ${r.direction === 'one-way' ? 'warn' : ''}" title="${r.direction === 'one-way' ? esc(oneWayText(r)) : ''}">${esc((DIRECTIONS.find(x => x[0] === r.direction) || [])[1] || r.direction).toUpperCase()}${r.direction === 'one-way' ? ' ' + oneWayArrow(r) : ''}</span>${openBadge(r)}${confHTML(r.confidence, r.verified)}</div>
     </div>
     <div class="secthead">GEOMETRY</div>
     <div class="kv">
@@ -60,6 +60,7 @@ function renderRoadEditor(r) {
     </div></div>
     <div class="fsect"><h4>KIND</h4><div class="frow c3">
       ${fld('type', 'Type', selF('type', ROAD_TYPES, r.type))}${fld('grade', 'Grade', selF('grade', GRADES, r.grade), 'bridges & tunnels never form junctions with surface roads')}${fld('direction', 'Access', selF('direction', DIRECTIONS, r.direction))}
+      ${fld('oneWayDir', 'One-way runs', selF('oneWayDir', ONEWAY_DIRS, r.oneWayDir === -1 ? -1 : 1), 'only for one-way roads · the map shows faint arrows')}
       ${fld('width', 'Width', numF('width', r.width, 'min="1" step="1"'), 'blocks')}${fld('surface', 'Surface', inpF('surface', r.surface, 'placeholder="stone bricks, asphalt…"'))}
     </div></div>
     <div class="fsect"><h4>SHAPE HISTORY <span style="font-weight:400;letter-spacing:0;color:var(--ink-4);font-family:var(--font-mono);font-size:10.5px">dates and shapes are edited on the record page or in the map inspector</span></h4>${shapeTimelineHTML(r, 'road', { editable: false })}</div>
@@ -82,7 +83,7 @@ function readRoadFormInto(r, strict) {
   const newName = g('name').trim();
   if (!DR.isNew && r.name && newName && newName !== r.name) { const prev = recordById('road', r.id); if (prev && prev.name === r.name && !(r.formerNames || []).includes(r.name)) r.formerNames = [...(r.formerNames || []), r.name]; }
   r.name = newName; r.aliases = g('aliases').split(',').map(s => s.trim()).filter(Boolean); r.formerNames = [...new Set([...(g('formerNames').split(',').map(s => s.trim()).filter(Boolean)), ...(r.formerNames || []).filter(n => n !== r.name)])].filter(n => n !== r.name);
-  r.type = g('type') || 'street'; r.grade = g('grade') || 'surface'; r.direction = g('direction') || 'two-way'; r.width = num(g('width')); r.surface = g('surface').trim();
+  r.type = g('type') || 'street'; r.grade = g('grade') || 'surface'; r.direction = g('direction') || 'two-way'; r.oneWayDir = +g('oneWayDir') === -1 ? -1 : 1; r.width = num(g('width')); r.surface = g('surface').trim();
   const op = readHY('opened'), cl = readHY('closed'); r.yearOpened = op.year; r.halfOpened = op.year != null ? op.half : ''; r.yearOpenedApprox = op.year != null && op.approx; r.yearClosed = cl.year; r.halfClosed = cl.year != null ? cl.half : '';
   r.geometry = readVertexList('v'); r.unnamed = !!$('#f-unnamed')?.checked; r.confidence = g('confidence'); r.sourceType = g('sourceType'); r.verified = !!$('#f-verified')?.checked; r.source = g('source').trim(); r.notes = g('notes');
   if (strict) { if (!r.name && !r.unnamed) return 'Give the road a name, or tick Unnamed.'; if (r.geometry.length < 2 && !DR.isNew) return 'A road needs at least two points — draw it on the map.'; if (r.yearClosed != null && r.yearOpened != null && hyIndex(r.yearClosed, r.halfClosed) < hyIndex(r.yearOpened, r.halfOpened)) return 'Closed before it opened — check the dates.'; }

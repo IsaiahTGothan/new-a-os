@@ -4,13 +4,14 @@
        (the rendered city under the registry data). Edit mode keeps every
        2.5 tool exactly as it was; explore mode is read-only.
    ===================================================================== */
-const EXPLORE = { q: '', items: [], active: 0, from: null, to: null, mode: 'walk', dir: false, picking: null };
+const EXPLORE = { q: '', items: [], active: 0, from: null, to: null, mode: 'drive', dir: false, picking: null };
+const ROUTE_MODES = { walk: { label: 'Walk', speed: 4.3, oneWay: false, icon: 'walk' }, sprint: { label: 'Sprint', speed: 5.6, oneWay: false, icon: 'walk' }, drive: { label: 'Drive', speed: 11, oneWay: true, icon: 'car' } };
 const WALK_BLOCKS_PER_SEC = 4.3;          // Minecraft walking speed (sprinting is ~5.6)
 const fmtMins = sec => sec < 60 ? `${Math.round(sec)} s` : sec < 3600 ? `${Math.round(sec / 60)} min` : `${Math.floor(sec / 3600)} h ${Math.round((sec % 3600) / 60)} min`;
 const WORDMARK = `<span class="gm-word" aria-label="GOOGLE"><b class="g1">G</b><b class="g2">O</b><b class="g3">O</b><b class="g4">G</b><b class="g5">L</b><b class="g6">E</b></span><span class="gm-maps">Maps</span>`;
 
 function exploreChromeHTML() {
-  const L = UI.layers; const chip = (k, label, c = '') => `<button class="chip ${c}" data-gmlayer="${k}" aria-pressed="${!!L[k]}" style="${c ? '' : `--c:var(--${{ buildings: 'cyan', roads: 'road', transit: 'transit', districts: 'region', hoods: 'ink-2', historical: 'hist', lots: 'amber', businesses: 'biz', labels: 'ink-2', grid: 'ink-3', footprints: 'cyan', civic: 'civic' }[k] || 'cyan'})`}"><i></i>${label}</button>`;
+  const L = UI.layers; const chip = (k, label, c = '') => `<button class="chip ${c}" data-gmlayer="${k}" aria-pressed="${!!L[k]}" style="${c ? '' : `--c:var(--${{ buildings: 'cyan', roads: 'road', transit: 'transit', districts: 'region', hoods: 'ink-2', historical: 'hist', lots: 'amber', trains: 'transit', businesses: 'biz', labels: 'ink-2', grid: 'ink-3', footprints: 'cyan', civic: 'civic' }[k] || 'cyan'})`}"><i></i>${label}</button>`;
   const hasBase = (S.settings.basemaps || []).length;
   return `<div class="gm-panel ${MAPW.sel || EXPLORE.dir ? '' : 'closed'}" id="gm-panel">
       <div class="gm-brandbar">${WORDMARK}<span class="gm-parody">NEW A PARODY<br>NOT GOOGLE LLC</span></div>
@@ -19,7 +20,7 @@ function exploreChromeHTML() {
       <div class="gm-card" id="gm-card"></div>
     </div>
     <div class="gm-chips" id="gm-chips">
-      ${chip('buildings', 'Buildings')}${chip('roads', 'Roads')}${chip('transit', 'Transit')}${chip('districts', 'Borders')}${chip('hoods', 'Hoods')}${chip('historical', 'Ghosts')}${chip('lots', 'Lots')}${chip('civic', 'Civic')}${chip('businesses', 'Businesses')}${chip('labels', 'Labels')}${chip('grid', 'Grid')}
+      ${chip('buildings', 'Buildings')}${chip('roads', 'Roads')}${chip('transit', 'Transit')}${chip('trains', 'Trains')}${chip('districts', 'Borders')}${chip('hoods', 'Hoods')}${chip('historical', 'Ghosts')}${chip('lots', 'Lots')}${chip('civic', 'Civic')}${chip('businesses', 'Businesses')}${chip('labels', 'Labels')}${chip('grid', 'Grid')}
       <button class="chip sat" data-gmlayer="basemap" aria-pressed="${L.basemap !== false && hasBase}" title="${hasBase ? 'Show the rendered city under the data' : 'No basemap yet — add one under Vault & settings → Basemap'}" ${hasBase ? '' : 'data-act="basemap-open"'}>${icon('sat')} ${hasBase ? 'Satellite' : 'Add basemap'}</button>
       <label class="sel" title="Colour buildings by">${icon('layers')}<select id="gm-color">${[['district', 'By borough'], ['status', 'By status'], ['family', 'By class'], ['era', 'By era built'], ['service', 'By transit service']].map(([v, l]) => `<option value="${v}" ${UI.mapColor === v ? 'selected' : ''}>${l}</option>`).join('')}</select></label>
     </div>
@@ -133,6 +134,13 @@ function placeCardHTML(sel) {
     </div>`;
 }
 
+/* ---- one-way roads: which way they run, in words and as an arrow on screen ---- */
+const oneWayArrow = r => { const g = r.geometry || []; if (g.length < 2) return '→'; const sgn = r.oneWayDir === -1 ? -1 : 1; const a = g[0], b = g[g.length - 1]; const dx = (b[0] - a[0]) * sgn, dz = (b[1] - a[1]) * sgn; return Math.abs(dx) >= Math.abs(dz) ? (dx >= 0 ? '→' : '←') : (dz >= 0 ? '↓' : '↑'); };
+const oneWayShort = r => ({ '→': 'eastbound', '←': 'westbound', '↓': 'southbound', '↑': 'northbound' })[oneWayArrow(r)] || '';
+function oneWayText(r) { const g = r.geometry || []; if (g.length < 2) return 'one way'; const sgn = r.oneWayDir === -1 ? -1 : 1; const from = sgn === 1 ? g[0] : g[g.length - 1], to = sgn === 1 ? g[g.length - 1] : g[0]; return `one way ${oneWayShort(r)} ${oneWayArrow(r)} · from X ${Math.round(from[0])} Z ${Math.round(from[1])} to X ${Math.round(to[0])} Z ${Math.round(to[1])}`; }
+/* can this edge be used in this mode? driving obeys one-way streets and keeps off pedestrian and restricted roads; walking ignores arrows */
+function edgeAllowed(a, mode) { const M = ROUTE_MODES[mode] || ROUTE_MODES.walk; if (!M.oneWay) return true; const r = roadById(a.road); if (!r) return true; if (r.direction === 'pedestrian' || r.direction === 'restricted') return false; if (r.direction === 'one-way' && a.fwd != null) { const sgn = r.oneWayDir === -1 ? -1 : 1; return sgn === 1 ? a.fwd : !a.fwd; } return true; }
+
 /* ---- directions: a graph over the drawn roads (vertices + junctions), Dijkstra, turn-by-turn steps ---- */
 let ROAD_GRAPH = { key: '', nodes: null, chains: null };
 const nodeKey = p => `${Math.round(p[0])}:${Math.round(p[1])}`;
@@ -141,7 +149,7 @@ function roadGraph() {
   if (ROAD_GRAPH.key === key && ROAD_GRAPH.nodes) return ROAD_GRAPH;
   const nodes = new Map(); const chains = new Map();
   const node = (p, k = nodeKey(p)) => { let n = nodes.get(k); if (!n) { n = { key: k, x: p[0], z: p[1], adj: [] }; nodes.set(k, n); } return n; };
-  const link = (a, b, len, road) => { if (a === b) return; a.adj.push({ to: b.key, len, road }); b.adj.push({ to: a.key, len, road }); };
+  const link = (a, b, len, road, directed = true) => { if (a === b) return; a.adj.push({ to: b.key, len, road, fwd: directed ? true : null }); b.adj.push({ to: a.key, len, road, fwd: directed ? false : null }); };   // fwd: along the road's drawing order
   const roads = S.roads.filter(r => r.geometry?.length >= 2 && r.yearClosed == null);
   const js = cachedJunctions().filter(j => j.kind !== 'separated');
   for (const r of roads) {
@@ -153,23 +161,23 @@ function roadGraph() {
     for (let i = 0; i < chain.length; i++) { const n = node(chain[i].p, chain[i].key); if (i) link(node(chain[i - 1].p, chain[i - 1].key), n, chain[i].s - chain[i - 1].s, r.id); }
     chains.set(r.id, { chain, cum, len: cum[cum.length - 1] });
   }
-  for (const j of js) { if (j.kind !== 'joins') continue; const jn = nodes.get(nodeKey([j.x, j.z])); if (!jn) continue; for (const rid of [j.a, j.b]) { const r = roadById(rid); if (!r?.geometry?.length) continue; for (const e of [r.geometry[0], r.geometry[r.geometry.length - 1]]) { const d = dist2(e, [j.x, j.z]); if (d > 0 && d <= 2.5) { const en = nodes.get(nodeKey(e)); if (en && en !== jn && !en.adj.some(a => a.to === jn.key)) link(en, jn, d, rid); } } } }
+  for (const j of js) { if (j.kind !== 'joins') continue; const jn = nodes.get(nodeKey([j.x, j.z])); if (!jn) continue; for (const rid of [j.a, j.b]) { const r = roadById(rid); if (!r?.geometry?.length) continue; for (const e of [r.geometry[0], r.geometry[r.geometry.length - 1]]) { const d = dist2(e, [j.x, j.z]); if (d > 0 && d <= 2.5) { const en = nodes.get(nodeKey(e)); if (en && en !== jn && !en.adj.some(a => a.to === jn.key)) link(en, jn, d, rid, false); } } } }
   ROAD_GRAPH = { key, nodes, chains }; return ROAD_GRAPH;
 }
-function nearestRoadPoint(pt) { let best = null; for (const r of S.roads) { if (!r.geometry || r.geometry.length < 2 || r.yearClosed != null) continue; const c = polylineClosest(pt, r.geometry); if (c && (!best || c.d < best.d)) best = { road: r, q: c.q, i: c.i, t: c.t, d: c.d }; } return best; }
+function nearestRoadPoint(pt, mode = 'walk') { let best = null; const drivable = !!ROUTE_MODES[mode]?.oneWay; for (const r of S.roads) { if (!r.geometry || r.geometry.length < 2 || r.yearClosed != null) continue; if (drivable && (r.direction === 'pedestrian' || r.direction === 'restricted')) continue; const c = polylineClosest(pt, r.geometry); if (c && (!best || c.d < best.d)) best = { road: r, q: c.q, i: c.i, t: c.t, d: c.d }; } return best; }
 /* attach a free point to the graph: a temporary node joined to the chain nodes on either side of its projection */
-function attachPoint(G, pt, tag) {
-  const near = nearestRoadPoint(pt); const n = { key: 'tmp:' + tag, x: pt[0], z: pt[1], adj: [], tmp: true }; G.nodes.set(n.key, n);
+function attachPoint(G, pt, tag, mode = 'walk') {
+  const near = nearestRoadPoint(pt, mode); const n = { key: 'tmp:' + tag, x: pt[0], z: pt[1], adj: [], tmp: true }; G.nodes.set(n.key, n);
   if (!near) return { n, near: null };
   const ch = G.chains.get(near.road.id); const g = near.road.geometry; const s = ch.cum[near.i] + near.t * dist2(g[near.i], g[near.i + 1]);
   let prev = null, next = null; for (const m of ch.chain) { if (m.s <= s) prev = m; if (m.s >= s && !next) next = m; }
-  for (const m of [prev, next]) { if (!m) continue; const target = G.nodes.get(m.key); if (!target) continue; const len = near.d + Math.abs(m.s - s); n.adj.push({ to: target.key, len, road: near.road.id, off: near.d, q: near.q }); target.adj.push({ to: n.key, len, road: near.road.id, off: near.d, q: near.q }); }
+  for (const m of [prev, next]) { if (!m) continue; const target = G.nodes.get(m.key); if (!target) continue; const len = near.d + Math.abs(m.s - s); const fwd = m === next; n.adj.push({ to: target.key, len, road: near.road.id, off: near.d, q: near.q, fwd }); target.adj.push({ to: n.key, len, road: near.road.id, off: near.d, q: near.q, fwd: !fwd }); }
   return { n, near };
 }
 function detachPoint(G, n) { for (const a of n.adj) { const t = G.nodes.get(a.to); if (t) t.adj = t.adj.filter(x => x.to !== n.key); } G.nodes.delete(n.key); }
-function dijkstra(G, from, to) {
+function dijkstra(G, from, to, mode = 'walk') {
   const dist = new Map([[from, 0]]); const prev = new Map(); const done = new Set(); const pq = [[0, from]];
-  while (pq.length) { pq.sort((a, b) => a[0] - b[0]); const [d, k] = pq.shift(); if (done.has(k)) continue; done.add(k); if (k === to) break; const n = G.nodes.get(k); if (!n) continue; for (const a of n.adj) { const nd = d + a.len; if (nd < (dist.get(a.to) ?? Infinity)) { dist.set(a.to, nd); prev.set(a.to, { k, a }); pq.push([nd, a.to]); } } }
+  while (pq.length) { pq.sort((a, b) => a[0] - b[0]); const [d, k] = pq.shift(); if (done.has(k)) continue; done.add(k); if (k === to) break; const n = G.nodes.get(k); if (!n) continue; for (const a of n.adj) { if (!edgeAllowed(a, mode)) continue; const nd = d + a.len; if (nd < (dist.get(a.to) ?? Infinity)) { dist.set(a.to, nd); prev.set(a.to, { k, a }); pq.push([nd, a.to]); } } }
   if (!dist.has(to)) return null; const path = []; let k = to; while (k !== from) { const p = prev.get(k); path.unshift({ key: k, via: p.a }); k = p.k; } return { dist: dist.get(to), path };
 }
 /* resolve an endpoint reference to a point and label */
@@ -182,15 +190,15 @@ function endpointOf(ref) {
   if (['region', 'district', 'hood'].includes(ref.kind)) { const n = nodeById(ref.id); const c = n?.polygons?.length ? centroidOf(n.polygons[0]) : null; return c ? { pt: c, label: n.name, kind: ref.kind, id: n.id } : null; }
   return null;
 }
-function routeBetween(fromRef, toRef) {
-  const A = endpointOf(fromRef), B = endpointOf(toRef); if (!A || !B) return null;
+function routeBetween(fromRef, toRef, mode = EXPLORE.mode) {
+  const A = endpointOf(fromRef), B = endpointOf(toRef); if (!A || !B) return null; if (mode === 'transit') mode = 'walk';
   const straight = dist2(A.pt, B.pt); const G = roadGraph();
   if (!G.nodes.size) return { from: A, to: B, pts: [A.pt, B.pt], dist: straight, straight, legs: [{ kind: 'line', len: straight }], steps: [{ i: 1, text: 'No roads are drawn yet — straight line as the crow flies', d: straight }], roads: [], note: 'No roads drawn: this is a straight line, not a walk.', noRoads: true };
-  const a = attachPoint(G, A.pt, 'a'), b = attachPoint(G, B.pt, 'b');
+  const a = attachPoint(G, A.pt, 'a', mode), b = attachPoint(G, B.pt, 'b', mode);
   const MAX_OFFROAD = 200; const far = [a, b].filter(e => !e.near || e.near.d > MAX_OFFROAD);
   if (far.length) { detachPoint(G, b.n); detachPoint(G, a.n); return { from: A, to: B, pts: [A.pt, B.pt], dist: straight, straight, legs: [{ kind: 'line', len: straight }], steps: [{ i: 1, text: `${far.length === 2 ? 'Both ends are' : (far[0] === a ? A.label : B.label) + ' is'} more than ${MAX_OFFROAD} blocks from any drawn road — straight line shown`, d: straight }], roads: [], note: `No road within ${MAX_OFFROAD} blocks of ${far.length === 2 ? 'either end' : 'one end'}: this is a straight line, not a walk. Draw the roads there and the route follows them.`, noRoads: true }; }
-  let res = null; try { res = dijkstra(G, a.n.key, b.n.key); } finally { detachPoint(G, b.n); detachPoint(G, a.n); }
-  if (!res) return { from: A, to: B, pts: [A.pt, B.pt], dist: straight, straight, legs: [{ kind: 'line', len: straight }], steps: [{ i: 1, text: 'The drawn roads do not connect these two places — straight line shown', d: straight }], roads: [], note: 'No connected road path: the two ends are on separate road networks (or far from any road).', disconnected: true };
+  let res = null, walkable = null; try { res = dijkstra(G, a.n.key, b.n.key, mode); if (!res && mode !== 'walk') walkable = dijkstra(G, a.n.key, b.n.key, 'walk'); } finally { detachPoint(G, b.n); detachPoint(G, a.n); }
+  if (!res) return { from: A, to: B, pts: [A.pt, B.pt], dist: straight, straight, legs: [{ kind: 'line', len: straight }], steps: [{ i: 1, text: walkable ? 'The one-way streets leave no way to drive there — on foot it works: switch to Walk' : 'The drawn roads do not connect these two places — straight line shown', d: straight }], roads: [], note: walkable ? 'No legal driving route: a one-way street (or a pedestrian-only road) is in the way. Walking ignores the arrows.' : 'No connected road path: the two ends are on separate road networks (or far from any road).', disconnected: true, oneWayBlocked: !!walkable, mode };
   // rebuild the polyline: off-road leg → road nodes → off-road leg
   const pts = [A.pt]; const legs = []; let cur = a.n; let prevRoad = null;
   for (const step of res.path) { const n = G.nodes.get(step.key) || (step.key === b.n.key ? b.n : null); const via = step.via; if (!n) continue;
@@ -199,13 +207,16 @@ function routeBetween(fromRef, toRef) {
     cur = n; prevRoad = via.road; }
   if (dist2(pts[pts.length - 1], B.pt) > 0.5) pts.push(B.pt);
   // steps: merge consecutive legs on the same road
-  const steps = []; let i = 0;
-  for (const leg of legs) { const r = roadById(leg.road); const name = r ? roadLabel(r) : 'road'; const last = steps[steps.length - 1];
-    if (leg.kind === 'off') { if (last && last.kind === 'off' && last.road === leg.road) { last.d += leg.len; continue; } steps.push({ i: ++i, kind: 'off', road: leg.road, text: steps.length ? `Leave ${name} and walk to ${B.label}` : `Walk to ${name}`, d: leg.len }); continue; }
+  const steps = []; let i = 0; let pi = 0;   // pi: index into pts of the point where the current leg starts
+  const turnWord = (at) => { const p0 = pts[at - 1], p1 = pts[at], p2 = pts[at + 1]; if (!p0 || !p1 || !p2) return 'Turn onto'; const ax = p1[0] - p0[0], az = p1[1] - p0[1], bx = p2[0] - p1[0], bz = p2[1] - p1[1]; const cross = ax * bz - az * bx, dot = ax * bx + az * bz; const ang = Math.atan2(cross, dot) * 180 / Math.PI; return Math.abs(ang) < 25 ? 'Continue onto' : ang > 0 ? (ang > 135 ? 'Sharp right onto' : 'Turn right onto') : (ang < -135 ? 'Sharp left onto' : 'Turn left onto'); };
+  const walkWord = mode === 'drive' ? 'drive' : 'walk';
+  for (const leg of legs) { const r = roadById(leg.road); const name = r ? roadLabel(r) : 'road'; const last = steps[steps.length - 1]; const startAt = pi; pi++;
+    if (leg.kind === 'off') { if (last && last.kind === 'off' && last.road === leg.road) { last.d += leg.len; continue; } steps.push({ i: ++i, kind: 'off', road: leg.road, text: steps.length ? `Leave ${name} and ${walkWord} to ${B.label}` : `${mode === 'drive' ? 'Drive' : 'Walk'} to ${name}`, d: leg.len }); continue; }
     if (last && last.kind === 'road' && last.road === leg.road) { last.d += leg.len; continue; }
-    steps.push({ i: ++i, kind: 'road', road: leg.road, text: `${steps.some(s => s.kind === 'road') ? 'Turn onto' : 'Head along'} ${name}`, d: leg.len }); }
+    const oneWay = r?.direction === 'one-way' ? ' (one way)' : '';
+    steps.push({ i: ++i, kind: 'road', road: leg.road, text: `${steps.some(s => s.kind === 'road') ? turnWord(startAt) : 'Head along'} ${name}${oneWay}`, d: leg.len }); }
   const dist = legs.reduce((s, l) => s + l.len, 0);
-  return { from: A, to: B, pts, legs, steps, dist, straight, roads: [...new Set(legs.filter(l => l.kind === 'road').map(l => l.road))], note: null };
+  return { from: A, to: B, pts, legs, steps, dist, straight, roads: [...new Set(legs.filter(l => l.kind === 'road').map(l => l.road))], note: null, mode, oneWayRoads: [...new Set(legs.filter(l => l.kind === 'road').map(l => l.road))].filter(id => roadById(id)?.direction === 'one-way').length };
 }
 function drawRoute(ctx, P, route, k) {
   if (!route?.pts?.length) return; ctx.save(); ctx.lineJoin = 'round'; ctx.lineCap = 'round';
@@ -219,15 +230,15 @@ function drawRoute(ctx, P, route, k) {
 function routePanelHTML() {
   const A = endpointOf(EXPLORE.from), B = endpointOf(EXPLORE.to); const r = MAPW.route;
   const end = (which, e) => `<button class="end ${EXPLORE.picking === which ? 'picking' : ''}" data-end="${which}" title="Pick on the map or search">${icon(which === 'from' ? 'pin' : 'flag')}<span class="t ${e ? '' : 'empty'}">${e ? esc(e.label) : (which === 'from' ? 'Choose a starting point' : 'Choose a destination')}</span></button>`;
-  const time = r ? (EXPLORE.mode === 'sprint' ? r.dist / 5.6 : r.dist / WALK_BLOCKS_PER_SEC) : null;
+  const time = r ? r.dist / (ROUTE_MODES[EXPLORE.mode]?.speed || WALK_BLOCKS_PER_SEC) : null;
   return `<div class="rt-head"><span class="k">DIRECTIONS</span><span class="s" style="font-family:var(--font-mono);font-size:10.5px;color:var(--ink-3)">along the drawn roads</span><button class="close" data-act="gm-dir-close" title="Close directions">${icon('x')}</button></div>
   <div class="rt-ends"><span class="dot"></span>${end('from', A)}<button class="swap" data-act="rt-swap" title="Swap">${icon('swap')}</button><span class="rail"></span><span></span><span class="dot b"></span>${end('to', B)}</div>
-  <div class="rt-modes"><button data-act="rt-mode" data-mode="walk" aria-pressed="${EXPLORE.mode === 'walk'}">${icon('walk')} Walk</button><button data-act="rt-mode" data-mode="sprint" aria-pressed="${EXPLORE.mode === 'sprint'}">${icon('walk')} Sprint</button><button data-act="rt-mode" data-mode="transit" aria-pressed="${EXPLORE.mode === 'transit'}" title="Ride the lines where a journey exists (needs stations and travel times on the transit side)">${icon('transit')} Transit</button></div>
+  <div class="rt-modes"><button data-act="rt-mode" data-mode="drive" aria-pressed="${EXPLORE.mode === 'drive'}" title="Obeys one-way streets; keeps off pedestrian-only roads">${icon('car')} Drive</button><button data-act="rt-mode" data-mode="walk" aria-pressed="${EXPLORE.mode === 'walk'}" title="Any road, either way">${icon('walk')} Walk</button><button data-act="rt-mode" data-mode="sprint" aria-pressed="${EXPLORE.mode === 'sprint'}">${icon('walk')} Sprint</button><button data-act="rt-mode" data-mode="transit" aria-pressed="${EXPLORE.mode === 'transit'}" title="Ride the lines where a journey exists (needs stations and travel times on the transit side)">${icon('transit')} Transit</button></div>
   ${EXPLORE.picking ? `<div class="rt-note" style="color:var(--cyan)">Click a building, station or any point on the map for the ${EXPLORE.picking === 'from' ? 'start' : 'destination'} — or search above.</div>` : ''}
-  ${r ? `<div class="rt-sum"><span class="big">${fmtInt(r.dist)}<small>blocks</small></span><span class="big" style="color:var(--ink)">${fmtMins(time)}<small>${EXPLORE.mode}</small></span><span class="mode">${r.noRoads || r.disconnected ? 'straight line' : `${r.roads.length} road${r.roads.length === 1 ? '' : 's'} · ${fmtInt(r.straight)} blk direct`}</span></div>
+  ${r ? `<div class="rt-sum"><span class="big">${fmtInt(r.dist)}<small>blocks</small></span><span class="big" style="color:var(--ink)">${fmtMins(time)}<small>${EXPLORE.mode}</small></span><span class="mode">${r.noRoads || r.disconnected ? 'straight line' : `${r.roads.length} road${r.roads.length === 1 ? '' : 's'}${r.oneWayRoads ? ` · ${r.oneWayRoads} one-way` : ''} · ${fmtInt(r.straight)} blk direct`}</span></div>
     ${EXPLORE.mode === 'transit' ? `<div class="rt-note">${transitRouteNote(r)}</div>` : ''}
     <div class="rt-steps">${r.steps.map(s => `<div class="st"><i>${s.i}</i><div><div class="nm">${esc(s.text)}</div></div><span class="d">${fmtInt(s.d)} blk</span></div>`).join('')}<div class="st"><i>●</i><div><div class="nm">Arrive at ${esc(r.to.label)}</div></div><span class="d"></span></div></div>
-    ${r.note ? `<div class="rt-note">${esc(r.note)}</div>` : '<div class="rt-note">Distances follow the road centrelines you drew; the first and last legs are straight walks to the nearest road. Walking at 4.3 blocks per second.</div>'}` : (A && B ? '' : '<div class="rt-note">Pick both ends to see the way.</div>')}`;
+    ${r.note ? `<div class="rt-note">${esc(r.note)}</div>` : `<div class="rt-note">Distances follow the road centrelines you drew; the first and last legs are straight to the nearest road. ${EXPLORE.mode === 'drive' ? 'Driving obeys the one-way arrows and keeps off pedestrian-only roads, at 11 blocks per second.' : EXPLORE.mode === 'sprint' ? 'Sprinting at 5.6 blocks per second; arrows are ignored on foot.' : 'Walking at 4.3 blocks per second; arrows are ignored on foot.'}</div>`}` : (A && B ? '' : '<div class="rt-note">Pick both ends to see the way.</div>')}`;
 }
 function transitRouteNote(r) { const near = [nearbyStationsOf(r.from.pt, 120, 1)[0], nearbyStationsOf(r.to.pt, 120, 1)[0]]; if (!near[0] || !near[1]) return 'No station within 120 blocks of both ends — walking is the only option on file.'; if (near[0].s.id === near[1].s.id) return `Both ends are closest to ${esc(near[0].s.name || near[0].s.reg)} — walking is shorter than riding.`; const j = transitJourney(near[0].s.id, near[1].s.id); if (!j) return `No open line connects ${esc(near[0].s.name || near[0].s.reg)} and ${esc(near[1].s.name || near[1].s.reg)} on file — add stops or a transfer link.`; const walk = (near[0].d + near[1].d) / WALK_BLOCKS_PER_SEC; return `Walk ${Math.round(near[0].d)} blk to ${esc(near[0].s.name || near[0].s.reg)}, ${esc(journeyText(j))}, walk ${Math.round(near[1].d)} blk · about ${fmtMins(j.sec + walk)} door to door (estimated: half-headway waits, ${j.legs.filter(x => x.kind === 'ride').length - 1 > 0 ? (j.legs.filter(x => x.kind === 'ride').length - 1) + ' transfer' + (j.legs.filter(x => x.kind === 'ride').length - 1 === 1 ? '' : 's') + ', ' : ''}line speeds from the Transit page).`; }
 function startPick(which) { EXPLORE.picking = which; EXPLORE.dir = true; renderPlaceCard(); $('#mapstage')?.classList.add('picking'); setTimeout(() => $('#map-q')?.focus(), 30); toast(`Click the map or search for the ${which === 'from' ? 'start' : 'destination'}`, ''); }
@@ -236,9 +247,9 @@ function explorePickAt(hit) {
   if (hit?.kind === 'point') ref = { kind: 'point', pt: hit.pt }; else if (hit && ['building', 'station', 'business', 'region', 'district', 'hood'].includes(hit.kind)) ref = { kind: hit.kind, id: hit.id }; else if (hit?.kind === 'road' && hit.pt) ref = { kind: 'point', pt: hit.pt };
   if (!ref) return false; EXPLORE[which] = ref; EXPLORE.picking = null; $('#mapstage')?.classList.remove('picking'); computeRoute(); return true;
 }
-function computeRoute() {
+function computeRoute({ keepView = false } = {}) {
   MAPW.route = EXPLORE.from && EXPLORE.to ? routeBetween(EXPLORE.from, EXPLORE.to) : null; renderPlaceCard();
-  if (MAPW.route) { mapFlyTo(bboxOf(MAPW.route.pts), { pad: 90, maxK: 4 }); const tick = () => { if (MAPW.route && UI.nav === 'map' && !MAPW.edit && motionOn()) { mapDraw(); MAPW.routeRaf = requestAnimationFrame(tick); } }; cancelAnimationFrame(MAPW.routeRaf); if (motionOn()) MAPW.routeRaf = requestAnimationFrame(tick); } else mapDraw();
+  if (MAPW.route) { if (!keepView) mapFlyTo(bboxOf(MAPW.route.pts), { pad: 90, maxK: 4 }); const tick = () => { if (MAPW.route && UI.nav === 'map' && !MAPW.edit && motionOn()) { mapDraw(); MAPW.routeRaf = requestAnimationFrame(tick); } }; cancelAnimationFrame(MAPW.routeRaf); if (motionOn()) MAPW.routeRaf = requestAnimationFrame(tick); } else mapDraw();
 }
 function openDirections(toRef = null) { EXPLORE.dir = true; if (toRef) { EXPLORE.to = toRef; if (!EXPLORE.from) EXPLORE.picking = 'from'; } else if (!EXPLORE.from && !EXPLORE.to) EXPLORE.picking = 'from'; if (EXPLORE.picking) $('#mapstage')?.classList.add('picking'); computeRoute(); }
 function closeDirections() { EXPLORE.dir = false; EXPLORE.picking = null; MAPW.route = null; cancelAnimationFrame(MAPW.routeRaf); $('#mapstage')?.classList.remove('picking'); renderPlaceCard(); mapDraw(); }

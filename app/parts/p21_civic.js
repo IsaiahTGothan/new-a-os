@@ -195,7 +195,7 @@ function civicSectionHTML(b) {
 }
 function civicEditorHTML(b) {
   const c = civicOf(b) || { type: '', status: 'operating', capacity: null, jurisdictionId: null, notes: '' };
-  return `<div class="fsect"><h4>CIVIC & CONDITION <span style="font-weight:400;letter-spacing:0;color:var(--ink-4);font-family:var(--font-mono);font-size:10.5px">hospitals · police · fire · government · homes of officials · parks</span></h4>
+  return `${fsectOpen('civic', 'CIVIC & CONDITION', 'hospitals · police · fire · government · homes of officials · parks', b)}
     <div class="frow c3">
       <div class="f"><label for="f-civicType">Civic type</label><select id="f-civicType"><option value="">— not a civic facility —</option>${CIVIC_TYPES.map(t => `<option value="${t.id}" ${t.id === c.type ? 'selected' : ''}>${esc(t.glyph)} ${esc(t.label)}</option>`).join('')}</select></div>
       <div class="f"><label for="f-civicStatus">Facility status</label><select id="f-civicStatus">${CIVIC_STATUSES.map(([id, l]) => `<option value="${id}" ${id === (c.status || 'operating') ? 'selected' : ''}>${l}</option>`).join('')}</select></div>
@@ -204,7 +204,7 @@ function civicEditorHTML(b) {
       <div class="f"><label for="f-condition">Condition</label><select id="f-condition">${CONDITIONS.map(([id, l]) => `<option value="${id}" ${id === (b.condition || '') ? 'selected' : ''}>${l}</option>`).join('')}</select></div>
       <div class="f"><label>Public</label><label class="switch"><input type="checkbox" id="f-public" ${b.public !== false ? 'checked' : ''}> <span class="muted" style="font-size:12px">listed in the public guide</span></label></div>
       <div class="f span"><label for="f-civicNotes">Civic notes</label><input id="f-civicNotes" value="${esc(c.notes || '')}" placeholder="wards, precinct number, who runs it…"></div>
-    </div></div>`;
+    </div></div></details>`;
 }
 function readCivicForm(b) {
   const g = id => $('#f-' + id)?.value ?? ''; if (!$('#f-civicType')) return;

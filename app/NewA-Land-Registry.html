@@ -1888,6 +1888,40 @@ table.reg th{ font-family:var(--font-pixel); font-size:8.5px; letter-spacing:.04
 .mapstage.dated::after{ bottom:auto; top:104px; }
 .tw-btn .chv{ display:inline-flex; transition:transform var(--dur-2); } .tw:not(.open) .tw-btn .chv{ transform:rotate(180deg); } .mapws.edit .tw.open .tw-btn .chv{ transform:rotate(180deg); } .mapws.edit .tw:not(.open) .tw-btn .chv{ transform:none; }
 @media (max-width:760px){ .mapws.explore .tw{ top:auto; bottom:12px; right:60px; flex-direction:column; } }
+/* ---- trains on the board strips ---- */
+.lstatus .ls{ grid-template-columns:auto 1fr auto; grid-template-areas:"b n s" "strip strip strip"; }
+.lstatus .ls .lstrip{ grid-area:strip; }
+.lstrip{ position:relative; height:10px; margin:6px 2px 2px; border-radius:5px; background:linear-gradient(to right, transparent 0, transparent 50%, transparent 100%); }
+.lstrip::before{ content:""; position:absolute; left:0; right:0; top:4px; height:2px; background:var(--c); opacity:.55; border-radius:1px; }
+.lstrip .tick{ position:absolute; top:2px; width:6px; height:6px; margin-left:-3px; border-radius:50%; background:var(--bg-1); border:1.5px solid var(--c); }
+.lstrip .tr{ position:absolute; top:0; width:10px; height:10px; margin-left:-5px; border-radius:3px; background:var(--c); border:1.5px solid #05090D; box-shadow:0 0 6px var(--c); }
+.lstrip .tr.f::after, .lstrip .tr.r::after{ content:""; position:absolute; top:2px; width:0; height:0; border:2.5px solid transparent; }
+.lstrip .tr.f::after{ right:-1px; border-left:3px solid #05090D; } .lstrip .tr.r::after{ left:-1px; border-right:3px solid #05090D; }
+.lstrip .tr.dw{ animation:pulse 1.2s ease-in-out infinite; }
+.rt-sum .big{ white-space:nowrap; }
+/* ---- the building editor: collapsible sections with summaries, and a jump bar ---- */
+details.fsect > summary{ list-style:none; cursor:pointer; user-select:none; }
+details.fsect > summary::-webkit-details-marker{ display:none; }
+details.fsect > summary h4{ margin:0; min-height:28px; }
+details.fsect[open] > summary h4{ margin-bottom:10px; }
+details.fsect > summary h4::after{ order:1; }
+details.fsect .h4hint{ font-weight:400; letter-spacing:0; color:var(--ink-4); font-family:var(--font-mono); font-size:10.5px; }
+details.fsect[open] .h4hint{ display:inline; } details.fsect:not([open]) .h4hint{ display:none; }
+details.fsect .fs-sum{ order:2; font-weight:400; letter-spacing:0; text-transform:none; color:var(--ink-2); font-family:var(--font-mono); font-size:11px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; max-width:58%; }
+details.fsect[open] .fs-sum{ display:none; }
+details.fsect .fs-chev{ order:3; display:inline-flex; color:var(--ink-3); } details.fsect .fs-chev svg{ width:12px; height:12px; transition:transform var(--dur-2); }
+details.fsect[open] .fs-chev svg{ transform:rotate(180deg); }
+details.fsect > summary:hover h4{ color:var(--ink); }
+details.fsect.dimmed{ opacity:.7; }
+.fs-bar{ position:sticky; top:0; z-index:3; display:flex; gap:4px; flex-wrap:wrap; align-items:center; padding:8px 0 8px; margin:0 0 4px; background:var(--bg-1); border-bottom:1px solid var(--line); }
+.fs-bar .k{ font-family:var(--font-mono); font-size:10px; letter-spacing:.1em; color:var(--ink-4); margin-right:4px; }
+.fs-bar button{ height:24px; padding:0 9px; border-radius:12px; border:1px solid var(--line-2); color:var(--ink-2); font-size:11.5px; background:var(--bg-2); }
+.fs-bar button:hover{ color:var(--ink); border-color:var(--line-3); }
+.fs-bar button.ghost{ background:transparent; border-color:transparent; color:var(--ink-3); }
+.fs-bar .spacer{ flex:1; }
+#drawer .photo.empty{ aspect-ratio:auto; min-height:0; padding:14px 18px; }
+#drawer .photo.empty .ph{ flex-direction:row; gap:10px; font-size:12.5px; }
+#drawer .photo.empty .ph svg{ width:18px; height:18px; }
 
 /* =====================================================================
    SITE LINK — New A OS as the manager of the public site (City Hall link)
@@ -2249,6 +2283,7 @@ a.btn{ text-decoration:none; }
     <symbol id="i-os" viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="12" rx="2" fill="none" stroke="currentColor" stroke-width="1.8"/><path d="M8 20h8M12 16v4M7 9h4M7 12h7" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></symbol>
     <symbol id="i-route" viewBox="0 0 24 24"><circle cx="6" cy="18" r="2.5" fill="none" stroke="currentColor" stroke-width="1.8"/><circle cx="18" cy="6" r="2.5" fill="none" stroke="currentColor" stroke-width="1.8"/><path d="M8.2 16.5L12 13c2-2-1-5 1-6.5l2.8-1.2" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></symbol>
     <symbol id="i-swap" viewBox="0 0 24 24"><path d="M7 4v13M4 14l3 3 3-3M17 20V7M14 10l3-3 3 3" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+    <symbol id="i-car" viewBox="0 0 24 24"><path d="M5 15l1.6-5.2A2 2 0 018.5 8.5h7a2 2 0 011.9 1.3L19 15M4 15h16v3.5a1 1 0 01-1 1h-1.5a1 1 0 01-1-1V18h-9v.5a1 1 0 01-1 1H5a1 1 0 01-1-1z" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/><circle cx="8" cy="15.5" r="1" fill="currentColor"/><circle cx="16" cy="15.5" r="1" fill="currentColor"/></symbol>
     <symbol id="i-walk" viewBox="0 0 24 24"><circle cx="13" cy="4.5" r="1.8" fill="currentColor"/><path d="M10 21l2-7-2-2 1-5 3 1 2 3h3M8 11l2-4M13 14l3 7" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></symbol>
     <symbol id="i-chat" viewBox="0 0 24 24"><path d="M4 6a2 2 0 012-2h12a2 2 0 012 2v8a2 2 0 01-2 2H9l-5 4z" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/><path d="M8 9h8M8 12h5" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></symbol>
     <symbol id="i-sat" viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="2" fill="none" stroke="currentColor" stroke-width="1.8"/><path d="M3 15l5-5 4 4 3-3 6 6" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/><circle cx="16" cy="8" r="1.6" fill="currentColor"/></symbol>
@@ -2347,7 +2382,7 @@ a.btn{ text-decoration:none; }
 /* =====================================================================
    §0  CONFIG
    ===================================================================== */
-const APP = { name: 'New A OS', version: '3.2.1', schema: 4, site: 'zays.us/new-a', newsSite: 'https://newa-site.vercel.app', feedUrl: 'https://newa-site.vercel.app/feed.xml', marketsUrl: 'https://newa-site.vercel.app/api/markets' };
+const APP = { name: 'New A OS', version: '3.5.0', schema: 4, site: 'zays.us/new-a', newsSite: 'https://newa-site.vercel.app', feedUrl: 'https://newa-site.vercel.app/feed.xml', marketsUrl: 'https://newa-site.vercel.app/api/markets' };
 const FOUNDED_YEAR = 2013;                       // Jan 27, 2013 — the timeline starts here
 const CURRENT_YEAR = new Date().getFullYear();   // the "present" end of the timeline
 const CURRENT_HALF = new Date().getMonth() < 6 ? 'E' : 'L';
@@ -2446,6 +2481,9 @@ const ROAD_TYPE_LABEL = Object.fromEntries(ROAD_TYPES);
 const GRADES = [['surface', 'Surface'], ['elevated', 'Elevated'], ['bridge', 'Bridge'], ['tunnel', 'Tunnel']];
 const GRADE_LABEL = Object.fromEntries(GRADES);
 const DIRECTIONS = [['two-way', 'Two-way'], ['one-way', 'One-way'], ['pedestrian', 'Pedestrian only'], ['restricted', 'Restricted access']];
+/* which way a one-way road runs, relative to the order its points were drawn in */
+const ONEWAY_DIRS = [[1, 'First point → last point (as drawn)'], [-1, 'Last point → first point (reversed)']];
+const DRIVE_BLOCKS_PER_SEC = 11;     // a galloping horse / a car on the roads; walking is 4.3, sprinting 5.6
 const ROAD_COLORS = { avenue: '#8AA4B8', street: '#6F8494', boulevard: '#9BB3C4', highway: '#FFB454', parkway: '#7FB2A0', bridge: '#E0C63A', tunnel: '#7F6AAE', path: '#5F7484', alley: '#4D5F6E', 'rail-row': '#9C8600', other: '#6F8494' };
 const TRANSIT_MODES = [['subway', 'Subway / Metro'], ['rail', 'Rail'], ['bus', 'Bus'], ['tram', 'Tram / light rail'], ['ferry', 'Ferry'], ['cable', 'Cable / gondola'], ['other', 'Other']];
 const MODE_LABEL = Object.fromEntries(TRANSIT_MODES);
@@ -2505,7 +2543,7 @@ const SERVICE_DEFAULTS = { subway: { speed: 8, headwayMin: 5, dwellSec: 10 }, ra
 const TIME_BASES = [['estimated', 'Estimated', 'muted'], ['measured', 'Measured', 'good'], ['scheduled', 'Scheduled', 'info']];
 const TIME_BASIS = Object.fromEntries(TIME_BASES.map(([id, label, tone]) => [id, { id, label, tone }]));
 /* ---- valuations: every factor is a percentage, editable under Vault & settings ---- */
-const VALUATION_DEFAULTS = { version: 1, fallbackPerBlock: 250000, transitNear: 15, transitMid: 8, transitFar: 3, transitNone: -5, transit247: 6, transitConstruction: 0.35, transitPlanned: 0.1, transitPartial: 0.6, hospital: 4, police: 3, fire: 3, park: 5, school: 2, servicesCap: 12, landmark: 10, floorStep: 2, floorCap: 30, excellent: 8, fair: -8, poor: -20, construction: -20, closed: -15, vacantLot: -65, officeCondo: 10, industrial: -10, defaultArea: 300 };
+const VALUATION_DEFAULTS = { version: 2, fallbackPerBlock: 250000, transitLinesStep: 1.5, transitLinesCap: 4.5, transitCap: 25, cornerLot: 3, newBuild: 4, aged: -3, transitNear: 15, transitMid: 8, transitFar: 3, transitNone: -5, transit247: 6, transitConstruction: 0.35, transitPlanned: 0.1, transitPartial: 0.6, hospital: 4, police: 3, fire: 3, park: 5, school: 2, servicesCap: 12, landmark: 10, floorStep: 2, floorCap: 30, excellent: 8, fair: -8, poor: -20, construction: -20, closed: -15, vacantLot: -65, officeCondo: 10, industrial: -10, defaultArea: 300 };
 const PROJECT_STAGES = [['idea', 'Idea', 'muted'], ['planning', 'Planning', 'info'], ['construction', 'Under construction', 'warn'], ['open', 'Open', 'good'], ['renovation', 'Renovation', 'warn'], ['demolition', 'Demolition', 'bad'], ['done', 'Done', 'good'], ['abandoned', 'Abandoned', 'muted']];
 const PROJECT_STAGE = Object.fromEntries(PROJECT_STAGES.map(([id, label, tone]) => [id, { id, label, tone }]));
 
@@ -2825,7 +2863,7 @@ const UI = {                  // transient UI state
   nav: 'overview', scope: { kind: 'region', id: 'new-a-city' }, view: 'table', q: '', sort: { key: 'reg', dir: 1 },
   filters: { physical: '', market: '', landmark: false, family: '', zfam: '', hood: '', district: '', yearMin: '', yearMax: '', photo: false, hist: false },
   selected: null, animateRows: true,
-  layers: { regions: true, districts: true, hoods: true, roads: true, transit: true, stations: true, buildings: true, businesses: false, labels: true, grid: false, historical: false, footprints: true, lots: true },
+  layers: { regions: true, districts: true, hoods: true, roads: true, transit: true, stations: true, buildings: true, businesses: false, labels: true, grid: false, historical: false, footprints: true, lots: true, trains: true },
   mapColor: 'district',
   hseg: 'playback', hsort: { key: 'yearDemolished', dir: -1 }, hf: { district: '', hood: '', builtMin: '', builtMax: '', demoMin: '', demoMax: '', conf: '' },
   tseg: 'lines', bseg: 'list', bf: { category: '', status: '', district: '' }, bsort: { key: 'name', dir: 1 },
@@ -2876,7 +2914,7 @@ function newBuilding(st, districtId) {
 }
 function newOfficial(st) { return { id: uid('g'), reg: nextGlobal(st, 'GV'), name: '', office: '', jurisdictionId: 'new-a-city', party: '', status: 'serving', termFromYear: null, termFromHalf: '', termToYear: null, termToHalf: '', officeBuildingId: null, residenceBuildingId: null, notes: '', source: '', created: now(), updated: now() }; }
 function newProject(st) { return { id: uid('p'), reg: nextGlobal(st, 'PJ'), name: '', stage: 'idea', districtId: null, buildingIds: [], roadIds: [], lineIds: [], startedYear: null, startedHalf: '', targetYear: null, targetHalf: '', notes: '', log: [], archiveIds: [], created: now(), updated: now() }; }
-function newRoad(st) { return { id: uid('r'), reg: nextGlobal(st, 'RD'), name: '', aliases: [], formerNames: [], type: 'street', grade: 'surface', width: 5, direction: 'two-way', surface: '', yearOpened: null, halfOpened: '', yearOpenedApprox: false, yearClosed: null, halfClosed: '', geometry: [], versions: [], geometryFromYear: null, geometryFromHalf: '', unnamed: false, notes: '', source: '', sourceType: '', confidence: '', verified: false, created: now(), updated: now() }; }
+function newRoad(st) { return { id: uid('r'), reg: nextGlobal(st, 'RD'), name: '', aliases: [], formerNames: [], type: 'street', grade: 'surface', width: 5, direction: 'two-way', surface: '', yearOpened: null, halfOpened: '', yearOpenedApprox: false, yearClosed: null, halfClosed: '', geometry: [], versions: [], geometryFromYear: null, geometryFromHalf: '', unnamed: false, oneWayDir: 1, notes: '', source: '', sourceType: '', confidence: '', verified: false, created: now(), updated: now() }; }
 function newTrack(st, mode = 'subway') { return { id: uid('k'), reg: nextGlobal(st, 'TR'), name: '', mode, grade: 'surface', geometry: [], versions: [], geometryFromYear: null, geometryFromHalf: '', yearOpened: null, halfOpened: '', yearClosed: null, halfClosed: '', notes: '', created: now(), updated: now() }; }
 function newLine(st) { return { id: uid('l'), reg: nextGlobal(st, 'TL'), name: '', shortName: '', mode: 'subway', color: TRANSIT_COLORS[(st.lines?.length || 0) % TRANSIT_COLORS.length], width: 4, style: 'solid', status: 'open', operator: '', hours: '', hoursFrom: null, hoursTo: null, yearOpened: null, halfOpened: '', yearOpenedApprox: false, yearClosed: null, halfClosed: '', yearStarted: null, halfStarted: '', yearExpected: null, halfExpected: '', costEstimate: null, costActual: null, trackIds: [], roadIds: [], stopIds: [], service: null, segments: [], unnamed: false, notes: '', source: '', sourceType: '', confidence: '', verified: false, created: now(), updated: now() }; }
 function newStation(st) { return { id: uid('s'), reg: nextGlobal(st, 'ST'), name: '', aliases: [], kind: 'station', x: null, z: null, buildingId: null, parentId: null, districtId: null, status: 'open', grade: '', hours: '', hoursFrom: null, hoursTo: null, transferIds: [], yearOpened: null, halfOpened: '', yearClosed: null, halfClosed: '', yearStarted: null, halfStarted: '', yearExpected: null, halfExpected: '', costEstimate: null, costActual: null, notes: '', source: '', confidence: '', created: now(), updated: now() }; }
@@ -3035,7 +3073,7 @@ function ensureV3(st) {
   if (Array.isArray(st.parcels)) { for (const p of st.parcels) if (!st.legacy.parcels.some(x => x.id === p.id)) st.legacy.parcels.push(p); delete st.parcels; }
   for (const a of st.archive) { a.districtId ??= null; a.neighborhoodId ??= null; a.month ??= null; a.title ??= ''; a.description ??= ''; a.source ??= ''; a.sourceType ??= ''; a.confidence ??= ''; if (!Array.isArray(a.tags)) a.tags = []; a.image = !!a.image; a.created ??= now(); a.updated ??= a.created; }
   for (const b of st.buildings) { b.unnamed ??= false; b.lotRotated ??= false; b.lot = Array.isArray(b.lot) && b.lot.length >= 3 ? b.lot : null; b.lotSource ??= ''; }
-  for (const r of st.roads) { const d = newRoad({ meta: { gseq: {} } }); for (const k of Object.keys(d)) if (r[k] === undefined) r[k] = k === 'reg' ? '' : d[k]; if (!Array.isArray(r.geometry)) r.geometry = []; }
+  for (const r of st.roads) { const d = newRoad({ meta: { gseq: {} } }); for (const k of Object.keys(d)) if (r[k] === undefined) r[k] = k === 'reg' ? '' : d[k]; if (!Array.isArray(r.geometry)) r.geometry = []; r.oneWayDir = r.oneWayDir === -1 ? -1 : 1; }
   for (const t of st.tracks) { const d = newTrack({ meta: { gseq: {} } }); for (const k of Object.keys(d)) if (t[k] === undefined) t[k] = k === 'reg' ? '' : d[k]; }
   for (const l of st.lines) { const d = newLine({ meta: { gseq: {} }, lines: [] }); for (const k of Object.keys(d)) if (l[k] === undefined) l[k] = k === 'reg' ? '' : d[k]; for (const k of ['trackIds', 'roadIds', 'stopIds', 'segments']) if (!Array.isArray(l[k])) l[k] = []; if (l.service && typeof l.service !== 'object') l.service = null; }
   for (const o of st.officials) { const d = newOfficial({ meta: { gseq: {} } }); for (const k of Object.keys(d)) if (o[k] === undefined) o[k] = k === 'reg' ? '' : d[k]; }
@@ -3943,7 +3981,7 @@ function showHover(key, x, y, opts = {}) {
   const el = $('#hover'); let html = null; HOVER.hy = opts.hy ?? null;
   if (key.includes(':')) {
     const [kind, id] = key.split(':');
-    if (kind === 'road') { const r = roadById(id); if (!r) return; html = `<div class="b"><div class="reg" style="color:var(--road)">${esc(r.reg)} · ${esc(ROAD_TYPE_LABEL[r.type] || r.type).toUpperCase()}</div><div class="addr">${esc(r.name || 'Unnamed road')}</div>${r.aliases?.length ? `<div class="nm">also ${esc(r.aliases.join(', '))}</div>` : ''}<div class="meta"><span>Length <b>${fmtInt(polyLength(r.geometry))} blk</b></span><span>Width <b>${esc(r.width ?? '—')}</b></span><span>Grade <b>${esc(GRADE_LABEL[r.grade] || r.grade)}</b></span><span>Buildings <b>${buildingsOnRoad(r).length}</b></span></div></div>`; }
+    if (kind === 'road') { const r = roadById(id); if (!r) return; html = `<div class="b"><div class="reg" style="color:var(--road)">${esc(r.reg)} · ${esc(ROAD_TYPE_LABEL[r.type] || r.type).toUpperCase()}</div><div class="addr">${esc(r.name || 'Unnamed road')}</div>${r.aliases?.length ? `<div class="nm">also ${esc(r.aliases.join(', '))}</div>` : ''}<div class="meta"><span>Length <b>${fmtInt(polyLength(r.geometry))} blk</b></span><span>Width <b>${esc(r.width ?? '—')}</b></span><span>Grade <b>${esc(GRADE_LABEL[r.grade] || r.grade)}</b></span><span>Buildings <b>${buildingsOnRoad(r).length}</b></span></div>${r.direction === 'one-way' ? `<div class="meta" style="color:var(--amber)"><span>${oneWayText(r)}</span></div>` : r.direction === 'pedestrian' ? '<div class="meta"><span>Pedestrian only — no driving</span></div>' : r.direction === 'restricted' ? '<div class="meta"><span>Restricted access</span></div>' : ''}</div>`; }
     else if (kind === 'business') { const z = bizById(id); if (!z) return; const u = imgUrl(id, 'full'); html = `${u ? `<div class="img"><img src="${u}" alt=""></div>` : ''}<div class="b"><div class="reg" style="color:var(--biz)">${esc(z.reg)} · ${esc(z.category || 'BUSINESS').toUpperCase()}</div><div class="addr">${esc(z.name)}</div><div class="meta"><span>Status <b>${esc(BIZ_STATUS[z.status]?.label || z.status)}</b></span><span>Locations <b>${tenanciesOf(z).length}</b></span><span>Opened <b>${esc(hyLabel(z.yearOpened, z.halfOpened, z.yearOpenedApprox))}</b></span>${z.ticker ? `<span>Ticker <b>${esc(z.ticker)}</b></span>` : ''}</div></div>`; }
     else if (kind === 'station') { const s = stationById(id); if (!s) return; html = `<div class="b"><div class="reg" style="color:var(--transit)">${esc(s.reg)} · STATION</div><div class="addr">${esc(s.name || 'Unnamed station')}</div><div class="meta"><span>Lines <b>${linesAtStation(s).map(l => l.shortName || l.name).join(', ') || '—'}</b></span><span>Status <b>${esc(LINE_STATUS[s.status]?.label || s.status)}</b></span><span>At <b>${s.x != null ? `X ${s.x} · Z ${s.z}` : '—'}</b></span></div></div>`; }
     else if (kind === 'line') { const l = lineById(id); if (!l) return; html = `<div class="b"><div class="reg" style="color:${esc(l.color)}">${esc(l.reg)} · ${esc(MODE_LABEL[l.mode] || l.mode).toUpperCase()}</div><div class="addr">${esc(l.name)}</div><div class="meta"><span>Status <b>${esc(LINE_STATUS[l.status]?.label || l.status)}</b></span><span>Stops <b>${l.stopIds.length}</b></span><span>Length <b>${fmtInt(lineLength(l))} blk</b></span><span>Opened <b>${esc(hyLabel(l.yearOpened, l.halfOpened, l.yearOpenedApprox))}</b></span></div></div>`; }
@@ -4996,7 +5034,7 @@ function renderRecord(b) {
     <button class="btn sm ghost" data-act="dr-copy" title="Copy a text summary">${icon('copy')}</button>
     <button class="btn ghost icon sm" data-act="dr-close" title="Close (Esc)">${icon('x')}</button></div>
   <div class="dbody">
-    <div class="photo" id="photo" tabindex="0" title="Drop or paste a screenshot here">${url ? `<img src="${url}" alt="">` : `<div class="ph">${icon('img')}No photo yet — drop a screenshot here, paste one, or click Add photo</div>`}
+    <div class="photo ${url ? '' : 'empty'}" id="photo" tabindex="0" title="Drop or paste a screenshot here">${url ? `<img src="${url}" alt="">` : `<div class="ph">${icon('img')}No photo yet — drop a screenshot here, paste one, or click Add photo</div>`}
       <div class="acts"><button class="btn sm" data-act="dr-photo">${icon('img')} ${url ? 'Replace' : 'Add photo'}</button>${url ? `<button class="btn sm danger" data-act="dr-photo-remove">${icon('trash')}</button>` : ''}</div></div>
     <div class="rec">
       <div class="reg ${hist ? 'hist' : ''}">${esc(b.reg)} <span class="dist" style="--c:${distColor(d)}"><i></i>${placePath(d, h).map(esc).join(' › ') || '—'}</span>${(b.formerRegs || []).length ? `<span class="muted" style="letter-spacing:.04em" title="Former numbers of this record">formerly ${b.formerRegs.map(esc).join(', ')}</span>` : ''}</div>
@@ -5126,10 +5164,11 @@ function renderEditor(b) {
   return `
   <div class="dhd"><span class="t">${DR.isNew ? (hist ? 'NEW HISTORICAL RECORD' : 'NEW RECORD') : 'EDIT · ' + esc(b.reg)} <span class="${hist ? 'reg-h' : ''}" style="font-weight:400;letter-spacing:.04em" id="reg-preview">${DR.isNew ? '· ' + regPreview : ''}</span></span><button class="btn ghost icon sm" data-act="dr-close" title="Close (Esc)">${icon('x')}</button></div>
   <div class="dbody">
-    <div class="photo" id="photo" tabindex="0" title="Drop or paste a screenshot here">${url ? `<img src="${url}" alt="">` : `<div class="ph">${icon('img')}Drop a screenshot here, paste one, or click Add photo</div>`}
+    <div class="photo ${url ? '' : 'empty'}" id="photo" tabindex="0" title="Drop or paste a screenshot here">${url ? `<img src="${url}" alt="">` : `<div class="ph">${icon('img')}Drop a screenshot here, paste one, or click Add photo</div>`}
       <div class="acts"><button class="btn sm" data-act="dr-photo">${icon('img')} ${url ? 'Replace' : 'Add photo'}</button>${url ? `<button class="btn sm danger" data-act="dr-photo-remove">${icon('trash')}</button>` : ''}</div></div>
     <form class="form" id="bform" autocomplete="off" onsubmit="return false">
-      <div class="fsect"><h4>LOCATION</h4>
+      ${fsBarHTML(b)}
+      ${fsectOpen('location', 'LOCATION', '', b, { cls: '', id: '' })}
         <div class="frow">
           ${f('district', 'Borough / district', `<select id="f-district">${districtOptions(b.districtId)}</select>`, DR.isNew ? '' : 'move → new reg №')}
           ${f('hood', 'Neighborhood', `<select id="f-hood"><option value="">— none —</option>${hoods.map(h => `<option value="${h.id}" ${h.id === b.neighborhoodId ? 'selected' : ''}>${esc(h.name)}</option>`).join('')}<option value="__new">+ New neighborhood…</option></select>`)}
@@ -5153,8 +5192,8 @@ function renderEditor(b) {
         <div class="frow" style="margin-top:10px">
           <div class="f span"><label for="f-road">Serving road <span class="hint">association only — coordinates never move</span></label><select id="f-road"><option value="">— none —</option>${S.roads.slice().sort((a, c) => roadLabel(a).localeCompare(roadLabel(c))).map(r => { const it = sug.items.find(x => x.road.id === r.id); return `<option value="${r.id}" ${r.id === b.roadId ? 'selected' : ''}>${esc(roadLabel(r))}${it ? ` — ${Math.round(it.d)} blk${it.kind === 'best' ? ' · suggested' : ''}${it.penalty ? ' · ' + it.flags[0] : ''}` : ''}</option>`; }).join('')}</select>${sug.items.length ? `<div class="fieldnote">${esc(roadSuggestReason(sug.items[0], sug.basis))}</div>` : ''}</div>
         </div>
-      </div>
-      <div class="fsect"><h4>LIFECYCLE <span style="font-weight:400;letter-spacing:0;color:var(--ink-4);font-family:var(--font-mono);font-size:10.5px">physical · market · heritage are independent</span></h4>
+      </div></details>
+      ${fsectOpen('lifecycle', 'LIFECYCLE', `physical · market · heritage are independent`, b, { cls: '', id: '' })}
         <div class="frow c3">
           ${f('physical', 'Physical status', `<select id="f-physical">${PHYSICAL.map(s => `<option value="${s.id}" ${s.id === (b.physical || 'standing') ? 'selected' : ''}>${s.glyph} ${s.label}</option>`).join('')}</select>`, 'demolished = historical')}
           ${f('market', 'Market status', `<select id="f-market">${MARKET.map(m => `<option value="${m.id}" ${m.id === (b.market || '') ? 'selected' : ''}>${m.glyph} ${m.label}</option>`).join('')}</select>`)}
@@ -5171,16 +5210,16 @@ function renderEditor(b) {
           ${f('dateBuilt', 'Exact completion date', `<input id="f-dateBuilt" type="date" value="${esc(b.dateBuilt || '')}">`, 'optional')}
           ${f('dateDemolished', 'Exact demolition date', `<input id="f-dateDemolished" type="date" value="${esc(b.dateDemolished || '')}">`, 'optional')}
         </div>
-      </div>
-      <div class="fsect ${hist ? '' : 'dimmed'}" id="fs-demo"><h4>DEMOLITION <span style="font-weight:400;letter-spacing:0;color:var(--ink-4);font-family:var(--font-mono);font-size:10.5px">${hist ? 'historical record' : 'fill in only if the building is gone — the physical status switches to Demolished'}</span></h4>
+      </div></details>
+      ${fsectOpen('demolition', 'DEMOLITION', `${hist ? 'historical record' : 'fill in only if the building is gone — the physical status switches to Demolished'}`, b, { cls: `${hist ? '' : 'dimmed'}`, id: 'fs-demo' })}
         <div class="frow">
           <div class="f span"><label>Demolished</label>${hyControl('demolished', b.yearDemolished, b.halfDemolished, b.yearDemolishedApprox, { yearPh: '2022' })}</div>
           ${f('reason', 'Reason', inp('reason', b.demolitionReason, 'placeholder="Redevelopment…" list="reasons"') + `<datalist id="reasons">${DEMOLITION_REASONS.map(r => `<option value="${esc(r)}">`).join('')}</datalist>`)}
           <div class="f span"><label for="f-significance">Historical significance <span class="hint">one line · why this building matters to the record</span></label>${inp('significance', b.significance, 'placeholder="First tower in Lower Man A; set the C5-5 skyline scale…"')}</div>
           <div class="f span"><label for="f-historyNotes">Site history notes <span class="hint">what you found, where, and what it proves</span></label><textarea id="f-historyNotes" placeholder="Seen in the 2015-06-22 world save at X 120 Z -40. Screenshot IMG_2231 shows it half-demolished in mid 2022…">${esc(b.historyNotes || '')}</textarea></div>
         </div>
-      </div>
-      <div class="fsect"><h4>CLASSIFICATION & ZONING</h4>
+      </div></details>
+      ${fsectOpen('class', 'CLASSIFICATION & ZONING', '', b, { cls: '', id: '' })}
         <div class="frow">
           <div class="f"><label for="f-class">Building class</label>${comboHTML('class', b.bldgClass, 'placeholder="O4, D8, A5…"')}<div class="desc-line" id="class-desc">${b.bldgClass ? `<b>${esc(b.bldgClass)}</b> ${esc(classDesc(b.bldgClass))}` : 'letter = family, digit = construction / use'}</div></div>
           ${f('tax', 'Tax class', `<select id="f-tax"><option value="">— auto —</option>${TAX_CLASSES.map(t => `<option value="${t.id}" ${t.id === b.taxClass ? 'selected' : ''}>${esc(t.label)}</option>`).join('')}</select>`, 'suggested from class')}
@@ -5191,8 +5230,8 @@ function renderEditor(b) {
           ${f('special', 'Special district', inp('special', b.special, 'placeholder="Midtown, Two Bridges…"'))}
         </div>
         <div class="desc-line" id="zoning-desc" style="margin-top:6px">${b.zoning ? `<b>${esc(b.zoning)}</b> ${esc(zoningDesc(b.zoning))}` : 'R residential · C commercial · M manufacturing'}</div>
-      </div>
-      <div class="fsect"><h4>BUILDING & LOT</h4>
+      </div></details>
+      ${fsectOpen('lot', 'BUILDING & LOT', '', b, { cls: '', id: '' })}
         <div class="frow c3">
           ${f('floors', 'Floors', numI('floors', b.floors, 'placeholder="48" min="0"'))}
           ${f('height', 'Height', numI('height', b.height, 'placeholder="162" min="0"'), 'blocks')}
@@ -5207,9 +5246,9 @@ function renderEditor(b) {
         </div>
         <div class="fieldnote lotnote" style="margin-top:8px">Lot outline: ${lotOutline(b) ? lotSectionHTML(b) + ` <button type="button" class="rowlink" data-act="lot-draw" style="font:inherit">redraw</button> · <button type="button" class="rowlink" data-act="lot-clear" style="font:inherit">clear</button>${b.lotSource === 'manual' ? ' · <span class="mk warn">TYPED VALUES KEPT</span> <button type="button" class="rowlink" data-act="lot-remeasure" style="font:inherit">use the measured ones</button>' : ''}` : `not drawn — <button type="button" class="rowlink" data-act="lot-draw" style="font:inherit">draw the lot on the map</button> (any shape; area, frontage and depth fill in)`}</div>
         <div class="fieldnote" style="margin-top:8px">Footprint: ${b.footprint ? `<b>${fmtInt(footprintAreaOf(b))} blk²</b> measured from ${b.footprint.length} vertices` : 'not drawn'} · <button type="button" class="rowlink" data-act="footprint-draw" style="font:inherit">${b.footprint ? 'redraw on the map' : 'draw on the map'}</button>${b.footprint ? ` · <button type="button" class="rowlink" data-act="footprint-clear" style="font:inherit">clear</button>` : ''}</div>
-      </div>
+      </div></details>
       ${civicEditorHTML(b)}
-      <div class="fsect"><h4>VALUATION <span style="font-weight:400;letter-spacing:0;color:var(--ink-4);font-family:var(--font-mono);font-size:10.5px">assessment · asking · agreed prices stay distinct</span></h4>
+      ${fsectOpen('valuation', 'VALUATION', `assessment · asking · agreed prices stay distinct`, b, { cls: '', id: '' })}
         <div class="frow c3">
           ${f('assessLand', 'Assessed land', `<div class="pre"><span>$</span>${numI('assessLand', b.assessLand, 'placeholder="0" min="0" step="1000"')}</div>`)}
           ${f('assessBuilding', 'Assessed building', `<div class="pre"><span>$</span>${numI('assessBuilding', b.assessBuilding, 'placeholder="0" min="0" step="1000"')}</div>`, 'improvements')}
@@ -5221,26 +5260,26 @@ function renderEditor(b) {
         <div id="f-estimate" class="fieldnote" style="margin-top:8px"><button type="button" class="btn sm" data-act="estimate-draft">${icon('spark')} Auto-estimate from nearby buildings &amp; transit</button> <span class="muted">compares assessed buildings within 200 blocks (then the borough), adjusts for stations, services, floors and condition — nothing is saved until you apply it</span></div>
         <div id="f-listings">${editorListingsHTML(b)}</div>
         <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:8px"><button type="button" class="btn sm" data-act="listing-add">${icon('plus')} Listing</button><button type="button" class="btn sm" data-act="tx-add">${icon('plus')} Transaction</button></div>
-      </div>
+      </div></details>
       ${valuationEditorHTML(b)}
-      <div class="fsect"><h4>PROVENANCE <span style="font-weight:400;letter-spacing:0;color:var(--ink-4);font-family:var(--font-mono);font-size:10.5px">evidence behind this record</span></h4>
+      ${fsectOpen('provenance', 'PROVENANCE', `evidence behind this record`, b, { cls: '', id: '' })}
         <div class="frow c3">
           ${f('confidence', 'Confidence', `<select id="f-confidence"><option value="">— not assessed —</option>${CONFIDENCE.map(c => `<option value="${c.id}" ${c.id === b.confidence ? 'selected' : ''}>${esc(c.label)} — ${esc(c.hint)}</option>`).join('')}</select>`)}
           ${f('sourceType', 'Source type', `<select id="f-sourceType"><option value="">— none —</option>${SOURCE_TYPES.map(([id, l]) => `<option value="${id}" ${id === b.sourceType ? 'selected' : ''}>${esc(l)}</option>`).join('')}</select>`)}
           <div class="f"><label>Verified</label><label class="switch"><input type="checkbox" id="f-verified" ${b.verified ? 'checked' : ''}> <span class="muted" style="font-size:12px">checked against evidence</span></label></div>
           <div class="f span"><label for="f-source">Source <span class="hint">file name, save date, link, who told you</span></label>${inp('source', b.source, 'placeholder="world save 2015-06-22 · IMG_2231.png · article URL…"')}</div>
         </div>
-      </div>
-      <div class="fsect"><h4>RELATIONSHIPS <span style="font-weight:400;letter-spacing:0;color:var(--ink-4);font-family:var(--font-mono);font-size:10.5px">what this replaced · what replaced it</span></h4>
+      </div></details>
+      ${fsectOpen('relationships', 'RELATIONSHIPS', `what this replaced · what replaced it`, b, { cls: '', id: '' })}
         <div id="f-rels">${editorRelationsHTML(b)}</div>
         <button type="button" class="btn sm" data-act="rel-add-draft">${icon('link')} Link a building by reg №</button>
-      </div>
-      <div class="fsect"><h4>NOTES</h4>
+      </div></details>
+      ${fsectOpen('notes', 'NOTES', '', b, { cls: '', id: '' })}
         <div class="frow">
           <div class="f span"><label for="f-tags">Tags <span class="hint">space separated</span></label>${inp('tags', (b.tags || []).join(' '), 'placeholder="supertall glass landmark"')}</div>
           <div class="f span"><label for="f-notes">Notes</label><textarea id="f-notes" placeholder="History, materials, who built it, what it replaced…">${esc(b.notes)}</textarea></div>
         </div>
-      </div>
+      </div></details>
     </form>
   </div>
   <div class="dfoot">${DR.isNew ? '' : `<button class="btn danger sm" data-act="dr-delete">${icon('trash')} Delete</button>`}<span class="spacer"></span>
@@ -5414,7 +5453,7 @@ function stepRecord(dir) {
 /* ---- drawer wiring ---- */
 function wireDrawer() {
   const el = $('#drawer');
-  if (DR.mode !== 'edit') wireShapeTimelines(el);
+  if (DR.mode !== 'edit') wireShapeTimelines(el); else wireEditorSections(el);
   $$('.combo', el).forEach(wireCombo);
   const photo = $('#photo', el);
   if (photo) {
@@ -5459,7 +5498,7 @@ async function attachPhoto(file) {
   }
 }
 function renderDrawerPhotoOnly() {
-  const url = imgUrl(DR.id, 'full'); const photo = $('#photo'); if (!photo) return;
+  const url = imgUrl(DR.id, 'full'); const photo = $('#photo'); if (!photo) return; photo.classList.toggle('empty', !url);
   photo.innerHTML = `${url ? `<img src="${url}" alt="">` : `<div class="ph">${icon('img')}Drop a screenshot here, paste one, or click Add photo</div>`}<div class="acts"><button class="btn sm" data-act="dr-photo">${icon('img')} ${url ? 'Replace' : 'Add photo'}</button>${url ? `<button class="btn sm danger" data-act="dr-photo-remove">${icon('trash')}</button>` : ''}</div>`;
 }
 document.addEventListener('paste', e => {
@@ -5563,10 +5602,43 @@ async function endTenancy(id) {
   commit(); renderDrawer(); renderView(false); toast('Tenancy ended — kept in history', 'good');
 }
 
+/* ---- the editor's sections: collapsible, each with a one-line summary of what is filled in; nothing is hidden for good ---- */
+const ED_SECTIONS = [['location', 'Location'], ['lifecycle', 'Lifecycle'], ['demolition', 'Demolition'], ['class', 'Class & zoning'], ['lot', 'Building & lot'], ['civic', 'Civic'], ['valuation', 'Valuation'], ['override', 'Your value'], ['provenance', 'Provenance'], ['relationships', 'Links'], ['notes', 'Notes']];
+const ED_DEFAULT_OPEN = { location: true, lifecycle: true, lot: true };
+function edSecPrefs() { try { return JSON.parse(localStorage.getItem('newa-os.edsec') || '{}') || {}; } catch { return {}; } }
+function edSecSet(id, open) { try { const p = edSecPrefs(); p[id] = !!open; localStorage.setItem('newa-os.edsec', JSON.stringify(p)); } catch { } }
+function edSecOpen(id, b) { const p = edSecPrefs(); if (id in p) return !!p[id]; if (id === 'demolition') return isHist(b); return !!ED_DEFAULT_OPEN[id]; }
+function edSummary(id, b) {
+  const d = districtById(b.districtId);
+  switch (id) {
+    case 'location': return [d?.name, b.number || b.street ? `${b.number || ''} ${b.street || ''}`.trim() : '', b.x != null ? `X ${b.x} · Z ${b.z}` : 'no coordinates', b.roadId ? 'road linked' : ''].filter(Boolean).join(' · ');
+    case 'lifecycle': return [physicalOf(b.physical).label, b.market ? marketOf(b.market).label : '', b.yearBuilt != null ? `built ${hyShort(b.yearBuilt, b.halfBuilt, b.yearBuiltApprox)}` : b.yearStarted != null ? `started ${hyShort(b.yearStarted, b.halfStarted)}` : 'undated', b.landmark ? '✦ landmark' : ''].filter(Boolean).join(' · ');
+    case 'demolition': return isHist(b) ? [b.yearDemolished != null ? `demolished ${hyShort(b.yearDemolished, b.halfDemolished, b.yearDemolishedApprox)}` : 'no demolition date', b.demolitionReason].filter(Boolean).join(' · ') : 'standing — nothing to fill';
+    case 'class': return [b.bldgClass, b.zoning, b.overlay, b.special].filter(Boolean).join(' · ') || 'not classified';
+    case 'lot': { const lot = lotAreaOf(b); return [num(b.floors) != null ? `${b.floors} floors` : '', num(b.height) != null ? `${b.height} blk` : '', num(b.lotFront) || num(b.lotDepth) ? `lot ${b.lotFront ?? '?'}×${b.lotDepth ?? '?'}` : '', lot != null ? `${fmtInt(lot)} blk²` : '', lotOutline(b) ? 'outline drawn' : '', b.footprint ? 'footprint drawn' : '', b.owner].filter(Boolean).join(' · ') || 'no size yet'; }
+    case 'civic': { const c = civicOf(b); return c ? `${civicTypeLabel(c.type)}${c.status ? ' · ' + c.status : ''}` : (b.condition ? `condition ${b.condition}` : 'not a civic facility'); }
+    case 'valuation': return [num(b.assessTotal) ? `assessed ${fmtMoneyCompact(num(b.assessTotal))}` : '', num(b.listPrice) ? `asking ${fmtMoneyCompact(num(b.listPrice))}` : '', (b.listings || []).length ? `${b.listings.length} listing${b.listings.length === 1 ? '' : 's'}` : '', (b.transactions || []).length ? `${b.transactions.length} transaction${b.transactions.length === 1 ? '' : 's'}` : ''].filter(Boolean).join(' · ') || 'no figures yet';
+    case 'override': return num(b.valuationOverride?.value) != null ? `${fmtMoneyCompact(num(b.valuationOverride.value))}${b.valuationOverride.reason ? ' · ' + b.valuationOverride.reason : ''}` : 'using the estimate';
+    case 'provenance': return [b.confidence ? confOf(b.confidence)?.label : '', b.sourceType, b.verified ? 'verified' : '', b.source].filter(Boolean).join(' · ') || 'no source yet';
+    case 'relationships': { const n = (b.relations || []).length; return n ? `${n} link${n === 1 ? '' : 's'}` : 'no links'; }
+    case 'notes': return [(b.tags || []).length ? `${b.tags.length} tag${b.tags.length === 1 ? '' : 's'}` : '', b.notes ? `${b.notes.length} chars of notes` : ''].filter(Boolean).join(' · ') || 'empty';
+  }
+  return '';
+}
+function fsectOpen(id, title, hint, b, { cls = '', id: domId = '' } = {}) {
+  return `<details class="fsect ${cls}" data-sec="${id}" ${domId ? `id="${domId}"` : ''} ${edSecOpen(id, b) ? 'open' : ''}><summary><h4>${title}${hint ? ` <span class="h4hint">${hint}</span>` : ''}<span class="fs-sum">${esc(edSummary(id, b))}</span><span class="fs-chev">${icon('chev')}</span></h4></summary><div class="fs-body">`;
+}
+function fsBarHTML(b) { return `<div class="fs-bar"><span class="k">JUMP TO</span>${ED_SECTIONS.filter(([id]) => id !== 'demolition' || isHist(b)).map(([id, l]) => `<button type="button" data-sec-jump="${id}">${l}</button>`).join('')}<span class="spacer"></span><button type="button" class="ghost" data-sec-all="1" title="Open every section">Expand all</button><button type="button" class="ghost" data-sec-all="0" title="Close every section">Collapse all</button></div>`; }
+function wireEditorSections(el) {
+  $$('details.fsect', el).forEach(d => d.addEventListener('toggle', () => edSecSet(d.dataset.sec, d.open)));
+  $$('[data-sec-jump]', el).forEach(bt => bt.addEventListener('click', () => { const d = $(`details.fsect[data-sec="${bt.dataset.secJump}"]`, el); if (!d) return; d.open = true; d.scrollIntoView({ block: 'start', behavior: motionOn() ? 'smooth' : 'auto' }); const first = d.querySelector('input:not([type=checkbox]):not([type=hidden]),select,textarea'); setTimeout(() => first?.focus({ preventScroll: true }), motionOn() ? 350 : 0); }));
+  $$('[data-sec-all]', el).forEach(bt => bt.addEventListener('click', () => { const open = bt.dataset.secAll === '1'; $$('details.fsect', el).forEach(d => { d.open = open; edSecSet(d.dataset.sec, open); }); }));
+}
 /* after a validation error, put the cursor on the field it is about */
 function focusFieldFor(err) {
   const map = [[/completed year|built/i, 'f-built-y'], [/demolish/i, 'f-demolished-y'], [/started/i, 'f-started-y'], [/expected/i, 'f-expected-y'], [/district|borough/i, 'f-district'], [/name/i, 'f-name'], [/number|street|address/i, 'f-number'], [/x and z|coordinates/i, 'f-x'], [/floor/i, 'f-floors'], [/closed before/i, 'f-closed-y'], [/opened/i, 'f-opened-y']];
   const hit = map.find(([re]) => re.test(err)); const el = hit ? $('#' + hit[1]) : null; if (!el) return;
+  const det = el.closest('details'); if (det) det.open = true;
   el.scrollIntoView({ block: 'center', behavior: motionOn() ? 'smooth' : 'auto' }); el.focus(); el.classList.add('err'); setTimeout(() => el.classList.remove('err'), 2500);
 }
 
@@ -5596,7 +5668,7 @@ function renderRoadRecord(r) {
       <div class="reg road">${esc(r.reg)} <span class="dist" style="--c:var(--road)"><i></i>${juris.map(d => esc(d.name)).join(' · ') || (regs.length ? regs.map(x => esc(x.name)).join(' · ') : 'no jurisdiction on the map yet')}</span></div>
       <h2>${esc(roadLabel(r))}</h2>
       ${r.aliases?.length || r.formerNames?.length ? `<div class="nm">${r.aliases?.length ? 'also ' + esc(r.aliases.join(', ')) : ''}${r.aliases?.length && r.formerNames?.length ? ' · ' : ''}${r.formerNames?.length ? 'formerly ' + esc(r.formerNames.join(', ')) : ''}</div>` : ''}
-      <div class="badges"><span class="mk road">${esc(ROAD_TYPE_LABEL[r.type] || r.type).toUpperCase()}</span><span class="mk">${esc(GRADE_LABEL[r.grade] || r.grade).toUpperCase()}</span><span class="mk">${esc((DIRECTIONS.find(x => x[0] === r.direction) || [])[1] || r.direction).toUpperCase()}</span>${openBadge(r)}${confHTML(r.confidence, r.verified)}</div>
+      <div class="badges"><span class="mk road">${esc(ROAD_TYPE_LABEL[r.type] || r.type).toUpperCase()}</span><span class="mk">${esc(GRADE_LABEL[r.grade] || r.grade).toUpperCase()}</span><span class="mk ${r.direction === 'one-way' ? 'warn' : ''}" title="${r.direction === 'one-way' ? esc(oneWayText(r)) : ''}">${esc((DIRECTIONS.find(x => x[0] === r.direction) || [])[1] || r.direction).toUpperCase()}${r.direction === 'one-way' ? ' ' + oneWayArrow(r) : ''}</span>${openBadge(r)}${confHTML(r.confidence, r.verified)}</div>
     </div>
     <div class="secthead">GEOMETRY</div>
     <div class="kv">
@@ -5633,6 +5705,7 @@ function renderRoadEditor(r) {
     </div></div>
     <div class="fsect"><h4>KIND</h4><div class="frow c3">
       ${fld('type', 'Type', selF('type', ROAD_TYPES, r.type))}${fld('grade', 'Grade', selF('grade', GRADES, r.grade), 'bridges & tunnels never form junctions with surface roads')}${fld('direction', 'Access', selF('direction', DIRECTIONS, r.direction))}
+      ${fld('oneWayDir', 'One-way runs', selF('oneWayDir', ONEWAY_DIRS, r.oneWayDir === -1 ? -1 : 1), 'only for one-way roads · the map shows faint arrows')}
       ${fld('width', 'Width', numF('width', r.width, 'min="1" step="1"'), 'blocks')}${fld('surface', 'Surface', inpF('surface', r.surface, 'placeholder="stone bricks, asphalt…"'))}
     </div></div>
     <div class="fsect"><h4>SHAPE HISTORY <span style="font-weight:400;letter-spacing:0;color:var(--ink-4);font-family:var(--font-mono);font-size:10.5px">dates and shapes are edited on the record page or in the map inspector</span></h4>${shapeTimelineHTML(r, 'road', { editable: false })}</div>
@@ -5655,7 +5728,7 @@ function readRoadFormInto(r, strict) {
   const newName = g('name').trim();
   if (!DR.isNew && r.name && newName && newName !== r.name) { const prev = recordById('road', r.id); if (prev && prev.name === r.name && !(r.formerNames || []).includes(r.name)) r.formerNames = [...(r.formerNames || []), r.name]; }
   r.name = newName; r.aliases = g('aliases').split(',').map(s => s.trim()).filter(Boolean); r.formerNames = [...new Set([...(g('formerNames').split(',').map(s => s.trim()).filter(Boolean)), ...(r.formerNames || []).filter(n => n !== r.name)])].filter(n => n !== r.name);
-  r.type = g('type') || 'street'; r.grade = g('grade') || 'surface'; r.direction = g('direction') || 'two-way'; r.width = num(g('width')); r.surface = g('surface').trim();
+  r.type = g('type') || 'street'; r.grade = g('grade') || 'surface'; r.direction = g('direction') || 'two-way'; r.oneWayDir = +g('oneWayDir') === -1 ? -1 : 1; r.width = num(g('width')); r.surface = g('surface').trim();
   const op = readHY('opened'), cl = readHY('closed'); r.yearOpened = op.year; r.halfOpened = op.year != null ? op.half : ''; r.yearOpenedApprox = op.year != null && op.approx; r.yearClosed = cl.year; r.halfClosed = cl.year != null ? cl.half : '';
   r.geometry = readVertexList('v'); r.unnamed = !!$('#f-unnamed')?.checked; r.confidence = g('confidence'); r.sourceType = g('sourceType'); r.verified = !!$('#f-verified')?.checked; r.source = g('source').trim(); r.notes = g('notes');
   if (strict) { if (!r.name && !r.unnamed) return 'Give the road a name, or tick Unnamed.'; if (r.geometry.length < 2 && !DR.isNew) return 'A road needs at least two points — draw it on the map.'; if (r.yearClosed != null && r.yearOpened != null && hyIndex(r.yearClosed, r.halfClosed) < hyIndex(r.yearOpened, r.halfOpened)) return 'Closed before it opened — check the dates.'; }
@@ -6207,7 +6280,7 @@ async function openDataModal() {
         <div class="dcard" style="grid-column:span 2">
           <h4>VALUATION FACTORS &amp; PUBLISHING</h4>
           <p>Every estimated value is the assessed total (or a per-block comparable) adjusted by these percentages. Change them here and every record explains itself with the new figures; recorded valuation history keeps the version it was made with.</p>
-          <div class="valgrid">${[['transitNear', 'Station ≤ 60 blk'], ['transitMid', 'Station ≤ 150 blk'], ['transitFar', 'Station ≤ 300 blk'], ['transitNone', 'No station'], ['transit247', '24/7 service bonus'], ['transitConstruction', 'Under construction · share of open (0–1)'], ['transitPlanned', 'Planned · share (0–1)'], ['transitPartial', 'Part-time · share (0–1)'], ['hospital', 'Hospital in reach'], ['police', 'Police in reach'], ['fire', 'Fire in reach'], ['park', 'Park ≤ 100 blk'], ['school', 'School ≤ 120 blk'], ['servicesCap', 'Services cap'], ['landmark', 'Landmark'], ['floorStep', 'Per floor'], ['floorCap', 'Floors cap'], ['excellent', 'Excellent condition'], ['fair', 'Fair condition'], ['poor', 'Poor condition'], ['construction', 'Under way'], ['closed', 'Closed'], ['vacantLot', 'Vacant lot'], ['officeCondo', 'Office / condo'], ['industrial', 'Industrial']].map(([k, l]) => `<label><span>${l}</span><span class="pre"><input type="number" step="1" data-val="${k}" value="${esc((S.settings.valuation || {})[k] ?? VALUATION_DEFAULTS[k])}"><b>%</b></span></label>`).join('')}<label><span>Fallback $ per blk²</span><span class="pre"><b>$</b><input type="number" step="1000" data-val="fallbackPerBlock" value="${esc((S.settings.valuation || {}).fallbackPerBlock ?? VALUATION_DEFAULTS.fallbackPerBlock)}"></span></label><label><span>Default lot blk²</span><span class="pre"><input type="number" step="10" data-val="defaultArea" value="${esc((S.settings.valuation || {}).defaultArea ?? VALUATION_DEFAULTS.defaultArea)}"></span></label></div>
+          <div class="valgrid">${[['transitNear', 'Station ≤ 60 blk'], ['transitMid', 'Station ≤ 150 blk'], ['transitFar', 'Station ≤ 300 blk'], ['transitNone', 'No station'], ['transit247', '24/7 service bonus'], ['transitConstruction', 'Under construction · share of open (0–1)'], ['transitPlanned', 'Planned · share (0–1)'], ['transitPartial', 'Part-time · share (0–1)'], ['transitLinesStep', 'Per extra line in reach'], ['transitLinesCap', 'Extra lines cap'], ['transitCap', 'Transit cap (all transit factors)'], ['cornerLot', 'Corner lot (drawn outline)'], ['newBuild', 'Completed ≤ 5 years ago'], ['aged', 'Completed ≥ 10 years ago'], ['hospital', 'Hospital in reach'], ['police', 'Police in reach'], ['fire', 'Fire in reach'], ['park', 'Park ≤ 100 blk'], ['school', 'School ≤ 120 blk'], ['servicesCap', 'Services cap'], ['landmark', 'Landmark'], ['floorStep', 'Per floor'], ['floorCap', 'Floors cap'], ['excellent', 'Excellent condition'], ['fair', 'Fair condition'], ['poor', 'Poor condition'], ['construction', 'Under way'], ['closed', 'Closed'], ['vacantLot', 'Vacant lot'], ['officeCondo', 'Office / condo'], ['industrial', 'Industrial']].map(([k, l]) => `<label><span>${l}</span><span class="pre"><input type="number" step="1" data-val="${k}" value="${esc((S.settings.valuation || {})[k] ?? VALUATION_DEFAULTS[k])}"><b>%</b></span></label>`).join('')}<label><span>Fallback $ per blk²</span><span class="pre"><b>$</b><input type="number" step="1000" data-val="fallbackPerBlock" value="${esc((S.settings.valuation || {}).fallbackPerBlock ?? VALUATION_DEFAULTS.fallbackPerBlock)}"></span></label><label><span>Default lot blk²</span><span class="pre"><input type="number" step="10" data-val="defaultArea" value="${esc((S.settings.valuation || {}).defaultArea ?? VALUATION_DEFAULTS.defaultArea)}"></span></label></div>
           <div class="settings-row" style="margin-top:10px"><div><div>Public guide includes notes</div><div class="d">Owners, assessments and sources are never exported to the guide; notes only if you allow it</div></div><label class="switch"><input type="checkbox" data-pub="publicNotes" ${S.settings.publishing?.publicNotes ? 'checked' : ''}></label></div>
         </div>
         <div class="dcard" style="grid-column:span 2">
@@ -6345,7 +6418,7 @@ function mapMount() {
   c.addEventListener('dblclick', mapDblClick);
   c.addEventListener('contextmenu', e => { e.preventDefault(); if (MAPW.draft) mapFinishDraft(); });
   if (!MAPW.resizeBound) { window.addEventListener('resize', () => { if ($('#mapcanvas') && UI.nav === 'map') { mapResize(); mapDraw(); } }); MAPW.resizeBound = true; }
-  wireMapSearch(); wireTimeWidget(); $('#mapstage')?.classList.toggle('dated', MAPW.when != null); renderMapInstr(); renderDock(); wireExplore(); renderPlaceCard(); mapDraw();
+  trainsLoop(); wireMapSearch(); wireTimeWidget(); $('#mapstage')?.classList.toggle('dated', MAPW.when != null); renderMapInstr(); renderDock(); wireExplore(); renderPlaceCard(); mapDraw();
 }
 /* smooth camera flight to an extent (respects reduced motion) */
 function mapFlyTo(ext, { pad = 70, maxK = 6 } = {}) {
@@ -6703,6 +6776,10 @@ function drawScene(R) {
       if (g === 'bridge' || g === 'elevated') { tracePath(geom); ctx.lineWidth = wpx + 4; ctx.strokeStyle = hexA('#E0C63A', .55 * alpha); ctx.setLineDash([]); ctx.stroke(); }
       tracePath(geom); ctx.lineWidth = s || hl ? wpx + 3 : wpx; ctx.strokeStyle = s || hl ? '#FFFFFF' : hexA(h ? '#DCE9F0' : col, alpha); ctx.setLineDash(g === 'tunnel' ? [8, 6] : dashed ? [6, 6] : []); ctx.stroke(); ctx.setLineDash([]);
       if (s || hl) { tracePath(geom); ctx.lineWidth = Math.max(1, wpx - 1); ctx.strokeStyle = hexA(col, alpha); ctx.stroke(); }
+      // one-way: very faint chevrons along the road so the way is always there to see; bright and labelled while hovered or selected
+      if (r.direction === 'one-way' && k > 0.45 && alpha > .4) { const bright = s || h || hl; const sgn = r.oneWayDir === -1 ? -1 : 1; const size = clamp(wpx * .42, 3.2, 7); const gap = Math.max(34, 70 - wpx * 2); let acc = gap * .5; ctx.lineCap = 'round'; ctx.lineJoin = 'round'; ctx.lineWidth = bright ? 2 : 1.4; ctx.strokeStyle = bright ? hexA('#FFE6B3', .95 * alpha) : hexA('#FFFFFF', .2 * alpha); ctx.setLineDash([]);
+        for (let i = 1; i < geom.length; i++) { const a = P.s(...geom[i - 1]), b = P.s(...geom[i]); const L2 = Math.hypot(b[0] - a[0], b[1] - a[1]); if (!L2) continue; const ux = (b[0] - a[0]) / L2 * sgn, uy = (b[1] - a[1]) / L2 * sgn; for (let t = acc; t <= L2; t += gap) { const x = a[0] + (b[0] - a[0]) * t / L2, y = a[1] + (b[1] - a[1]) * t / L2; if (x < -10 || y < -10 || x > W + 10 || y > H + 10) continue; ctx.beginPath(); ctx.moveTo(x - ux * size - uy * size, y - uy * size + ux * size); ctx.lineTo(x + ux * size * .6, y + uy * size * .6); ctx.lineTo(x - ux * size + uy * size, y - uy * size - ux * size); ctx.stroke(); } acc = ((acc - L2) % gap + gap) % gap; }
+        if (bright) { const mid = geom[Math.floor((geom.length - 1) / 2)], nxt = geom[Math.floor((geom.length - 1) / 2) + 1] || mid; const [mx, my] = P.s((mid[0] + nxt[0]) / 2, (mid[1] + nxt[1]) / 2); labels.push({ x: mx, y: my - wpx / 2 - 10, text: `ONE WAY ${oneWayArrow(r)}`, font: '700 10px JetBrains Mono, monospace', color: '#05090D', bg: '#FFB454', prio: 0, pad: 3 }); } }
       if (L.labels && (k > 1.1 || s) && r.name && alpha > .5) { const need = r.name.length * 6.6 + 10; let since = 1e9; for (let i = 1; i < geom.length; i++) { const a = P.s(...geom[i - 1]), b = P.s(...geom[i]); const l = Math.hypot(b[0] - a[0], b[1] - a[1]); if (l < need && !s) { since += l; continue; } const reps = Math.max(1, Math.floor(l / 420)); for (let j = 0; j < reps; j++) { const t = (j + 0.5) / reps; if (since < 260 && j === 0 && !s) { since += l; continue; } labels.push({ x: a[0] + (b[0] - a[0]) * t, y: a[1] + (b[1] - a[1]) * t, text: r.name, font: `${s ? '600' : '500'} ${k > 2.5 ? 11 : 10.5}px Bricolage Grotesque, JetBrains Mono, sans-serif`, color: s ? '#fff' : hexA('#D7E3EC', alpha * .92), prio: 5, angle: Math.atan2(b[1] - a[1], b[0] - a[0]), pad: 3 }); since = 0; } since += l; } }
     }
     if (R.showJunctions && k > 1.5 && hy == null) for (const j of cachedJunctions()) { const [x, y] = P.s(j.x, j.z); if (x < -10 || y < -10 || x > W + 10 || y > H + 10) continue; if (j.kind === 'separated') { ctx.beginPath(); ctx.arc(x, y, 4, 0, Math.PI * 2); ctx.strokeStyle = 'rgba(224,198,58,.8)'; ctx.setLineDash([2, 2]); ctx.lineWidth = 1.2; ctx.stroke(); ctx.setLineDash([]); } else { ctx.beginPath(); ctx.arc(x, y, j.kind === 'junction' ? 3.2 : 2.6, 0, Math.PI * 2); ctx.fillStyle = sel?.kind === 'junction' && sel.j && Math.round(sel.j.x) === Math.round(j.x) && Math.round(sel.j.z) === Math.round(j.z) ? '#FFFFFF' : 'rgba(220,233,240,.85)'; ctx.fill(); } }
@@ -6773,6 +6850,7 @@ function drawScene(R) {
       }
     }
   }
+  if (R.trains && R.trains.length) drawTrains(ctx, P, k, R.trains);
   // buildings
   if (L.sandbox !== false && hy == null && (S.sandbox?.stations || []).length) drawSandbox(ctx, P, k);
   if (L.buildings) {
@@ -6838,7 +6916,7 @@ function drawScene(R) {
 }
 function mapDraw() {
   if (!MAPW.ctx || UI.nav !== 'map') return;
-  drawScene({ ctx: MAPW.ctx, W: MAPW.w, H: MAPW.h, cam: MAPW.cam, layers: UI.layers, hy: mapWhen(), refOverlay: MAPW.edit && mapWhen() != null, sel: MAPW.sel, hover: MAPW.hover, draft: MAPW.draft, handles: MAPW.edit && MAPW.mode === 'select', highlight: MAPW.highlight, preview: MAPW.preview, marker: MAPW.marker, showJunctions: MAPW.edit && MAPW.junctions, connector: MAPW.edit ? inspectorConnector() : null, cursorMark: ['station', 'place'].includes(MAPW.mode) && MAPW.pointer ? snapPoint(MAPW.pointer).p : null, districts: visibleDistricts(), hoods: visibleHoods(), route: MAPW.route, halo: !MAPW.edit });
+  drawScene({ ctx: MAPW.ctx, W: MAPW.w, H: MAPW.h, cam: MAPW.cam, layers: UI.layers, hy: mapWhen(), refOverlay: MAPW.edit && mapWhen() != null, trains: UI.layers.transit && UI.layers.trains !== false && mapWhen() == null ? liveTrains() : null, sel: MAPW.sel, hover: MAPW.hover, draft: MAPW.draft, handles: MAPW.edit && MAPW.mode === 'select', highlight: MAPW.highlight, preview: MAPW.preview, marker: MAPW.marker, showJunctions: MAPW.edit && MAPW.junctions, connector: MAPW.edit ? inspectorConnector() : null, cursorMark: ['station', 'place'].includes(MAPW.mode) && MAPW.pointer ? snapPoint(MAPW.pointer).p : null, districts: visibleDistricts(), hoods: visibleHoods(), route: MAPW.route, halo: !MAPW.edit });
   if (!MAPW.edit) { const zt = $('#gm-coord'); if (zt && MAPW.pointer) zt.innerHTML = `X <b>${Math.round(MAPW.pointer[0])}</b> · Z <b>${Math.round(MAPW.pointer[1])}</b>`; }
   const step = GRID_STEPS.find(s => s * MAPW.cam.k >= 70) || 10000; document.querySelectorAll('[id=map-scale-t]').forEach(t => t.textContent = `${step} blocks`); document.querySelectorAll('[id=map-scale-i]').forEach(i => i.style.setProperty('--w', (step * MAPW.cam.k) + 'px'));
   const zt = $('#map-zoom-t'); if (zt) zt.textContent = `${MAPW.cam.k.toFixed(2)} px/blk`;
@@ -6887,7 +6965,7 @@ function renderInspector() {
     const r = roadById(sel.id); if (!r) return ''; const bs = buildingsOnRoad(r); const issues = roadIssues(r); const js = roadConnections(r);
     return `<div class="dock-hd" style="--c:var(--road)"><div><div class="kind">${esc(r.reg)} · ROAD</div><div class="f" style="margin-top:4px"><input id="insp-name" value="${esc(r.name)}" placeholder="Name this road…" style="font-size:16px;font-weight:600;height:36px"></div><div class="sub">${fmtInt(polyLength(r.geometry))} blk · ${fmtInt(blockSteps(r.geometry))} staircase blocks · ${bs.length} building${bs.length === 1 ? '' : 's'} · ${js.length} junction${js.length === 1 ? '' : 's'}</div></div><div class="acts"><button class="btn sm icon" data-act="insp-open" title="Open the full record">${icon('expand')}</button></div></div>
     <div class="frow c3" style="margin-top:10px"><div class="f"><label>Type</label>${selF('insp-type', ROAD_TYPES, r.type)}</div><div class="f"><label>Grade</label>${selF('insp-grade', GRADES, r.grade)}</div><div class="f"><label>Width</label>${numF('insp-width', r.width, 'min="1" step="1"')}</div></div>
-    <div class="frow" style="margin-top:8px"><div class="f"><label>Access</label>${selF('insp-direction', DIRECTIONS, r.direction)}</div><div class="f"><label>Opened</label><div class="hy dock-hy">${`<select id="f-insp-opened-h" title="Half of the year">${HALVES.map(h => `<option value="${h.id}" ${(r.halfOpened || '') === h.id ? 'selected' : ''}>${h.short || 'Any half'}</option>`).join('')}</select><input id="f-insp-opened-y" type="number" value="${esc(r.yearOpened ?? '')}" placeholder="year" min="1990" max="2200">`}</div></div></div>
+    <div class="frow" style="margin-top:8px"><div class="f"><label>Access ${r.direction === 'one-way' ? `<span class="hint" style="color:var(--amber)">${oneWayArrow(r)} ${esc(oneWayShort(r))}</span>` : ''}</label><div style="display:flex;gap:4px">${selF('insp-direction', DIRECTIONS, r.direction)}<button class="btn sm" data-act="insp-flip-oneway" title="${r.direction === 'one-way' ? 'Flip the direction this one-way road runs' : 'Make it one-way (arrows show which way; click again to flip)'}" style="flex:none">${icon('swap')}</button></div></div><div class="f"><label>Opened</label><div class="hy dock-hy">${`<select id="f-insp-opened-h" title="Half of the year">${HALVES.map(h => `<option value="${h.id}" ${(r.halfOpened || '') === h.id ? 'selected' : ''}>${h.short || 'Any half'}</option>`).join('')}</select><input id="f-insp-opened-y" type="number" value="${esc(r.yearOpened ?? '')}" placeholder="year" min="1990" max="2200">`}</div></div></div>
     <div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:10px"><button class="btn sm primary" data-act="insp-save-road">${icon('check')} Save</button><button class="btn sm" data-act="insp-extend" data-end="end">${icon('draw')} Extend end</button><button class="btn sm" data-act="insp-extend" data-end="start">${icon('draw')} Extend start</button><button class="btn sm" data-act="insp-split" ${sel.vertex != null && sel.vertex > 0 && sel.vertex < r.geometry.length - 1 ? '' : 'disabled title="Select an inner vertex to split there"'}>Split here</button><button class="btn sm" data-act="insp-join">Join with…</button><button class="btn sm danger" data-act="insp-delete">${icon('trash')}</button></div>
     <div class="secthead">SHAPE HISTORY <span class="muted" style="letter-spacing:0;font-weight:400">· ${mapWhen() != null ? `map date ${esc(hyText(mapWhen()))} — handles edit the shape in force then` : 'map date today'}</span></div>${shapeTimelineHTML(r, 'road')}
     ${nameLinkHTML(r)}
@@ -6927,6 +7005,7 @@ function renderLayersPanel() {
     ${row('roads', 'Roads', `${S.roads.length} · junctions ${MAPW.junctions ? 'shown' : 'hidden'}`)}
     ${row('transit', 'Transit lines', `${S.lines.length} lines over ${S.tracks.length} tracks · hiding keeps the data`)}
     ${row('stations', 'Stations', `${S.stations.length}`, true)}
+    ${row('trains', 'Trains', `moving on every open line, on the line's timetable · the board agrees to the second`, true)}
     ${row('buildings', 'Buildings', `${mapBuildings().filter(isActive).length} placed in scope`)}
     ${row('historical', 'Demolished — ghosts', `${scopeBuildings().filter(b => isHist(b) && b.x != null).length} where lost buildings stood`, true)}
     ${row('footprints', 'Footprints', `${S.buildings.filter(b => b.footprint).length} drawn`, true)}
@@ -6979,6 +7058,7 @@ function wireDock() {
   $('#f-insp-hours', body)?.addEventListener('change', e => { const c = $('.hours-custom', body); if (c) c.hidden = e.target.value !== 'custom'; });
   $$('[data-stopname]', body).forEach(inp => { inp.addEventListener('keydown', e => { e.stopPropagation(); if (e.key === 'Enter') { e.preventDefault(); const all = $$('[data-stopname]', body); const nx = all[all.indexOf(inp) + 1]; inp.dispatchEvent(new Event('change')); if (nx) nx.focus(); } }); inp.addEventListener('change', () => { const s = stationById(inp.dataset.stopname); if (!s || s.name === inp.value.trim()) return; s.name = inp.value.trim(); s.updated = now(); commit({ silentRender: true }); mapDraw(); }); });
   wireShapeTimelines(body);
+  $('#f-insp-direction', body)?.addEventListener('change', e => { const r = roadById(MAPW.sel?.id); if (r) { r.direction = e.target.value; mapDraw(); renderDock(); } });   // preview the arrows at once; Save keeps it
   $('#insp-name', body)?.addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); $(`[data-act^="insp-save"]`, body)?.click(); } });
 }
 /* inspector actions (called from the delegated click handler) */
@@ -6988,6 +7068,7 @@ function inspectorAction(act, t) {
     case 'insp-lot': if (sel) startLotDraw(sel.id); break;
     case 'insp-lot-clear': { const b = byId(sel.id); if (!b) break; mapPushUndo(); b.lot = null; b.lotSource = ''; b.updated = now(); commit(); renderDock(); mapDraw(); toast('Lot outline cleared — frontage, depth and area stay as they were', ''); break; }
     case 'insp-center-lot': { const b = byId(sel.id); if (!lotOutline(b)) break; const c = centroidOf(b.lot); mapPushUndo(); b.x = Math.round(c[0]); b.z = Math.round(c[1]); b.updated = now(); commit(); renderDock(); mapDraw(); toast(`${b.reg} centred on its lot · X ${b.x} · Z ${b.z}`, 'good'); break; }
+    case 'insp-flip-oneway': { const r = roadById(sel.id); if (!r) break; mapPushUndo(); if (r.direction === 'one-way') r.oneWayDir = r.oneWayDir === -1 ? 1 : -1; else { r.direction = 'one-way'; r.oneWayDir = r.oneWayDir === -1 ? -1 : 1; } r.updated = now(); commit(); renderDock(); mapDraw(); toast(`${roadLabel(r)} is one way: ${oneWayText(r)}`, 'good'); break; }
     case 'insp-rotate-lot': { const b = byId(sel.id); if (!b) break; mapPushUndo(); b.lotRotated = !b.lotRotated; b.updated = now(); commit(); renderDock(); mapDraw(); toast(`Lot turned — frontage now runs along ${b.lotRotated ? 'Z (north–south)' : 'X (east–west)'}`, 'good'); break; }
     case 'insp-center-footprint': { const b = byId(sel.id); if (!b?.footprint) break; const c = centroidOf(b.footprint); mapPushUndo(); b.x = Math.round(c[0]); b.z = Math.round(c[1]); b.updated = now(); commit(); renderDock(); mapDraw(); toast(`${b.reg} centred on its footprint · X ${b.x} · Z ${b.z}`, 'good'); break; }
     case 'insp-snap-street': { const b = byId(sel.id); if (!b) break; const sn = snapToStreet(b); if (!sn) { toast('No road near this building to snap to', 'warn'); break; } mapPushUndo(); const was = { x: b.x, z: b.z, lotRotated: b.lotRotated, roadId: b.roadId, roadIdSource: b.roadIdSource }; b.x = sn.x; b.z = sn.z; b.lotRotated = sn.lotRotated; if (!b.roadId) { b.roadId = sn.road.id; b.roadIdSource = 'snap'; } b.updated = now(); commit(); renderDock(); mapDraw(); toast(`${b.reg} snapped to ${roadLabel(sn.road)} · X ${b.x} · Z ${b.z}`, 'good', { label: 'UNDO', fn: () => { Object.assign(b, was); b.updated = now(); commit(); renderDock(); mapDraw(); } }); break; }
@@ -7008,7 +7089,7 @@ function inspectorAction(act, t) {
     case 'insp-move-district': { const b = byId(sel.id); const d = districtById(t.dataset.district); if (b && d) { confirmDialog({ title: `Move ${b.reg} to ${d.name}?`, body: `<p>The record moves to <b>${esc(d.name)}</b> and receives a new number in that series; <code>${esc(b.reg)}</code> stays on file as a former number. Coordinates are not changed.</p>`, ok: 'Move record' }).then(r => { if (r !== 'ok') return; b.formerRegs = [...(b.formerRegs || []), b.reg]; b.districtId = d.id; b.neighborhoodId = null; b.reg = isHist(b) ? nextHistReg(S, d.id) : nextReg(S, d.id); b.updated = now(); commit(); renderDock(); mapDraw(); toast(`Moved to ${d.name} as ${b.reg}`, 'good'); }); } break; }
     case 'insp-road-apply': { const b = byId(sel.id); if (b) { b.roadId = t.dataset.id; b.roadIdSource = 'manual'; b.updated = now(); commit(); renderDock(); mapDraw(); toast(`${b.reg} now served by ${roadLabel(roadById(t.dataset.id))}`, 'good'); } break; }
     case 'insp-road-clear': { const b = byId(sel.id); if (b) { b.roadId = null; b.roadIdSource = null; b.updated = now(); commit(); renderDock(); mapDraw(); } break; }
-    case 'insp-save-road': { const r = roadById(sel.id); if (!r) break; const name = $('#insp-name').value.trim(); if (r.name && name && name !== r.name && !(r.formerNames || []).includes(r.name)) r.formerNames = [...(r.formerNames || []), r.name]; r.name = name; r.type = $('#f-insp-type').value; r.grade = $('#f-insp-grade').value; r.width = num($('#f-insp-width').value); r.direction = $('#f-insp-direction').value; const y = num($('#f-insp-opened-y').value); r.yearOpened = y; r.halfOpened = y != null && ['E', 'L'].includes($('#f-insp-opened-h').value) ? $('#f-insp-opened-h').value : ''; r.updated = now(); JUNCTION_CACHE.key = ''; commit(); renderDock(); mapDraw(); toast('Road saved', 'good'); offerNameLinks(r); break; }
+    case 'insp-save-road': { const r = roadById(sel.id); if (!r) break; const name = $('#insp-name').value.trim(); if (r.name && name && name !== r.name && !(r.formerNames || []).includes(r.name)) r.formerNames = [...(r.formerNames || []), r.name]; r.name = name; r.type = $('#f-insp-type').value; r.grade = $('#f-insp-grade').value; r.width = num($('#f-insp-width').value); r.direction = $('#f-insp-direction').value; r.oneWayDir = r.oneWayDir === -1 ? -1 : 1; const y = num($('#f-insp-opened-y').value); r.yearOpened = y; r.halfOpened = y != null && ['E', 'L'].includes($('#f-insp-opened-h').value) ? $('#f-insp-opened-h').value : ''; r.updated = now(); JUNCTION_CACHE.key = ''; commit(); renderDock(); mapDraw(); toast('Road saved', 'good'); offerNameLinks(r); break; }
     case 'insp-save-line': { const l = lineById(sel.id); if (!l) break; saveLineInspector(l); commit(); renderDock(); mapDraw(); toast('Line saved', 'good'); break; }
     case 'insp-save-station': { const s = stationById(sel.id); if (!s) break; mapPushUndo(); saveStationInspector(s); commit(); renderDock(); mapDraw(); toast('Station saved', 'good'); break; }
     case 'insp-extend': { if (sel?.kind === 'road') { const r = roadById(sel.id); const fromStart = t.dataset.end === 'start'; const eg = (editableShape(r, 'road') || { pts: r.geometry }).pts; MAPW.draft = { kind: 'polyline', pts: [fromStart ? eg[0] : eg[eg.length - 1]], cursor: null, forKind: 'road', extend: { kind: 'road', id: r.id }, prepend: fromStart }; setMapMode('road', { keepDraft: true }); } else if (sel?.kind === 'line') { const l = lineById(sel.id); const tr = lineTracks(l)[0]; if (!tr) { toast('This line has no track yet — draw one with Add track', 'warn'); break; } const fromStart = t.dataset.end === 'start'; const eg = (editableShape(tr, 'track') || { pts: tr.geometry }).pts; MAPW.draft = { kind: 'polyline', pts: [fromStart ? eg[0] : eg[eg.length - 1]], cursor: null, forKind: 'transit', extend: { kind: 'track', id: tr.id }, prepend: fromStart, lineId: l.id, stops: [] }; setMapMode('transit', { keepDraft: true }); } break; }
@@ -8132,7 +8213,7 @@ document.addEventListener('click', async e => {
   if (t.dataset.tseg) { UI.tseg = t.dataset.tseg; renderView(false); return; }
   if (t.dataset.cseg) { UI.cseg = t.dataset.cseg; renderView(false); return; }
   if (t.dataset.cfToggle) { UI.cf[t.dataset.cfToggle] = !UI.cf[t.dataset.cfToggle]; renderView(false); return; }
-  if (t.dataset.mode) { setMapMode(t.dataset.mode); return; }
+  if (t.dataset.mode && !t.dataset.act) { setMapMode(t.dataset.mode); return; }   // the map's tool buttons only — the directions panel's mode buttons carry data-act
   if (t.dataset.dock) { MAPW.dock = t.dataset.dock; renderDock(); return; }
   const act = t.dataset.act; if (!act) return;
   if (act.startsWith('insp-')) { inspectorAction(act, t); return; }
@@ -8198,7 +8279,7 @@ document.addEventListener('click', async e => {
     case 'gm-directions-to': openDirections(MAPW.sel ? { kind: MAPW.sel.kind, id: MAPW.sel.id } : null); break;
     case 'gm-dir-close': closeDirections(); break;
     case 'rt-swap': { const f = EXPLORE.from; EXPLORE.from = EXPLORE.to; EXPLORE.to = f; computeRoute(); break; }
-    case 'rt-mode': EXPLORE.mode = t.dataset.mode; renderPlaceCard(); break;
+    case 'rt-mode': { const was = EXPLORE.mode; EXPLORE.mode = t.dataset.mode; if (MAPW.route && (ROUTE_MODES[was]?.oneWay !== ROUTE_MODES[EXPLORE.mode]?.oneWay)) computeRoute({ keepView: true }); else renderPlaceCard(); break; }
     case 'pc-open': if (MAPW.sel) openRecord(MAPW.sel.kind === 'junction' ? 'road' : MAPW.sel.kind, MAPW.sel.kind === 'junction' ? MAPW.sel.j?.a : MAPW.sel.id); break;
     case 'pc-edit': { const sel = MAPW.sel; setMapEdit(true); MAPW.sel = sel; if (sel && ['region', 'district', 'hood'].includes(sel.kind) && !(nodeById(sel.id)?.polygons || []).length) setMapMode('border', { target: { kind: sel.kind, id: sel.id } }); renderDock(); mapDraw(); break; }
     case 'pc-fit': { const ext = selExtent(MAPW.sel); if (ext) mapFlyTo(ext); break; }
@@ -8353,7 +8434,7 @@ document.addEventListener('click', async e => {
     case 'draft-delete': { const d = (S.news.drafts || []).find(x => x.id === t.dataset.id); if (!d) break; const r = await confirmDialog({ title: 'Delete this draft?', body: '<p>The text is removed from the registry. Nothing on the site is affected.</p>', ok: 'Delete', danger: true }); if (r !== 'ok') break; S.news.drafts = S.news.drafts.filter(x => x.id !== d.id); commit({ silentRender: true }); closeModal(); clawRender(); toast('Draft deleted', 'warn'); break; }
     // civic · service · city
     case 'civic-map': UI.layers.civic = true; UI.layers.buildings = true; setNav('map'); break;
-    case 'civic-new': { const bid = await buildingPickDialog([], 'Which building is the civic facility?', 'Open to edit'); if (bid) { openBuilding(bid, 'edit'); setTimeout(() => { const el = $('#f-civicType'); if (el) { el.scrollIntoView({ block: 'center' }); el.focus(); } }, 150); } break; }
+    case 'civic-new': { const bid = await buildingPickDialog([], 'Which building is the civic facility?', 'Open to edit'); if (bid) { openBuilding(bid, 'edit'); setTimeout(() => { const el = $('#f-civicType'); if (el) { const d = el.closest('details'); if (d) d.open = true; el.scrollIntoView({ block: 'center' }); el.focus(); } }, 150); } break; }
     case 'official-new': openOfficialModal(null); break;
     case 'official-edit': openOfficialModal(t.dataset.id); break;
     case 'official-delete': deleteOfficial(t.dataset.id); break;
@@ -8492,13 +8573,14 @@ document.addEventListener('keydown', e => {
        (the rendered city under the registry data). Edit mode keeps every
        2.5 tool exactly as it was; explore mode is read-only.
    ===================================================================== */
-const EXPLORE = { q: '', items: [], active: 0, from: null, to: null, mode: 'walk', dir: false, picking: null };
+const EXPLORE = { q: '', items: [], active: 0, from: null, to: null, mode: 'drive', dir: false, picking: null };
+const ROUTE_MODES = { walk: { label: 'Walk', speed: 4.3, oneWay: false, icon: 'walk' }, sprint: { label: 'Sprint', speed: 5.6, oneWay: false, icon: 'walk' }, drive: { label: 'Drive', speed: 11, oneWay: true, icon: 'car' } };
 const WALK_BLOCKS_PER_SEC = 4.3;          // Minecraft walking speed (sprinting is ~5.6)
 const fmtMins = sec => sec < 60 ? `${Math.round(sec)} s` : sec < 3600 ? `${Math.round(sec / 60)} min` : `${Math.floor(sec / 3600)} h ${Math.round((sec % 3600) / 60)} min`;
 const WORDMARK = `<span class="gm-word" aria-label="GOOGLE"><b class="g1">G</b><b class="g2">O</b><b class="g3">O</b><b class="g4">G</b><b class="g5">L</b><b class="g6">E</b></span><span class="gm-maps">Maps</span>`;
 
 function exploreChromeHTML() {
-  const L = UI.layers; const chip = (k, label, c = '') => `<button class="chip ${c}" data-gmlayer="${k}" aria-pressed="${!!L[k]}" style="${c ? '' : `--c:var(--${{ buildings: 'cyan', roads: 'road', transit: 'transit', districts: 'region', hoods: 'ink-2', historical: 'hist', lots: 'amber', businesses: 'biz', labels: 'ink-2', grid: 'ink-3', footprints: 'cyan', civic: 'civic' }[k] || 'cyan'})`}"><i></i>${label}</button>`;
+  const L = UI.layers; const chip = (k, label, c = '') => `<button class="chip ${c}" data-gmlayer="${k}" aria-pressed="${!!L[k]}" style="${c ? '' : `--c:var(--${{ buildings: 'cyan', roads: 'road', transit: 'transit', districts: 'region', hoods: 'ink-2', historical: 'hist', lots: 'amber', trains: 'transit', businesses: 'biz', labels: 'ink-2', grid: 'ink-3', footprints: 'cyan', civic: 'civic' }[k] || 'cyan'})`}"><i></i>${label}</button>`;
   const hasBase = (S.settings.basemaps || []).length;
   return `<div class="gm-panel ${MAPW.sel || EXPLORE.dir ? '' : 'closed'}" id="gm-panel">
       <div class="gm-brandbar">${WORDMARK}<span class="gm-parody">NEW A PARODY<br>NOT GOOGLE LLC</span></div>
@@ -8507,7 +8589,7 @@ function exploreChromeHTML() {
       <div class="gm-card" id="gm-card"></div>
     </div>
     <div class="gm-chips" id="gm-chips">
-      ${chip('buildings', 'Buildings')}${chip('roads', 'Roads')}${chip('transit', 'Transit')}${chip('districts', 'Borders')}${chip('hoods', 'Hoods')}${chip('historical', 'Ghosts')}${chip('lots', 'Lots')}${chip('civic', 'Civic')}${chip('businesses', 'Businesses')}${chip('labels', 'Labels')}${chip('grid', 'Grid')}
+      ${chip('buildings', 'Buildings')}${chip('roads', 'Roads')}${chip('transit', 'Transit')}${chip('trains', 'Trains')}${chip('districts', 'Borders')}${chip('hoods', 'Hoods')}${chip('historical', 'Ghosts')}${chip('lots', 'Lots')}${chip('civic', 'Civic')}${chip('businesses', 'Businesses')}${chip('labels', 'Labels')}${chip('grid', 'Grid')}
       <button class="chip sat" data-gmlayer="basemap" aria-pressed="${L.basemap !== false && hasBase}" title="${hasBase ? 'Show the rendered city under the data' : 'No basemap yet — add one under Vault & settings → Basemap'}" ${hasBase ? '' : 'data-act="basemap-open"'}>${icon('sat')} ${hasBase ? 'Satellite' : 'Add basemap'}</button>
       <label class="sel" title="Colour buildings by">${icon('layers')}<select id="gm-color">${[['district', 'By borough'], ['status', 'By status'], ['family', 'By class'], ['era', 'By era built'], ['service', 'By transit service']].map(([v, l]) => `<option value="${v}" ${UI.mapColor === v ? 'selected' : ''}>${l}</option>`).join('')}</select></label>
     </div>
@@ -8621,6 +8703,13 @@ function placeCardHTML(sel) {
     </div>`;
 }
 
+/* ---- one-way roads: which way they run, in words and as an arrow on screen ---- */
+const oneWayArrow = r => { const g = r.geometry || []; if (g.length < 2) return '→'; const sgn = r.oneWayDir === -1 ? -1 : 1; const a = g[0], b = g[g.length - 1]; const dx = (b[0] - a[0]) * sgn, dz = (b[1] - a[1]) * sgn; return Math.abs(dx) >= Math.abs(dz) ? (dx >= 0 ? '→' : '←') : (dz >= 0 ? '↓' : '↑'); };
+const oneWayShort = r => ({ '→': 'eastbound', '←': 'westbound', '↓': 'southbound', '↑': 'northbound' })[oneWayArrow(r)] || '';
+function oneWayText(r) { const g = r.geometry || []; if (g.length < 2) return 'one way'; const sgn = r.oneWayDir === -1 ? -1 : 1; const from = sgn === 1 ? g[0] : g[g.length - 1], to = sgn === 1 ? g[g.length - 1] : g[0]; return `one way ${oneWayShort(r)} ${oneWayArrow(r)} · from X ${Math.round(from[0])} Z ${Math.round(from[1])} to X ${Math.round(to[0])} Z ${Math.round(to[1])}`; }
+/* can this edge be used in this mode? driving obeys one-way streets and keeps off pedestrian and restricted roads; walking ignores arrows */
+function edgeAllowed(a, mode) { const M = ROUTE_MODES[mode] || ROUTE_MODES.walk; if (!M.oneWay) return true; const r = roadById(a.road); if (!r) return true; if (r.direction === 'pedestrian' || r.direction === 'restricted') return false; if (r.direction === 'one-way' && a.fwd != null) { const sgn = r.oneWayDir === -1 ? -1 : 1; return sgn === 1 ? a.fwd : !a.fwd; } return true; }
+
 /* ---- directions: a graph over the drawn roads (vertices + junctions), Dijkstra, turn-by-turn steps ---- */
 let ROAD_GRAPH = { key: '', nodes: null, chains: null };
 const nodeKey = p => `${Math.round(p[0])}:${Math.round(p[1])}`;
@@ -8629,7 +8718,7 @@ function roadGraph() {
   if (ROAD_GRAPH.key === key && ROAD_GRAPH.nodes) return ROAD_GRAPH;
   const nodes = new Map(); const chains = new Map();
   const node = (p, k = nodeKey(p)) => { let n = nodes.get(k); if (!n) { n = { key: k, x: p[0], z: p[1], adj: [] }; nodes.set(k, n); } return n; };
-  const link = (a, b, len, road) => { if (a === b) return; a.adj.push({ to: b.key, len, road }); b.adj.push({ to: a.key, len, road }); };
+  const link = (a, b, len, road, directed = true) => { if (a === b) return; a.adj.push({ to: b.key, len, road, fwd: directed ? true : null }); b.adj.push({ to: a.key, len, road, fwd: directed ? false : null }); };   // fwd: along the road's drawing order
   const roads = S.roads.filter(r => r.geometry?.length >= 2 && r.yearClosed == null);
   const js = cachedJunctions().filter(j => j.kind !== 'separated');
   for (const r of roads) {
@@ -8641,23 +8730,23 @@ function roadGraph() {
     for (let i = 0; i < chain.length; i++) { const n = node(chain[i].p, chain[i].key); if (i) link(node(chain[i - 1].p, chain[i - 1].key), n, chain[i].s - chain[i - 1].s, r.id); }
     chains.set(r.id, { chain, cum, len: cum[cum.length - 1] });
   }
-  for (const j of js) { if (j.kind !== 'joins') continue; const jn = nodes.get(nodeKey([j.x, j.z])); if (!jn) continue; for (const rid of [j.a, j.b]) { const r = roadById(rid); if (!r?.geometry?.length) continue; for (const e of [r.geometry[0], r.geometry[r.geometry.length - 1]]) { const d = dist2(e, [j.x, j.z]); if (d > 0 && d <= 2.5) { const en = nodes.get(nodeKey(e)); if (en && en !== jn && !en.adj.some(a => a.to === jn.key)) link(en, jn, d, rid); } } } }
+  for (const j of js) { if (j.kind !== 'joins') continue; const jn = nodes.get(nodeKey([j.x, j.z])); if (!jn) continue; for (const rid of [j.a, j.b]) { const r = roadById(rid); if (!r?.geometry?.length) continue; for (const e of [r.geometry[0], r.geometry[r.geometry.length - 1]]) { const d = dist2(e, [j.x, j.z]); if (d > 0 && d <= 2.5) { const en = nodes.get(nodeKey(e)); if (en && en !== jn && !en.adj.some(a => a.to === jn.key)) link(en, jn, d, rid, false); } } } }
   ROAD_GRAPH = { key, nodes, chains }; return ROAD_GRAPH;
 }
-function nearestRoadPoint(pt) { let best = null; for (const r of S.roads) { if (!r.geometry || r.geometry.length < 2 || r.yearClosed != null) continue; const c = polylineClosest(pt, r.geometry); if (c && (!best || c.d < best.d)) best = { road: r, q: c.q, i: c.i, t: c.t, d: c.d }; } return best; }
+function nearestRoadPoint(pt, mode = 'walk') { let best = null; const drivable = !!ROUTE_MODES[mode]?.oneWay; for (const r of S.roads) { if (!r.geometry || r.geometry.length < 2 || r.yearClosed != null) continue; if (drivable && (r.direction === 'pedestrian' || r.direction === 'restricted')) continue; const c = polylineClosest(pt, r.geometry); if (c && (!best || c.d < best.d)) best = { road: r, q: c.q, i: c.i, t: c.t, d: c.d }; } return best; }
 /* attach a free point to the graph: a temporary node joined to the chain nodes on either side of its projection */
-function attachPoint(G, pt, tag) {
-  const near = nearestRoadPoint(pt); const n = { key: 'tmp:' + tag, x: pt[0], z: pt[1], adj: [], tmp: true }; G.nodes.set(n.key, n);
+function attachPoint(G, pt, tag, mode = 'walk') {
+  const near = nearestRoadPoint(pt, mode); const n = { key: 'tmp:' + tag, x: pt[0], z: pt[1], adj: [], tmp: true }; G.nodes.set(n.key, n);
   if (!near) return { n, near: null };
   const ch = G.chains.get(near.road.id); const g = near.road.geometry; const s = ch.cum[near.i] + near.t * dist2(g[near.i], g[near.i + 1]);
   let prev = null, next = null; for (const m of ch.chain) { if (m.s <= s) prev = m; if (m.s >= s && !next) next = m; }
-  for (const m of [prev, next]) { if (!m) continue; const target = G.nodes.get(m.key); if (!target) continue; const len = near.d + Math.abs(m.s - s); n.adj.push({ to: target.key, len, road: near.road.id, off: near.d, q: near.q }); target.adj.push({ to: n.key, len, road: near.road.id, off: near.d, q: near.q }); }
+  for (const m of [prev, next]) { if (!m) continue; const target = G.nodes.get(m.key); if (!target) continue; const len = near.d + Math.abs(m.s - s); const fwd = m === next; n.adj.push({ to: target.key, len, road: near.road.id, off: near.d, q: near.q, fwd }); target.adj.push({ to: n.key, len, road: near.road.id, off: near.d, q: near.q, fwd: !fwd }); }
   return { n, near };
 }
 function detachPoint(G, n) { for (const a of n.adj) { const t = G.nodes.get(a.to); if (t) t.adj = t.adj.filter(x => x.to !== n.key); } G.nodes.delete(n.key); }
-function dijkstra(G, from, to) {
+function dijkstra(G, from, to, mode = 'walk') {
   const dist = new Map([[from, 0]]); const prev = new Map(); const done = new Set(); const pq = [[0, from]];
-  while (pq.length) { pq.sort((a, b) => a[0] - b[0]); const [d, k] = pq.shift(); if (done.has(k)) continue; done.add(k); if (k === to) break; const n = G.nodes.get(k); if (!n) continue; for (const a of n.adj) { const nd = d + a.len; if (nd < (dist.get(a.to) ?? Infinity)) { dist.set(a.to, nd); prev.set(a.to, { k, a }); pq.push([nd, a.to]); } } }
+  while (pq.length) { pq.sort((a, b) => a[0] - b[0]); const [d, k] = pq.shift(); if (done.has(k)) continue; done.add(k); if (k === to) break; const n = G.nodes.get(k); if (!n) continue; for (const a of n.adj) { if (!edgeAllowed(a, mode)) continue; const nd = d + a.len; if (nd < (dist.get(a.to) ?? Infinity)) { dist.set(a.to, nd); prev.set(a.to, { k, a }); pq.push([nd, a.to]); } } }
   if (!dist.has(to)) return null; const path = []; let k = to; while (k !== from) { const p = prev.get(k); path.unshift({ key: k, via: p.a }); k = p.k; } return { dist: dist.get(to), path };
 }
 /* resolve an endpoint reference to a point and label */
@@ -8670,15 +8759,15 @@ function endpointOf(ref) {
   if (['region', 'district', 'hood'].includes(ref.kind)) { const n = nodeById(ref.id); const c = n?.polygons?.length ? centroidOf(n.polygons[0]) : null; return c ? { pt: c, label: n.name, kind: ref.kind, id: n.id } : null; }
   return null;
 }
-function routeBetween(fromRef, toRef) {
-  const A = endpointOf(fromRef), B = endpointOf(toRef); if (!A || !B) return null;
+function routeBetween(fromRef, toRef, mode = EXPLORE.mode) {
+  const A = endpointOf(fromRef), B = endpointOf(toRef); if (!A || !B) return null; if (mode === 'transit') mode = 'walk';
   const straight = dist2(A.pt, B.pt); const G = roadGraph();
   if (!G.nodes.size) return { from: A, to: B, pts: [A.pt, B.pt], dist: straight, straight, legs: [{ kind: 'line', len: straight }], steps: [{ i: 1, text: 'No roads are drawn yet — straight line as the crow flies', d: straight }], roads: [], note: 'No roads drawn: this is a straight line, not a walk.', noRoads: true };
-  const a = attachPoint(G, A.pt, 'a'), b = attachPoint(G, B.pt, 'b');
+  const a = attachPoint(G, A.pt, 'a', mode), b = attachPoint(G, B.pt, 'b', mode);
   const MAX_OFFROAD = 200; const far = [a, b].filter(e => !e.near || e.near.d > MAX_OFFROAD);
   if (far.length) { detachPoint(G, b.n); detachPoint(G, a.n); return { from: A, to: B, pts: [A.pt, B.pt], dist: straight, straight, legs: [{ kind: 'line', len: straight }], steps: [{ i: 1, text: `${far.length === 2 ? 'Both ends are' : (far[0] === a ? A.label : B.label) + ' is'} more than ${MAX_OFFROAD} blocks from any drawn road — straight line shown`, d: straight }], roads: [], note: `No road within ${MAX_OFFROAD} blocks of ${far.length === 2 ? 'either end' : 'one end'}: this is a straight line, not a walk. Draw the roads there and the route follows them.`, noRoads: true }; }
-  let res = null; try { res = dijkstra(G, a.n.key, b.n.key); } finally { detachPoint(G, b.n); detachPoint(G, a.n); }
-  if (!res) return { from: A, to: B, pts: [A.pt, B.pt], dist: straight, straight, legs: [{ kind: 'line', len: straight }], steps: [{ i: 1, text: 'The drawn roads do not connect these two places — straight line shown', d: straight }], roads: [], note: 'No connected road path: the two ends are on separate road networks (or far from any road).', disconnected: true };
+  let res = null, walkable = null; try { res = dijkstra(G, a.n.key, b.n.key, mode); if (!res && mode !== 'walk') walkable = dijkstra(G, a.n.key, b.n.key, 'walk'); } finally { detachPoint(G, b.n); detachPoint(G, a.n); }
+  if (!res) return { from: A, to: B, pts: [A.pt, B.pt], dist: straight, straight, legs: [{ kind: 'line', len: straight }], steps: [{ i: 1, text: walkable ? 'The one-way streets leave no way to drive there — on foot it works: switch to Walk' : 'The drawn roads do not connect these two places — straight line shown', d: straight }], roads: [], note: walkable ? 'No legal driving route: a one-way street (or a pedestrian-only road) is in the way. Walking ignores the arrows.' : 'No connected road path: the two ends are on separate road networks (or far from any road).', disconnected: true, oneWayBlocked: !!walkable, mode };
   // rebuild the polyline: off-road leg → road nodes → off-road leg
   const pts = [A.pt]; const legs = []; let cur = a.n; let prevRoad = null;
   for (const step of res.path) { const n = G.nodes.get(step.key) || (step.key === b.n.key ? b.n : null); const via = step.via; if (!n) continue;
@@ -8687,13 +8776,16 @@ function routeBetween(fromRef, toRef) {
     cur = n; prevRoad = via.road; }
   if (dist2(pts[pts.length - 1], B.pt) > 0.5) pts.push(B.pt);
   // steps: merge consecutive legs on the same road
-  const steps = []; let i = 0;
-  for (const leg of legs) { const r = roadById(leg.road); const name = r ? roadLabel(r) : 'road'; const last = steps[steps.length - 1];
-    if (leg.kind === 'off') { if (last && last.kind === 'off' && last.road === leg.road) { last.d += leg.len; continue; } steps.push({ i: ++i, kind: 'off', road: leg.road, text: steps.length ? `Leave ${name} and walk to ${B.label}` : `Walk to ${name}`, d: leg.len }); continue; }
+  const steps = []; let i = 0; let pi = 0;   // pi: index into pts of the point where the current leg starts
+  const turnWord = (at) => { const p0 = pts[at - 1], p1 = pts[at], p2 = pts[at + 1]; if (!p0 || !p1 || !p2) return 'Turn onto'; const ax = p1[0] - p0[0], az = p1[1] - p0[1], bx = p2[0] - p1[0], bz = p2[1] - p1[1]; const cross = ax * bz - az * bx, dot = ax * bx + az * bz; const ang = Math.atan2(cross, dot) * 180 / Math.PI; return Math.abs(ang) < 25 ? 'Continue onto' : ang > 0 ? (ang > 135 ? 'Sharp right onto' : 'Turn right onto') : (ang < -135 ? 'Sharp left onto' : 'Turn left onto'); };
+  const walkWord = mode === 'drive' ? 'drive' : 'walk';
+  for (const leg of legs) { const r = roadById(leg.road); const name = r ? roadLabel(r) : 'road'; const last = steps[steps.length - 1]; const startAt = pi; pi++;
+    if (leg.kind === 'off') { if (last && last.kind === 'off' && last.road === leg.road) { last.d += leg.len; continue; } steps.push({ i: ++i, kind: 'off', road: leg.road, text: steps.length ? `Leave ${name} and ${walkWord} to ${B.label}` : `${mode === 'drive' ? 'Drive' : 'Walk'} to ${name}`, d: leg.len }); continue; }
     if (last && last.kind === 'road' && last.road === leg.road) { last.d += leg.len; continue; }
-    steps.push({ i: ++i, kind: 'road', road: leg.road, text: `${steps.some(s => s.kind === 'road') ? 'Turn onto' : 'Head along'} ${name}`, d: leg.len }); }
+    const oneWay = r?.direction === 'one-way' ? ' (one way)' : '';
+    steps.push({ i: ++i, kind: 'road', road: leg.road, text: `${steps.some(s => s.kind === 'road') ? turnWord(startAt) : 'Head along'} ${name}${oneWay}`, d: leg.len }); }
   const dist = legs.reduce((s, l) => s + l.len, 0);
-  return { from: A, to: B, pts, legs, steps, dist, straight, roads: [...new Set(legs.filter(l => l.kind === 'road').map(l => l.road))], note: null };
+  return { from: A, to: B, pts, legs, steps, dist, straight, roads: [...new Set(legs.filter(l => l.kind === 'road').map(l => l.road))], note: null, mode, oneWayRoads: [...new Set(legs.filter(l => l.kind === 'road').map(l => l.road))].filter(id => roadById(id)?.direction === 'one-way').length };
 }
 function drawRoute(ctx, P, route, k) {
   if (!route?.pts?.length) return; ctx.save(); ctx.lineJoin = 'round'; ctx.lineCap = 'round';
@@ -8707,15 +8799,15 @@ function drawRoute(ctx, P, route, k) {
 function routePanelHTML() {
   const A = endpointOf(EXPLORE.from), B = endpointOf(EXPLORE.to); const r = MAPW.route;
   const end = (which, e) => `<button class="end ${EXPLORE.picking === which ? 'picking' : ''}" data-end="${which}" title="Pick on the map or search">${icon(which === 'from' ? 'pin' : 'flag')}<span class="t ${e ? '' : 'empty'}">${e ? esc(e.label) : (which === 'from' ? 'Choose a starting point' : 'Choose a destination')}</span></button>`;
-  const time = r ? (EXPLORE.mode === 'sprint' ? r.dist / 5.6 : r.dist / WALK_BLOCKS_PER_SEC) : null;
+  const time = r ? r.dist / (ROUTE_MODES[EXPLORE.mode]?.speed || WALK_BLOCKS_PER_SEC) : null;
   return `<div class="rt-head"><span class="k">DIRECTIONS</span><span class="s" style="font-family:var(--font-mono);font-size:10.5px;color:var(--ink-3)">along the drawn roads</span><button class="close" data-act="gm-dir-close" title="Close directions">${icon('x')}</button></div>
   <div class="rt-ends"><span class="dot"></span>${end('from', A)}<button class="swap" data-act="rt-swap" title="Swap">${icon('swap')}</button><span class="rail"></span><span></span><span class="dot b"></span>${end('to', B)}</div>
-  <div class="rt-modes"><button data-act="rt-mode" data-mode="walk" aria-pressed="${EXPLORE.mode === 'walk'}">${icon('walk')} Walk</button><button data-act="rt-mode" data-mode="sprint" aria-pressed="${EXPLORE.mode === 'sprint'}">${icon('walk')} Sprint</button><button data-act="rt-mode" data-mode="transit" aria-pressed="${EXPLORE.mode === 'transit'}" title="Ride the lines where a journey exists (needs stations and travel times on the transit side)">${icon('transit')} Transit</button></div>
+  <div class="rt-modes"><button data-act="rt-mode" data-mode="drive" aria-pressed="${EXPLORE.mode === 'drive'}" title="Obeys one-way streets; keeps off pedestrian-only roads">${icon('car')} Drive</button><button data-act="rt-mode" data-mode="walk" aria-pressed="${EXPLORE.mode === 'walk'}" title="Any road, either way">${icon('walk')} Walk</button><button data-act="rt-mode" data-mode="sprint" aria-pressed="${EXPLORE.mode === 'sprint'}">${icon('walk')} Sprint</button><button data-act="rt-mode" data-mode="transit" aria-pressed="${EXPLORE.mode === 'transit'}" title="Ride the lines where a journey exists (needs stations and travel times on the transit side)">${icon('transit')} Transit</button></div>
   ${EXPLORE.picking ? `<div class="rt-note" style="color:var(--cyan)">Click a building, station or any point on the map for the ${EXPLORE.picking === 'from' ? 'start' : 'destination'} — or search above.</div>` : ''}
-  ${r ? `<div class="rt-sum"><span class="big">${fmtInt(r.dist)}<small>blocks</small></span><span class="big" style="color:var(--ink)">${fmtMins(time)}<small>${EXPLORE.mode}</small></span><span class="mode">${r.noRoads || r.disconnected ? 'straight line' : `${r.roads.length} road${r.roads.length === 1 ? '' : 's'} · ${fmtInt(r.straight)} blk direct`}</span></div>
+  ${r ? `<div class="rt-sum"><span class="big">${fmtInt(r.dist)}<small>blocks</small></span><span class="big" style="color:var(--ink)">${fmtMins(time)}<small>${EXPLORE.mode}</small></span><span class="mode">${r.noRoads || r.disconnected ? 'straight line' : `${r.roads.length} road${r.roads.length === 1 ? '' : 's'}${r.oneWayRoads ? ` · ${r.oneWayRoads} one-way` : ''} · ${fmtInt(r.straight)} blk direct`}</span></div>
     ${EXPLORE.mode === 'transit' ? `<div class="rt-note">${transitRouteNote(r)}</div>` : ''}
     <div class="rt-steps">${r.steps.map(s => `<div class="st"><i>${s.i}</i><div><div class="nm">${esc(s.text)}</div></div><span class="d">${fmtInt(s.d)} blk</span></div>`).join('')}<div class="st"><i>●</i><div><div class="nm">Arrive at ${esc(r.to.label)}</div></div><span class="d"></span></div></div>
-    ${r.note ? `<div class="rt-note">${esc(r.note)}</div>` : '<div class="rt-note">Distances follow the road centrelines you drew; the first and last legs are straight walks to the nearest road. Walking at 4.3 blocks per second.</div>'}` : (A && B ? '' : '<div class="rt-note">Pick both ends to see the way.</div>')}`;
+    ${r.note ? `<div class="rt-note">${esc(r.note)}</div>` : `<div class="rt-note">Distances follow the road centrelines you drew; the first and last legs are straight to the nearest road. ${EXPLORE.mode === 'drive' ? 'Driving obeys the one-way arrows and keeps off pedestrian-only roads, at 11 blocks per second.' : EXPLORE.mode === 'sprint' ? 'Sprinting at 5.6 blocks per second; arrows are ignored on foot.' : 'Walking at 4.3 blocks per second; arrows are ignored on foot.'}</div>`}` : (A && B ? '' : '<div class="rt-note">Pick both ends to see the way.</div>')}`;
 }
 function transitRouteNote(r) { const near = [nearbyStationsOf(r.from.pt, 120, 1)[0], nearbyStationsOf(r.to.pt, 120, 1)[0]]; if (!near[0] || !near[1]) return 'No station within 120 blocks of both ends — walking is the only option on file.'; if (near[0].s.id === near[1].s.id) return `Both ends are closest to ${esc(near[0].s.name || near[0].s.reg)} — walking is shorter than riding.`; const j = transitJourney(near[0].s.id, near[1].s.id); if (!j) return `No open line connects ${esc(near[0].s.name || near[0].s.reg)} and ${esc(near[1].s.name || near[1].s.reg)} on file — add stops or a transfer link.`; const walk = (near[0].d + near[1].d) / WALK_BLOCKS_PER_SEC; return `Walk ${Math.round(near[0].d)} blk to ${esc(near[0].s.name || near[0].s.reg)}, ${esc(journeyText(j))}, walk ${Math.round(near[1].d)} blk · about ${fmtMins(j.sec + walk)} door to door (estimated: half-headway waits, ${j.legs.filter(x => x.kind === 'ride').length - 1 > 0 ? (j.legs.filter(x => x.kind === 'ride').length - 1) + ' transfer' + (j.legs.filter(x => x.kind === 'ride').length - 1 === 1 ? '' : 's') + ', ' : ''}line speeds from the Transit page).`; }
 function startPick(which) { EXPLORE.picking = which; EXPLORE.dir = true; renderPlaceCard(); $('#mapstage')?.classList.add('picking'); setTimeout(() => $('#map-q')?.focus(), 30); toast(`Click the map or search for the ${which === 'from' ? 'start' : 'destination'}`, ''); }
@@ -8724,9 +8816,9 @@ function explorePickAt(hit) {
   if (hit?.kind === 'point') ref = { kind: 'point', pt: hit.pt }; else if (hit && ['building', 'station', 'business', 'region', 'district', 'hood'].includes(hit.kind)) ref = { kind: hit.kind, id: hit.id }; else if (hit?.kind === 'road' && hit.pt) ref = { kind: 'point', pt: hit.pt };
   if (!ref) return false; EXPLORE[which] = ref; EXPLORE.picking = null; $('#mapstage')?.classList.remove('picking'); computeRoute(); return true;
 }
-function computeRoute() {
+function computeRoute({ keepView = false } = {}) {
   MAPW.route = EXPLORE.from && EXPLORE.to ? routeBetween(EXPLORE.from, EXPLORE.to) : null; renderPlaceCard();
-  if (MAPW.route) { mapFlyTo(bboxOf(MAPW.route.pts), { pad: 90, maxK: 4 }); const tick = () => { if (MAPW.route && UI.nav === 'map' && !MAPW.edit && motionOn()) { mapDraw(); MAPW.routeRaf = requestAnimationFrame(tick); } }; cancelAnimationFrame(MAPW.routeRaf); if (motionOn()) MAPW.routeRaf = requestAnimationFrame(tick); } else mapDraw();
+  if (MAPW.route) { if (!keepView) mapFlyTo(bboxOf(MAPW.route.pts), { pad: 90, maxK: 4 }); const tick = () => { if (MAPW.route && UI.nav === 'map' && !MAPW.edit && motionOn()) { mapDraw(); MAPW.routeRaf = requestAnimationFrame(tick); } }; cancelAnimationFrame(MAPW.routeRaf); if (motionOn()) MAPW.routeRaf = requestAnimationFrame(tick); } else mapDraw();
 }
 function openDirections(toRef = null) { EXPLORE.dir = true; if (toRef) { EXPLORE.to = toRef; if (!EXPLORE.from) EXPLORE.picking = 'from'; } else if (!EXPLORE.from && !EXPLORE.to) EXPLORE.picking = 'from'; if (EXPLORE.picking) $('#mapstage')?.classList.add('picking'); computeRoute(); }
 function closeDirections() { EXPLORE.dir = false; EXPLORE.picking = null; MAPW.route = null; cancelAnimationFrame(MAPW.routeRaf); $('#mapstage')?.classList.remove('picking'); renderPlaceCard(); mapDraw(); }
@@ -9024,7 +9116,7 @@ function civicSectionHTML(b) {
 }
 function civicEditorHTML(b) {
   const c = civicOf(b) || { type: '', status: 'operating', capacity: null, jurisdictionId: null, notes: '' };
-  return `<div class="fsect"><h4>CIVIC & CONDITION <span style="font-weight:400;letter-spacing:0;color:var(--ink-4);font-family:var(--font-mono);font-size:10.5px">hospitals · police · fire · government · homes of officials · parks</span></h4>
+  return `${fsectOpen('civic', 'CIVIC & CONDITION', 'hospitals · police · fire · government · homes of officials · parks', b)}
     <div class="frow c3">
       <div class="f"><label for="f-civicType">Civic type</label><select id="f-civicType"><option value="">— not a civic facility —</option>${CIVIC_TYPES.map(t => `<option value="${t.id}" ${t.id === c.type ? 'selected' : ''}>${esc(t.glyph)} ${esc(t.label)}</option>`).join('')}</select></div>
       <div class="f"><label for="f-civicStatus">Facility status</label><select id="f-civicStatus">${CIVIC_STATUSES.map(([id, l]) => `<option value="${id}" ${id === (c.status || 'operating') ? 'selected' : ''}>${l}</option>`).join('')}</select></div>
@@ -9033,7 +9125,7 @@ function civicEditorHTML(b) {
       <div class="f"><label for="f-condition">Condition</label><select id="f-condition">${CONDITIONS.map(([id, l]) => `<option value="${id}" ${id === (b.condition || '') ? 'selected' : ''}>${l}</option>`).join('')}</select></div>
       <div class="f"><label>Public</label><label class="switch"><input type="checkbox" id="f-public" ${b.public !== false ? 'checked' : ''}> <span class="muted" style="font-size:12px">listed in the public guide</span></label></div>
       <div class="f span"><label for="f-civicNotes">Civic notes</label><input id="f-civicNotes" value="${esc(c.notes || '')}" placeholder="wards, precinct number, who runs it…"></div>
-    </div></div>`;
+    </div></div></details>`;
 }
 function readCivicForm(b) {
   const g = id => $('#f-' + id)?.value ?? ''; if (!$('#f-civicType')) return;
@@ -9219,6 +9311,10 @@ function valueEstimate(b) {
   if (num(b.assessTotal)) { base = num(b.assessTotal); baseBasis = `assessed total${b.assessYear ? ' (' + b.assessYear + ')' : ''}`; perBlock = base / area; }
   else { const pb = basePerBlock(b); perBlock = pb.perBlock; base = perBlock * area; baseBasis = `${fmtMoney(Math.round(perBlock))} per blk² (${pb.basis}${pb.n ? ' of ' + pb.n + ' assessed' : ''}) × ${fmtInt(area)} blk² ${areaBasis}`; }
   for (const f of transitValueFactors(b, V)) add(...f);
+  if (b.x != null && V.transitLinesStep) { const lines = new Map(); for (const st of S.stations) { if (st.x == null || !['open', 'partial'].includes(effectiveStationStatus(st)) || dist2([b.x, b.z], [st.x, st.z]) > SERVICE_REACH) continue; for (const l of linesAtStation(st)) if (['open', 'partial'].includes(l.status || 'open')) lines.set(l.id, l); } const extra = Math.max(0, lines.size - 1); if (extra) add('transit-lines', 'Lines in reach', Math.min(V.transitLinesCap ?? 99, extra * V.transitLinesStep), `${lines.size} lines within ${SERVICE_REACH} blk — ${[...lines.values()].map(lineLabel).join(', ')}`); }
+  { const tr = factors.filter(f => f.id.startsWith('transit')).reduce((a, f) => a + f.pct, 0); if (V.transitCap && tr > V.transitCap) add('transit-cap', 'Transit cap', Math.round((V.transitCap - tr) * 10) / 10, `transit is capped at +${V.transitCap}%`); }
+  if (V.cornerLot && lotOutline(b)) { const m = lotMetrics(b); if (m?.corner) add('corner', 'Corner lot', V.cornerLot, `faces ${m.roads.map(roadLabel).join(' and ')}`); }
+  { const yb = num(b.yearBuilt); if (yb != null && !isHist(b) && isCompleted(b)) { const age = CURRENT_YEAR - yb; if (age <= 5 && V.newBuild) add('era', 'New build', V.newBuild, `completed ${yb} · ${age <= 0 ? 'this year' : age + ' year' + (age === 1 ? '' : 's') + ' ago'}`); else if (age >= 10 && !b.landmark && V.aged) add('era', 'Age', V.aged, `completed ${yb} · ${age} years ago, not a landmark`); } }
   if (b.x != null) {
     const pt = [b.x, b.z]; let svc = 0;
     for (const t of ESSENTIAL_CIVIC) { const n = nearestCivic(pt, t); if (n && n.d <= COVERAGE_RADIUS[t]) { svc += V[t]; add(t, civicTypeLabel(t), V[t], `${n.b.name || titleOf(n.b)} ${Math.round(n.d)} blk`); } }
@@ -9245,7 +9341,7 @@ function valuationSectionHTML(b) {
   <div class="valfactors">${e.factors.length ? e.factors.map(f => `<div class="vf ${f.pct > 0 ? 'up' : f.pct < 0 ? 'down' : ''}"><span class="p">${f.pct > 0 ? '+' : ''}${f.pct}%</span><span class="l">${esc(f.label)}</span><span class="w">${esc(f.why)}</span></div>`).join('') : '<div class="desc-line">No adjustments apply.</div>'}<div class="vf total"><span class="p">${e.totalPct > 0 ? '+' : ''}${e.totalPct}%</span><span class="l">Total adjustment</span><span class="w">factors are percentages set under Vault &amp; settings</span></div></div>
   ${hist.length ? `<div class="desc-line" style="margin-top:8px">HISTORY · ${hist.map(h => `${fmtDate(h.at).split(',')[0]} ${fmtMoneyCompact(h.value)}`).join(' · ')}</div>` : ''}`;
 }
-function valuationEditorHTML(b) { const ov = b.valuationOverride || {}; return `<div class="fsect"><h4>VALUE OVERRIDE <span style="font-weight:400;letter-spacing:0;color:var(--ink-4);font-family:var(--font-mono);font-size:10.5px">leave blank to use the explainable estimate</span></h4><div class="frow"><div class="f"><label for="f-valOverride">Your valuation</label><div class="pre"><span>$</span><input id="f-valOverride" class="num" type="number" min="0" step="1000" value="${esc(ov.value ?? '')}"></div></div><div class="f span"><label for="f-valReason">Reason</label><input id="f-valReason" value="${esc(ov.reason || '')}" placeholder="agreed sale, appraisal, your judgement…"></div></div></div>`; }
+function valuationEditorHTML(b) { const ov = b.valuationOverride || {}; return `${fsectOpen('override', 'VALUE OVERRIDE', 'leave blank to use the explainable estimate', b)}<div class="frow"><div class="f"><label for="f-valOverride">Your valuation</label><div class="pre"><span>$</span><input id="f-valOverride" class="num" type="number" min="0" step="1000" value="${esc(ov.value ?? '')}"></div></div><div class="f span"><label for="f-valReason">Reason</label><input id="f-valReason" value="${esc(ov.reason || '')}" placeholder="agreed sale, appraisal, your judgement…"></div></div></div></details>`; }
 function readValuationForm(b) { if (!$('#f-valOverride')) return; const v = num($('#f-valOverride').value); b.valuationOverride = v != null ? { value: v, reason: ($('#f-valReason')?.value || '').trim(), at: now() } : null; }
 function openValuationModal(sc = UI.scope) {
   const rows = scopeActive(sc).filter(isCompleted).map(b => ({ b, v: valuationOf(b) })).sort((a, b) => b.v.value - a.v.value); const total = rows.reduce((a, x) => a + x.v.value, 0); const assessed = rows.filter(x => num(x.b.assessTotal)).length;
@@ -10241,8 +10337,7 @@ function boardDepartures(s, m = null, count = 3) {
     for (const dir of [1, -1]) {
       const dest = dir === 1 ? stops[stops.length - 1] : stops[0]; if (dest.id === s.id) continue;
       const travel = (dir === 1 ? here : total - here) / 60; const phase = (hashNum(l.id + dir) % Math.max(1, Math.round(hw * 10))) / 10;
-      const times = []; for (let k = -1; times.length < count && k < 2; k++) for (const [a, b] of win) { const start = a * 60 + phase; for (let t = start; t < b * 60 && times.length < count + 6; t += hw) { const at = t + travel + k * 1440; if (at >= nowMin - 0.2) times.push(at); } }
-      times.sort((a, b) => a - b); const next = times.slice(0, count);
+      const times = lineDepartures(l, dir, { hours, o: s.hours ? s : l, nowMin, from: -travel - 0.2, to: 1440 }).map(t => t + travel).filter(at => at >= nowMin - 0.2); const next = times.slice(0, count); void phase; void win;
       const late = (hashNum(l.id + dir + Math.floor(nowMin / 30)) % 7) === 0 ? 1 + (hashNum(s.id + l.id) % 3) : 0;
       out.push({ l, dir, dest, status, times: next.map(t => t - nowMin), late, hours, basis: svc.basis, inService: inService(hours, s.hours ? s : l, (nowMin / 60) % 24) });
     }
@@ -10265,7 +10360,7 @@ function renderBoardTab() {
       <div class="desc-line" style="margin-top:8px">Board refreshes every 15 s while open. Times use each line's headway (Service tab), dwell and speed; measured segment times replace estimates where recorded. Delays are simulated flavour.</div>
     </div>
     <div class="stack">
-      <div class="panel hud"><div class="panel-head"><h3>LINE STATUS</h3><span class="note">today</span></div>${lines.length ? `<div class="lstatus">${lines.map(l => { const st = l.status || 'open'; const txt = st === 'open' ? (l.hours === '24/7' ? 'Good service · 24/7' : 'Good service') : st === 'partial' ? `Part-time · ${esc(hoursLabel(l.hours, l))}` : st === 'construction' ? `Under construction${l.yearExpected ? ' · opens ' + esc(hyLabel(l.yearExpected, l.halfExpected)) : ''}` : st === 'planned' ? 'Planned' : 'Closed'; return `<div class="ls ${st}" data-open="line:${l.id}" role="button">${lineBullet(l)}<span class="nm">${esc(lineLabel(l))}</span><span class="st">${txt}</span></div>`; }).join('')}</div>` : `<div class="chart-empty">No lines.</div>`}</div>
+      <div class="panel hud"><div class="panel-head"><h3>LINE STATUS</h3><span class="note">today</span></div>${lines.length ? `<div class="lstatus">${lines.map(l => { const st = l.status || 'open'; const txt = st === 'open' ? (l.hours === '24/7' ? 'Good service · 24/7' : 'Good service') : st === 'partial' ? `Part-time · ${esc(hoursLabel(l.hours, l))}` : st === 'construction' ? `Under construction${l.yearExpected ? ' · opens ' + esc(hyLabel(l.yearExpected, l.halfExpected)) : ''}` : st === 'planned' ? 'Planned' : 'Closed'; return `<div class="ls ${st}" data-open="line:${l.id}" role="button">${lineBullet(l)}<span class="nm">${esc(lineLabel(l))}</span><span class="st">${txt}</span>${lineStripHTML(l)}</div>`; }).join('')}</div><div class="desc-line">The strips show where each train is right now (▸ outbound, ◂ inbound); the map draws them moving.</div>` : `<div class="chart-empty">No lines.</div>`}</div>
       <div class="panel hud"><div class="panel-head"><h3>PLAN A TRIP</h3><span class="note">transfers included · estimated</span></div>
         <div class="f" style="margin-bottom:6px"><label>From</label><select data-jfrom><option value="">—</option>${all.slice().sort((a, b) => (a.name || a.reg).localeCompare(b.name || b.reg)).map(x => `<option value="${x.id}" ${x.id === UI.jfrom ? 'selected' : ''}>${esc(x.name || x.reg)}</option>`).join('')}</select></div>
         <div class="f" style="margin-bottom:6px"><label>To</label><select data-jto><option value="">—</option>${all.slice().sort((a, b) => (a.name || a.reg).localeCompare(b.name || b.reg)).map(x => `<option value="${x.id}" ${x.id === UI.jto ? 'selected' : ''}>${esc(x.name || x.reg)}</option>`).join('')}</select></div>
@@ -11639,6 +11734,89 @@ function slBoot() {
   if (!slBase()) return;
   if (!SITE.conn.at && !SITE.testing) SITE.conn = { ...SITE.conn, state: 'checking', base: slBase() };   // never over a result the Site view already has
   setTimeout(() => { if (!SITE.conn.at || Date.now() - SITE.conn.at > 60e3) slTest().catch(() => {}); slLocalCheck(); }, 1500);
+}
+
+
+/* =====================================================================
+   §31 TRAINS — the trains on the live map. Every open line runs a train
+       each headway from each end, within its hours, at its speed, dwelling
+       at every stop: the same timetable the departure board shows, so the
+       map and the board agree to the second. Positions come from the clock
+       (deterministic, nothing is stored); a toggle chip hides them.
+   ===================================================================== */
+const TRAIN_FPS = 18;
+const nowMinutes = () => { const d = new Date(); return d.getHours() * 60 + d.getMinutes() + d.getSeconds() / 60 + d.getMilliseconds() / 60000; };
+/* departures from a line's terminal in one direction, as minutes of the day (previous and next day included so trains
+   still on the line after midnight are placed); the phase is the same one the board uses */
+function lineDepartures(l, dir, { hours = l.hours || '', o = l, from = -1440, to = 1440, nowMin = nowMinutes() } = {}) {
+  const status = l.status || 'open'; if (!['open', 'partial'].includes(status)) return [];
+  const svc = lineService(l); const hw = Math.max(1, svc.headwayMin * (status === 'partial' ? 2 : 1)); const phase = (hashNum(l.id + dir) % Math.max(1, Math.round(hw * 10))) / 10;
+  const win = hoursWindows(hours, o); const out = [];
+  for (let k = -1; k <= 1; k++) for (const [a, b] of win) { const start = a * 60 + phase; for (let t = start; t < b * 60; t += hw) { const at = t + k * 1440; if (at >= nowMin + from && at <= nowMin + to) out.push(at); } }
+  return out.sort((a, b) => a - b);
+}
+/* the point s blocks along a polyline, with the heading there */
+function pointAtArc(g, s) {
+  let acc = 0; for (let i = 1; i < g.length; i++) { const L = dist2(g[i - 1], g[i]); if (acc + L >= s || i === g.length - 1) { const t = L ? clamp((s - acc) / L, 0, 1) : 0; return { x: g[i - 1][0] + (g[i][0] - g[i - 1][0]) * t, z: g[i - 1][1] + (g[i][1] - g[i - 1][1]) * t, ang: Math.atan2(g[i][1] - g[i - 1][1], g[i][0] - g[i - 1][0]) }; } acc += L; }
+  return { x: g[0][0], z: g[0][1], ang: 0 };
+}
+/* where every train of a line is right now: [{ x, z, ang, dir, dwell, at (station), next (station), frac (0–1 of the run) }] */
+function lineTrains(l, nowMin = nowMinutes()) {
+  const status = l.status || 'open'; if (!['open', 'partial'].includes(status)) return [];
+  const chain = lineStopChain(l).filter(c => c.pt); if (chain.length < 2) return [];
+  const segsAll = lineSegments(l); const svc = lineService(l); const geoms = lineGeometries(l);
+  // segments between consecutive placed stops, in the order of the chain
+  const stops = chain.map(c => c.s); const segs = []; for (let i = 0; i < stops.length - 1; i++) { const sg = segsAll.find(x => x.from.id === stops[i].id && x.to.id === stops[i + 1].id); const dist = sg?.dist ?? dist2(chain[i].pt, chain[i + 1].pt); const sec = sg?.sec ?? (dist / svc.speed + svc.dwellSec); segs.push({ dist, sec, travel: Math.max(1, sec - svc.dwellSec) }); }
+  const total = segs.reduce((a, s) => a + s.sec, 0); if (!total) return [];
+  const out = [];
+  for (const dir of [1, -1]) {
+    const order = dir === 1 ? chain.map((c, i) => i) : chain.map((c, i) => chain.length - 1 - i);
+    const segOf = j => segs[dir === 1 ? j : chain.length - 2 - j];   // j: index along the run
+    for (const dep of lineDepartures(l, dir, { nowMin, from: -(total / 60) - 1, to: 0 })) {
+      const e = (nowMin - dep) * 60; if (e < 0 || e > total) continue;
+      let t = 0, j = 0; while (j < order.length - 1 && t + segOf(j).sec <= e) { t += segOf(j).sec; j++; }
+      const a = chain[order[j]], b = chain[order[Math.min(order.length - 1, j + 1)]]; const sg = j < order.length - 1 ? segOf(j) : null;
+      if (!sg || a === b) { out.push({ l, dir, x: a.pt[0], z: a.pt[1], ang: 0, dwell: true, at: a.s, next: null, frac: dir === 1 ? 1 : 0 }); continue; }
+      const local = e - t;
+      if (local >= sg.travel) { out.push({ l, dir, x: b.pt[0], z: b.pt[1], ang: Math.atan2(b.pt[1] - a.pt[1], b.pt[0] - a.pt[0]), dwell: true, at: b.s, next: chain[order[j + 2]]?.s || null, frac: (t + sg.sec) / total }); continue; }
+      const f = local / sg.travel; let pos;
+      if (a.gi != null && a.gi === b.gi && a.along != null && b.along != null) { const g = geoms[a.gi]; pos = pointAtArc(g, a.along + (b.along - a.along) * f); if (b.along < a.along) pos.ang += Math.PI; }
+      else pos = { x: a.pt[0] + (b.pt[0] - a.pt[0]) * f, z: a.pt[1] + (b.pt[1] - a.pt[1]) * f, ang: Math.atan2(b.pt[1] - a.pt[1], b.pt[0] - a.pt[0]) };
+      out.push({ l, dir, ...pos, dwell: false, at: null, next: b.s, frac: (t + local) / total });
+    }
+  }
+  return out;
+}
+function liveTrains(nowMin = nowMinutes()) { const out = []; for (const l of S.lines) out.push(...lineTrains(l, nowMin)); return out; }
+/* draw them: a rounded car in the line colour, nose first; a dwelling train sits on its station with a soft pulse */
+function drawTrains(ctx, P, k, trains) {
+  const t = Date.now() / 1000;
+  for (const tr of trains) {
+    const [x, y] = P.s(tr.x, tr.z); if (x < -30 || y < -30 || x > ctx.canvas.width + 30 || y > ctx.canvas.height + 30) continue;
+    const wpx = lineWidthPx(tr.l, k); const L = clamp(wpx * 2.3, 12, 28), Wd = clamp(wpx * 1.05, 6, 12); const col = tr.l.color || '#B99CFF';
+    ctx.save(); ctx.translate(x, y); ctx.rotate(tr.ang);
+    if (tr.dwell) { const ph = (t % 1.6) / 1.6; ctx.beginPath(); ctx.arc(0, 0, Wd + 3 + ph * 9, 0, Math.PI * 2); ctx.strokeStyle = hexA(col, (1 - ph) * .55); ctx.lineWidth = 1.5; ctx.stroke(); }
+    ctx.beginPath(); ctx.roundRect ? ctx.roundRect(-L / 2, -Wd / 2, L, Wd, Wd / 2) : ctx.rect(-L / 2, -Wd / 2, L, Wd); ctx.fillStyle = col; ctx.fill(); ctx.lineWidth = 2; ctx.strokeStyle = '#05090D'; ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(L / 2 - 1, 0); ctx.lineTo(L / 2 - Wd * .7, -Wd * .32); ctx.lineTo(L / 2 - Wd * .7, Wd * .32); ctx.closePath(); ctx.fillStyle = 'rgba(5,9,13,.85)'; ctx.fill();   // the nose
+    if (L >= 18) { ctx.fillStyle = 'rgba(255,255,255,.75)'; for (let i = -1; i <= 1; i++) { ctx.beginPath(); ctx.arc(i * (L / 4.2), 0, Math.max(1, Wd * .14), 0, Math.PI * 2); ctx.fill(); } }
+    ctx.restore();
+  }
+}
+/* the loop: redraw the map while trains are on it (only on the live map, only while it is on screen) */
+function trainsRunning() { return UI.nav === 'map' && MAPW.mounted && UI.layers.trains !== false && MAPW.when == null && !document.hidden && motionOn() && S.lines.some(l => ['open', 'partial'].includes(l.status || 'open') && (l.stopIds || []).length >= 2); }
+function trainsLoop() {
+  if (MAPW.trainRaf) cancelAnimationFrame(MAPW.trainRaf); if (MAPW.trainTimer) clearTimeout(MAPW.trainTimer); MAPW.trainTimer = null;
+  let last = 0;
+  const step = now => { MAPW.trainRaf = null; if (!trainsRunning()) { MAPW.trainTimer = setTimeout(trainsLoop, 2500); return; } if (now - last >= 1000 / TRAIN_FPS && !MAPW.drag) { last = now; mapDraw(); } MAPW.trainRaf = requestAnimationFrame(step); };
+  MAPW.trainRaf = requestAnimationFrame(step);
+}
+document.addEventListener('visibilitychange', () => { if (!document.hidden && UI.nav === 'map') trainsLoop(); });
+/* a strip of the line for the board: stops as ticks, trains as dots moving between them */
+function lineStripHTML(l) {
+  const chain = lineStopChain(l).filter(c => c.pt); if (chain.length < 2) return '';
+  const tt = lineTimetable(l); const byId = new Map(tt.map(r => [r.s.id, r.t])); const total = tt[tt.length - 1]?.t || 1; if (!total) return '';
+  const trains = lineTrains(l);
+  return `<div class="lstrip" style="--c:${esc(l.color || '#B99CFF')}" title="${trains.length} train${trains.length === 1 ? '' : 's'} on the line right now">${chain.map(c => `<i class="tick" style="left:${((byId.get(c.s.id) ?? 0) / total * 100).toFixed(1)}%" title="${esc(c.s.name || c.s.reg)}"></i>`).join('')}${trains.map(tr => `<b class="tr ${tr.dir === 1 ? 'f' : 'r'} ${tr.dwell ? 'dw' : ''}" style="left:${(tr.frac * 100).toFixed(1)}%" title="${tr.dwell ? 'at ' + esc(tr.at?.name || tr.at?.reg || '') : 'to ' + esc(tr.next?.name || tr.next?.reg || '')}"></b>`).join('')}</div>`;
 }
 
 

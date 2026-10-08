@@ -13,8 +13,8 @@ newa-site-patch/  the one CORS header for the site's feed
 
 ```
 cd app
-python3 build.py            # parts/p00…p30 + css → NewA-Land-Registry.html (node --check on the bundle)
-node test.js                # 282 checks in headless Chromium on the real schema-2 data (sections A–V)
+python3 build.py            # parts/p00…p31 + css → NewA-Land-Registry.html (node --check on the bundle)
+node test.js                # 292 checks in headless Chromium on the real schema-2 data (sections A–W)
 node smoke.js               # every page, tab and modal with zero console errors
 cd ../os && node test/run.js   # 70 bridge checks (NBT, region formats, scans, backups, routes, item maps)
 ```
@@ -58,6 +58,14 @@ The world folder is only ever read. See `os/README.md`.
 * **Playback** — the slider glides (six speeds, a year per 20 s to two years per second), shows the month, and roads grow, lines extend, stations appear and buildings rise or fall the moment the playhead crosses the date. Ghosts fade within a year.
 * **Old maps** — Minecraft's own `map_#.dat` files (from the world's or a backup's `data` folder) are read in the browser, placed from their centres and scale, dated early/late (or by file date) and stacked oldest → newest under playback, with an opacity slider. `node os/tools/mcmaps.js <world> --out maps.png` does the same from the command line.
 * **Usability** — 20 audited fixes (Pick on the map fills the editor, shortcut keys never discard work, pickers return to their form, inbox keeps its place, validation focuses the field, phone layout without sideways scroll…). Ideas for what next: `docs/IDEAS.md`.
+
+## 3.5 — Google-Maps-style roads, trains on the map, a calmer editor
+
+* **One-way streets** — each road's Access can be One-way, and a one-way road knows which way it runs (first point → last, or reversed; the inspector has a flip button, the record a "One-way runs" field). The map draws very faint chevrons along one-way roads; hover or select the road and they brighten with a ONE WAY label. The hover card and the record say it in words ("one way eastbound →").
+* **Directions obey them** — the directions panel now has **Drive** (default, 11 blocks/s): it follows the arrows, keeps off pedestrian-only and restricted roads, and goes round the block when it must; Walk and Sprint ignore arrows. Turn-by-turn says left, right, continue or sharp; one-way streets are marked; if no legal driving route exists it says so and suggests Walk.
+* **Trains** — every open line runs trains on the live map, each headway from each end, within the line's hours, dwelling at every stop — on the same timetable the departure board shows, so the board and the map agree to the second. A **Trains** chip / layer hides them; the Board's line strips show where each train is.
+* **A calmer building editor** — the long form is now eleven collapsible sections (Location, Lifecycle and Building & lot open by default), each closed one carrying a one-line summary of what it holds; a sticky Jump-to bar, Expand all / Collapse all, remembered per browser; a validation error opens the section it belongs to. Nothing was removed; the empty photo box is a slim row.
+* **Valuation v2** — besides the nearest station: +1.5% per extra line within 150 blocks (cap +4.5%), a +25% cap on all transit factors, +3% for a corner lot (drawn outline facing two streets), +4% completed in the last five years, −3% completed ten or more years ago unless a landmark. All editable under Vault & settings; recorded valuations keep the version they were made with.
 
 ## Time button and a vault that stays linked (3.2.1)
 

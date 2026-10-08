@@ -102,7 +102,7 @@ function renderRecord(b) {
     <button class="btn sm ghost" data-act="dr-copy" title="Copy a text summary">${icon('copy')}</button>
     <button class="btn ghost icon sm" data-act="dr-close" title="Close (Esc)">${icon('x')}</button></div>
   <div class="dbody">
-    <div class="photo" id="photo" tabindex="0" title="Drop or paste a screenshot here">${url ? `<img src="${url}" alt="">` : `<div class="ph">${icon('img')}No photo yet — drop a screenshot here, paste one, or click Add photo</div>`}
+    <div class="photo ${url ? '' : 'empty'}" id="photo" tabindex="0" title="Drop or paste a screenshot here">${url ? `<img src="${url}" alt="">` : `<div class="ph">${icon('img')}No photo yet — drop a screenshot here, paste one, or click Add photo</div>`}
       <div class="acts"><button class="btn sm" data-act="dr-photo">${icon('img')} ${url ? 'Replace' : 'Add photo'}</button>${url ? `<button class="btn sm danger" data-act="dr-photo-remove">${icon('trash')}</button>` : ''}</div></div>
     <div class="rec">
       <div class="reg ${hist ? 'hist' : ''}">${esc(b.reg)} <span class="dist" style="--c:${distColor(d)}"><i></i>${placePath(d, h).map(esc).join(' › ') || '—'}</span>${(b.formerRegs || []).length ? `<span class="muted" style="letter-spacing:.04em" title="Former numbers of this record">formerly ${b.formerRegs.map(esc).join(', ')}</span>` : ''}</div>
@@ -232,10 +232,11 @@ function renderEditor(b) {
   return `
   <div class="dhd"><span class="t">${DR.isNew ? (hist ? 'NEW HISTORICAL RECORD' : 'NEW RECORD') : 'EDIT · ' + esc(b.reg)} <span class="${hist ? 'reg-h' : ''}" style="font-weight:400;letter-spacing:.04em" id="reg-preview">${DR.isNew ? '· ' + regPreview : ''}</span></span><button class="btn ghost icon sm" data-act="dr-close" title="Close (Esc)">${icon('x')}</button></div>
   <div class="dbody">
-    <div class="photo" id="photo" tabindex="0" title="Drop or paste a screenshot here">${url ? `<img src="${url}" alt="">` : `<div class="ph">${icon('img')}Drop a screenshot here, paste one, or click Add photo</div>`}
+    <div class="photo ${url ? '' : 'empty'}" id="photo" tabindex="0" title="Drop or paste a screenshot here">${url ? `<img src="${url}" alt="">` : `<div class="ph">${icon('img')}Drop a screenshot here, paste one, or click Add photo</div>`}
       <div class="acts"><button class="btn sm" data-act="dr-photo">${icon('img')} ${url ? 'Replace' : 'Add photo'}</button>${url ? `<button class="btn sm danger" data-act="dr-photo-remove">${icon('trash')}</button>` : ''}</div></div>
     <form class="form" id="bform" autocomplete="off" onsubmit="return false">
-      <div class="fsect"><h4>LOCATION</h4>
+      ${fsBarHTML(b)}
+      ${fsectOpen('location', 'LOCATION', '', b, { cls: '', id: '' })}
         <div class="frow">
           ${f('district', 'Borough / district', `<select id="f-district">${districtOptions(b.districtId)}</select>`, DR.isNew ? '' : 'move → new reg №')}
           ${f('hood', 'Neighborhood', `<select id="f-hood"><option value="">— none —</option>${hoods.map(h => `<option value="${h.id}" ${h.id === b.neighborhoodId ? 'selected' : ''}>${esc(h.name)}</option>`).join('')}<option value="__new">+ New neighborhood…</option></select>`)}
@@ -259,8 +260,8 @@ function renderEditor(b) {
         <div class="frow" style="margin-top:10px">
           <div class="f span"><label for="f-road">Serving road <span class="hint">association only — coordinates never move</span></label><select id="f-road"><option value="">— none —</option>${S.roads.slice().sort((a, c) => roadLabel(a).localeCompare(roadLabel(c))).map(r => { const it = sug.items.find(x => x.road.id === r.id); return `<option value="${r.id}" ${r.id === b.roadId ? 'selected' : ''}>${esc(roadLabel(r))}${it ? ` — ${Math.round(it.d)} blk${it.kind === 'best' ? ' · suggested' : ''}${it.penalty ? ' · ' + it.flags[0] : ''}` : ''}</option>`; }).join('')}</select>${sug.items.length ? `<div class="fieldnote">${esc(roadSuggestReason(sug.items[0], sug.basis))}</div>` : ''}</div>
         </div>
-      </div>
-      <div class="fsect"><h4>LIFECYCLE <span style="font-weight:400;letter-spacing:0;color:var(--ink-4);font-family:var(--font-mono);font-size:10.5px">physical · market · heritage are independent</span></h4>
+      </div></details>
+      ${fsectOpen('lifecycle', 'LIFECYCLE', `physical · market · heritage are independent`, b, { cls: '', id: '' })}
         <div class="frow c3">
           ${f('physical', 'Physical status', `<select id="f-physical">${PHYSICAL.map(s => `<option value="${s.id}" ${s.id === (b.physical || 'standing') ? 'selected' : ''}>${s.glyph} ${s.label}</option>`).join('')}</select>`, 'demolished = historical')}
           ${f('market', 'Market status', `<select id="f-market">${MARKET.map(m => `<option value="${m.id}" ${m.id === (b.market || '') ? 'selected' : ''}>${m.glyph} ${m.label}</option>`).join('')}</select>`)}
@@ -277,16 +278,16 @@ function renderEditor(b) {
           ${f('dateBuilt', 'Exact completion date', `<input id="f-dateBuilt" type="date" value="${esc(b.dateBuilt || '')}">`, 'optional')}
           ${f('dateDemolished', 'Exact demolition date', `<input id="f-dateDemolished" type="date" value="${esc(b.dateDemolished || '')}">`, 'optional')}
         </div>
-      </div>
-      <div class="fsect ${hist ? '' : 'dimmed'}" id="fs-demo"><h4>DEMOLITION <span style="font-weight:400;letter-spacing:0;color:var(--ink-4);font-family:var(--font-mono);font-size:10.5px">${hist ? 'historical record' : 'fill in only if the building is gone — the physical status switches to Demolished'}</span></h4>
+      </div></details>
+      ${fsectOpen('demolition', 'DEMOLITION', `${hist ? 'historical record' : 'fill in only if the building is gone — the physical status switches to Demolished'}`, b, { cls: `${hist ? '' : 'dimmed'}`, id: 'fs-demo' })}
         <div class="frow">
           <div class="f span"><label>Demolished</label>${hyControl('demolished', b.yearDemolished, b.halfDemolished, b.yearDemolishedApprox, { yearPh: '2022' })}</div>
           ${f('reason', 'Reason', inp('reason', b.demolitionReason, 'placeholder="Redevelopment…" list="reasons"') + `<datalist id="reasons">${DEMOLITION_REASONS.map(r => `<option value="${esc(r)}">`).join('')}</datalist>`)}
           <div class="f span"><label for="f-significance">Historical significance <span class="hint">one line · why this building matters to the record</span></label>${inp('significance', b.significance, 'placeholder="First tower in Lower Man A; set the C5-5 skyline scale…"')}</div>
           <div class="f span"><label for="f-historyNotes">Site history notes <span class="hint">what you found, where, and what it proves</span></label><textarea id="f-historyNotes" placeholder="Seen in the 2015-06-22 world save at X 120 Z -40. Screenshot IMG_2231 shows it half-demolished in mid 2022…">${esc(b.historyNotes || '')}</textarea></div>
         </div>
-      </div>
-      <div class="fsect"><h4>CLASSIFICATION & ZONING</h4>
+      </div></details>
+      ${fsectOpen('class', 'CLASSIFICATION & ZONING', '', b, { cls: '', id: '' })}
         <div class="frow">
           <div class="f"><label for="f-class">Building class</label>${comboHTML('class', b.bldgClass, 'placeholder="O4, D8, A5…"')}<div class="desc-line" id="class-desc">${b.bldgClass ? `<b>${esc(b.bldgClass)}</b> ${esc(classDesc(b.bldgClass))}` : 'letter = family, digit = construction / use'}</div></div>
           ${f('tax', 'Tax class', `<select id="f-tax"><option value="">— auto —</option>${TAX_CLASSES.map(t => `<option value="${t.id}" ${t.id === b.taxClass ? 'selected' : ''}>${esc(t.label)}</option>`).join('')}</select>`, 'suggested from class')}
@@ -297,8 +298,8 @@ function renderEditor(b) {
           ${f('special', 'Special district', inp('special', b.special, 'placeholder="Midtown, Two Bridges…"'))}
         </div>
         <div class="desc-line" id="zoning-desc" style="margin-top:6px">${b.zoning ? `<b>${esc(b.zoning)}</b> ${esc(zoningDesc(b.zoning))}` : 'R residential · C commercial · M manufacturing'}</div>
-      </div>
-      <div class="fsect"><h4>BUILDING & LOT</h4>
+      </div></details>
+      ${fsectOpen('lot', 'BUILDING & LOT', '', b, { cls: '', id: '' })}
         <div class="frow c3">
           ${f('floors', 'Floors', numI('floors', b.floors, 'placeholder="48" min="0"'))}
           ${f('height', 'Height', numI('height', b.height, 'placeholder="162" min="0"'), 'blocks')}
@@ -313,9 +314,9 @@ function renderEditor(b) {
         </div>
         <div class="fieldnote lotnote" style="margin-top:8px">Lot outline: ${lotOutline(b) ? lotSectionHTML(b) + ` <button type="button" class="rowlink" data-act="lot-draw" style="font:inherit">redraw</button> · <button type="button" class="rowlink" data-act="lot-clear" style="font:inherit">clear</button>${b.lotSource === 'manual' ? ' · <span class="mk warn">TYPED VALUES KEPT</span> <button type="button" class="rowlink" data-act="lot-remeasure" style="font:inherit">use the measured ones</button>' : ''}` : `not drawn — <button type="button" class="rowlink" data-act="lot-draw" style="font:inherit">draw the lot on the map</button> (any shape; area, frontage and depth fill in)`}</div>
         <div class="fieldnote" style="margin-top:8px">Footprint: ${b.footprint ? `<b>${fmtInt(footprintAreaOf(b))} blk²</b> measured from ${b.footprint.length} vertices` : 'not drawn'} · <button type="button" class="rowlink" data-act="footprint-draw" style="font:inherit">${b.footprint ? 'redraw on the map' : 'draw on the map'}</button>${b.footprint ? ` · <button type="button" class="rowlink" data-act="footprint-clear" style="font:inherit">clear</button>` : ''}</div>
-      </div>
+      </div></details>
       ${civicEditorHTML(b)}
-      <div class="fsect"><h4>VALUATION <span style="font-weight:400;letter-spacing:0;color:var(--ink-4);font-family:var(--font-mono);font-size:10.5px">assessment · asking · agreed prices stay distinct</span></h4>
+      ${fsectOpen('valuation', 'VALUATION', `assessment · asking · agreed prices stay distinct`, b, { cls: '', id: '' })}
         <div class="frow c3">
           ${f('assessLand', 'Assessed land', `<div class="pre"><span>$</span>${numI('assessLand', b.assessLand, 'placeholder="0" min="0" step="1000"')}</div>`)}
           ${f('assessBuilding', 'Assessed building', `<div class="pre"><span>$</span>${numI('assessBuilding', b.assessBuilding, 'placeholder="0" min="0" step="1000"')}</div>`, 'improvements')}
@@ -327,26 +328,26 @@ function renderEditor(b) {
         <div id="f-estimate" class="fieldnote" style="margin-top:8px"><button type="button" class="btn sm" data-act="estimate-draft">${icon('spark')} Auto-estimate from nearby buildings &amp; transit</button> <span class="muted">compares assessed buildings within 200 blocks (then the borough), adjusts for stations, services, floors and condition — nothing is saved until you apply it</span></div>
         <div id="f-listings">${editorListingsHTML(b)}</div>
         <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:8px"><button type="button" class="btn sm" data-act="listing-add">${icon('plus')} Listing</button><button type="button" class="btn sm" data-act="tx-add">${icon('plus')} Transaction</button></div>
-      </div>
+      </div></details>
       ${valuationEditorHTML(b)}
-      <div class="fsect"><h4>PROVENANCE <span style="font-weight:400;letter-spacing:0;color:var(--ink-4);font-family:var(--font-mono);font-size:10.5px">evidence behind this record</span></h4>
+      ${fsectOpen('provenance', 'PROVENANCE', `evidence behind this record`, b, { cls: '', id: '' })}
         <div class="frow c3">
           ${f('confidence', 'Confidence', `<select id="f-confidence"><option value="">— not assessed —</option>${CONFIDENCE.map(c => `<option value="${c.id}" ${c.id === b.confidence ? 'selected' : ''}>${esc(c.label)} — ${esc(c.hint)}</option>`).join('')}</select>`)}
           ${f('sourceType', 'Source type', `<select id="f-sourceType"><option value="">— none —</option>${SOURCE_TYPES.map(([id, l]) => `<option value="${id}" ${id === b.sourceType ? 'selected' : ''}>${esc(l)}</option>`).join('')}</select>`)}
           <div class="f"><label>Verified</label><label class="switch"><input type="checkbox" id="f-verified" ${b.verified ? 'checked' : ''}> <span class="muted" style="font-size:12px">checked against evidence</span></label></div>
           <div class="f span"><label for="f-source">Source <span class="hint">file name, save date, link, who told you</span></label>${inp('source', b.source, 'placeholder="world save 2015-06-22 · IMG_2231.png · article URL…"')}</div>
         </div>
-      </div>
-      <div class="fsect"><h4>RELATIONSHIPS <span style="font-weight:400;letter-spacing:0;color:var(--ink-4);font-family:var(--font-mono);font-size:10.5px">what this replaced · what replaced it</span></h4>
+      </div></details>
+      ${fsectOpen('relationships', 'RELATIONSHIPS', `what this replaced · what replaced it`, b, { cls: '', id: '' })}
         <div id="f-rels">${editorRelationsHTML(b)}</div>
         <button type="button" class="btn sm" data-act="rel-add-draft">${icon('link')} Link a building by reg №</button>
-      </div>
-      <div class="fsect"><h4>NOTES</h4>
+      </div></details>
+      ${fsectOpen('notes', 'NOTES', '', b, { cls: '', id: '' })}
         <div class="frow">
           <div class="f span"><label for="f-tags">Tags <span class="hint">space separated</span></label>${inp('tags', (b.tags || []).join(' '), 'placeholder="supertall glass landmark"')}</div>
           <div class="f span"><label for="f-notes">Notes</label><textarea id="f-notes" placeholder="History, materials, who built it, what it replaced…">${esc(b.notes)}</textarea></div>
         </div>
-      </div>
+      </div></details>
     </form>
   </div>
   <div class="dfoot">${DR.isNew ? '' : `<button class="btn danger sm" data-act="dr-delete">${icon('trash')} Delete</button>`}<span class="spacer"></span>
@@ -520,7 +521,7 @@ function stepRecord(dir) {
 /* ---- drawer wiring ---- */
 function wireDrawer() {
   const el = $('#drawer');
-  if (DR.mode !== 'edit') wireShapeTimelines(el);
+  if (DR.mode !== 'edit') wireShapeTimelines(el); else wireEditorSections(el);
   $$('.combo', el).forEach(wireCombo);
   const photo = $('#photo', el);
   if (photo) {
@@ -565,7 +566,7 @@ async function attachPhoto(file) {
   }
 }
 function renderDrawerPhotoOnly() {
-  const url = imgUrl(DR.id, 'full'); const photo = $('#photo'); if (!photo) return;
+  const url = imgUrl(DR.id, 'full'); const photo = $('#photo'); if (!photo) return; photo.classList.toggle('empty', !url);
   photo.innerHTML = `${url ? `<img src="${url}" alt="">` : `<div class="ph">${icon('img')}Drop a screenshot here, paste one, or click Add photo</div>`}<div class="acts"><button class="btn sm" data-act="dr-photo">${icon('img')} ${url ? 'Replace' : 'Add photo'}</button>${url ? `<button class="btn sm danger" data-act="dr-photo-remove">${icon('trash')}</button>` : ''}</div>`;
 }
 document.addEventListener('paste', e => {
@@ -669,9 +670,42 @@ async function endTenancy(id) {
   commit(); renderDrawer(); renderView(false); toast('Tenancy ended — kept in history', 'good');
 }
 
+/* ---- the editor's sections: collapsible, each with a one-line summary of what is filled in; nothing is hidden for good ---- */
+const ED_SECTIONS = [['location', 'Location'], ['lifecycle', 'Lifecycle'], ['demolition', 'Demolition'], ['class', 'Class & zoning'], ['lot', 'Building & lot'], ['civic', 'Civic'], ['valuation', 'Valuation'], ['override', 'Your value'], ['provenance', 'Provenance'], ['relationships', 'Links'], ['notes', 'Notes']];
+const ED_DEFAULT_OPEN = { location: true, lifecycle: true, lot: true };
+function edSecPrefs() { try { return JSON.parse(localStorage.getItem('newa-os.edsec') || '{}') || {}; } catch { return {}; } }
+function edSecSet(id, open) { try { const p = edSecPrefs(); p[id] = !!open; localStorage.setItem('newa-os.edsec', JSON.stringify(p)); } catch { } }
+function edSecOpen(id, b) { const p = edSecPrefs(); if (id in p) return !!p[id]; if (id === 'demolition') return isHist(b); return !!ED_DEFAULT_OPEN[id]; }
+function edSummary(id, b) {
+  const d = districtById(b.districtId);
+  switch (id) {
+    case 'location': return [d?.name, b.number || b.street ? `${b.number || ''} ${b.street || ''}`.trim() : '', b.x != null ? `X ${b.x} · Z ${b.z}` : 'no coordinates', b.roadId ? 'road linked' : ''].filter(Boolean).join(' · ');
+    case 'lifecycle': return [physicalOf(b.physical).label, b.market ? marketOf(b.market).label : '', b.yearBuilt != null ? `built ${hyShort(b.yearBuilt, b.halfBuilt, b.yearBuiltApprox)}` : b.yearStarted != null ? `started ${hyShort(b.yearStarted, b.halfStarted)}` : 'undated', b.landmark ? '✦ landmark' : ''].filter(Boolean).join(' · ');
+    case 'demolition': return isHist(b) ? [b.yearDemolished != null ? `demolished ${hyShort(b.yearDemolished, b.halfDemolished, b.yearDemolishedApprox)}` : 'no demolition date', b.demolitionReason].filter(Boolean).join(' · ') : 'standing — nothing to fill';
+    case 'class': return [b.bldgClass, b.zoning, b.overlay, b.special].filter(Boolean).join(' · ') || 'not classified';
+    case 'lot': { const lot = lotAreaOf(b); return [num(b.floors) != null ? `${b.floors} floors` : '', num(b.height) != null ? `${b.height} blk` : '', num(b.lotFront) || num(b.lotDepth) ? `lot ${b.lotFront ?? '?'}×${b.lotDepth ?? '?'}` : '', lot != null ? `${fmtInt(lot)} blk²` : '', lotOutline(b) ? 'outline drawn' : '', b.footprint ? 'footprint drawn' : '', b.owner].filter(Boolean).join(' · ') || 'no size yet'; }
+    case 'civic': { const c = civicOf(b); return c ? `${civicTypeLabel(c.type)}${c.status ? ' · ' + c.status : ''}` : (b.condition ? `condition ${b.condition}` : 'not a civic facility'); }
+    case 'valuation': return [num(b.assessTotal) ? `assessed ${fmtMoneyCompact(num(b.assessTotal))}` : '', num(b.listPrice) ? `asking ${fmtMoneyCompact(num(b.listPrice))}` : '', (b.listings || []).length ? `${b.listings.length} listing${b.listings.length === 1 ? '' : 's'}` : '', (b.transactions || []).length ? `${b.transactions.length} transaction${b.transactions.length === 1 ? '' : 's'}` : ''].filter(Boolean).join(' · ') || 'no figures yet';
+    case 'override': return num(b.valuationOverride?.value) != null ? `${fmtMoneyCompact(num(b.valuationOverride.value))}${b.valuationOverride.reason ? ' · ' + b.valuationOverride.reason : ''}` : 'using the estimate';
+    case 'provenance': return [b.confidence ? confOf(b.confidence)?.label : '', b.sourceType, b.verified ? 'verified' : '', b.source].filter(Boolean).join(' · ') || 'no source yet';
+    case 'relationships': { const n = (b.relations || []).length; return n ? `${n} link${n === 1 ? '' : 's'}` : 'no links'; }
+    case 'notes': return [(b.tags || []).length ? `${b.tags.length} tag${b.tags.length === 1 ? '' : 's'}` : '', b.notes ? `${b.notes.length} chars of notes` : ''].filter(Boolean).join(' · ') || 'empty';
+  }
+  return '';
+}
+function fsectOpen(id, title, hint, b, { cls = '', id: domId = '' } = {}) {
+  return `<details class="fsect ${cls}" data-sec="${id}" ${domId ? `id="${domId}"` : ''} ${edSecOpen(id, b) ? 'open' : ''}><summary><h4>${title}${hint ? ` <span class="h4hint">${hint}</span>` : ''}<span class="fs-sum">${esc(edSummary(id, b))}</span><span class="fs-chev">${icon('chev')}</span></h4></summary><div class="fs-body">`;
+}
+function fsBarHTML(b) { return `<div class="fs-bar"><span class="k">JUMP TO</span>${ED_SECTIONS.filter(([id]) => id !== 'demolition' || isHist(b)).map(([id, l]) => `<button type="button" data-sec-jump="${id}">${l}</button>`).join('')}<span class="spacer"></span><button type="button" class="ghost" data-sec-all="1" title="Open every section">Expand all</button><button type="button" class="ghost" data-sec-all="0" title="Close every section">Collapse all</button></div>`; }
+function wireEditorSections(el) {
+  $$('details.fsect', el).forEach(d => d.addEventListener('toggle', () => edSecSet(d.dataset.sec, d.open)));
+  $$('[data-sec-jump]', el).forEach(bt => bt.addEventListener('click', () => { const d = $(`details.fsect[data-sec="${bt.dataset.secJump}"]`, el); if (!d) return; d.open = true; d.scrollIntoView({ block: 'start', behavior: motionOn() ? 'smooth' : 'auto' }); const first = d.querySelector('input:not([type=checkbox]):not([type=hidden]),select,textarea'); setTimeout(() => first?.focus({ preventScroll: true }), motionOn() ? 350 : 0); }));
+  $$('[data-sec-all]', el).forEach(bt => bt.addEventListener('click', () => { const open = bt.dataset.secAll === '1'; $$('details.fsect', el).forEach(d => { d.open = open; edSecSet(d.dataset.sec, open); }); }));
+}
 /* after a validation error, put the cursor on the field it is about */
 function focusFieldFor(err) {
   const map = [[/completed year|built/i, 'f-built-y'], [/demolish/i, 'f-demolished-y'], [/started/i, 'f-started-y'], [/expected/i, 'f-expected-y'], [/district|borough/i, 'f-district'], [/name/i, 'f-name'], [/number|street|address/i, 'f-number'], [/x and z|coordinates/i, 'f-x'], [/floor/i, 'f-floors'], [/closed before/i, 'f-closed-y'], [/opened/i, 'f-opened-y']];
   const hit = map.find(([re]) => re.test(err)); const el = hit ? $('#' + hit[1]) : null; if (!el) return;
+  const det = el.closest('details'); if (det) det.open = true;
   el.scrollIntoView({ block: 'center', behavior: motionOn() ? 'smooth' : 'auto' }); el.focus(); el.classList.add('err'); setTimeout(() => el.classList.remove('err'), 2500);
 }

@@ -105,6 +105,18 @@ Data added (all optional, plain JSON, nothing renamed): road/track `versions[].t
 
 Playback now keeps a float playhead `HV.pos` (`HV.to = floor(pos)`), a rate in half-years per second (`HV.rate`) and a short effect window `HV.fx = { from, to, t }` set when the playhead crosses a half-year forward; `drawScene` takes `R.pos` and `R.fx` instead of the old `R.anim`.
 
+## 3c. 3.5 additions (Oct 8)
+
+| Part | What it holds |
+|---|---|
+| `app/parts/p31_trains.js` | `lineDepartures` (the one timetable the board and the map share), `lineTrains` (positions from the clock, dwell at stops), `drawTrains`, the redraw loop (`trainsLoop`, ≤18 fps, only on the live map), `lineStripHTML` for the Board |
+| `p19a_explore.js` | `ROUTE_MODES` (drive / walk / sprint), `edgeAllowed` (one-way and pedestrian rules), directed road-graph edges (`fwd`), `dijkstra(G, from, to, mode)`, turn words (left / right / continue / sharp), `oneWayText` / `oneWayArrow` / `oneWayShort` |
+| `p13_map.js` | faint one-way chevrons (bright + label on hover/select), `insp-flip-oneway`, live preview of the Access select |
+| `p10_drawer.js` | `fsectOpen` / `fsBarHTML` / `edSummary` / `wireEditorSections`: the editor's `<details>` sections, summaries, jump bar, prefs in `localStorage['newa-os.edsec']` |
+| `p23_city.js` | valuation v2 factors: lines in reach, transit cap, corner lot, era |
+
+Data added: road `oneWayDir` (1 as drawn, −1 reversed); `UI.layers.trains`; valuation settings `transitLinesStep, transitLinesCap, transitCap, cornerLot, newBuild, aged` (`version: 2`).
+
 ## 4. How the app is put together
 
 - Classic script, no modules. All parts share one top-level scope; `const/let` names are globals. Key globals: `APP`, `S` (persisted state), `UI` (transient), `MIGRATION`, `SAVE`, `VAULT`, `DR`, `MAPW`, `HV`, `NEWS`, `ASST`, `CLAW`, `EXPLORE`, `OS`, `JUNCTION_CACHE`, `ROAD_GRAPH`.

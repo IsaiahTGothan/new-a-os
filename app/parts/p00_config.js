@@ -7,7 +7,7 @@
 /* =====================================================================
    §0  CONFIG
    ===================================================================== */
-const APP = { name: 'New A OS', version: '3.2.1', schema: 4, site: 'zays.us/new-a', newsSite: 'https://newa-site.vercel.app', feedUrl: 'https://newa-site.vercel.app/feed.xml', marketsUrl: 'https://newa-site.vercel.app/api/markets' };
+const APP = { name: 'New A OS', version: '3.5.0', schema: 4, site: 'zays.us/new-a', newsSite: 'https://newa-site.vercel.app', feedUrl: 'https://newa-site.vercel.app/feed.xml', marketsUrl: 'https://newa-site.vercel.app/api/markets' };
 const FOUNDED_YEAR = 2013;                       // Jan 27, 2013 — the timeline starts here
 const CURRENT_YEAR = new Date().getFullYear();   // the "present" end of the timeline
 const CURRENT_HALF = new Date().getMonth() < 6 ? 'E' : 'L';
@@ -106,6 +106,9 @@ const ROAD_TYPE_LABEL = Object.fromEntries(ROAD_TYPES);
 const GRADES = [['surface', 'Surface'], ['elevated', 'Elevated'], ['bridge', 'Bridge'], ['tunnel', 'Tunnel']];
 const GRADE_LABEL = Object.fromEntries(GRADES);
 const DIRECTIONS = [['two-way', 'Two-way'], ['one-way', 'One-way'], ['pedestrian', 'Pedestrian only'], ['restricted', 'Restricted access']];
+/* which way a one-way road runs, relative to the order its points were drawn in */
+const ONEWAY_DIRS = [[1, 'First point → last point (as drawn)'], [-1, 'Last point → first point (reversed)']];
+const DRIVE_BLOCKS_PER_SEC = 11;     // a galloping horse / a car on the roads; walking is 4.3, sprinting 5.6
 const ROAD_COLORS = { avenue: '#8AA4B8', street: '#6F8494', boulevard: '#9BB3C4', highway: '#FFB454', parkway: '#7FB2A0', bridge: '#E0C63A', tunnel: '#7F6AAE', path: '#5F7484', alley: '#4D5F6E', 'rail-row': '#9C8600', other: '#6F8494' };
 const TRANSIT_MODES = [['subway', 'Subway / Metro'], ['rail', 'Rail'], ['bus', 'Bus'], ['tram', 'Tram / light rail'], ['ferry', 'Ferry'], ['cable', 'Cable / gondola'], ['other', 'Other']];
 const MODE_LABEL = Object.fromEntries(TRANSIT_MODES);
@@ -165,6 +168,6 @@ const SERVICE_DEFAULTS = { subway: { speed: 8, headwayMin: 5, dwellSec: 10 }, ra
 const TIME_BASES = [['estimated', 'Estimated', 'muted'], ['measured', 'Measured', 'good'], ['scheduled', 'Scheduled', 'info']];
 const TIME_BASIS = Object.fromEntries(TIME_BASES.map(([id, label, tone]) => [id, { id, label, tone }]));
 /* ---- valuations: every factor is a percentage, editable under Vault & settings ---- */
-const VALUATION_DEFAULTS = { version: 1, fallbackPerBlock: 250000, transitNear: 15, transitMid: 8, transitFar: 3, transitNone: -5, transit247: 6, transitConstruction: 0.35, transitPlanned: 0.1, transitPartial: 0.6, hospital: 4, police: 3, fire: 3, park: 5, school: 2, servicesCap: 12, landmark: 10, floorStep: 2, floorCap: 30, excellent: 8, fair: -8, poor: -20, construction: -20, closed: -15, vacantLot: -65, officeCondo: 10, industrial: -10, defaultArea: 300 };
+const VALUATION_DEFAULTS = { version: 2, fallbackPerBlock: 250000, transitLinesStep: 1.5, transitLinesCap: 4.5, transitCap: 25, cornerLot: 3, newBuild: 4, aged: -3, transitNear: 15, transitMid: 8, transitFar: 3, transitNone: -5, transit247: 6, transitConstruction: 0.35, transitPlanned: 0.1, transitPartial: 0.6, hospital: 4, police: 3, fire: 3, park: 5, school: 2, servicesCap: 12, landmark: 10, floorStep: 2, floorCap: 30, excellent: 8, fair: -8, poor: -20, construction: -20, closed: -15, vacantLot: -65, officeCondo: 10, industrial: -10, defaultArea: 300 };
 const PROJECT_STAGES = [['idea', 'Idea', 'muted'], ['planning', 'Planning', 'info'], ['construction', 'Under construction', 'warn'], ['open', 'Open', 'good'], ['renovation', 'Renovation', 'warn'], ['demolition', 'Demolition', 'bad'], ['done', 'Done', 'good'], ['abandoned', 'Abandoned', 'muted']];
 const PROJECT_STAGE = Object.fromEntries(PROJECT_STAGES.map(([id, label, tone]) => [id, { id, label, tone }]));

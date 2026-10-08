@@ -552,3 +552,37 @@ table.reg th{ font-family:var(--font-pixel); font-size:8.5px; letter-spacing:.04
 .mapstage.dated::after{ bottom:auto; top:104px; }
 .tw-btn .chv{ display:inline-flex; transition:transform var(--dur-2); } .tw:not(.open) .tw-btn .chv{ transform:rotate(180deg); } .mapws.edit .tw.open .tw-btn .chv{ transform:rotate(180deg); } .mapws.edit .tw:not(.open) .tw-btn .chv{ transform:none; }
 @media (max-width:760px){ .mapws.explore .tw{ top:auto; bottom:12px; right:60px; flex-direction:column; } }
+/* ---- trains on the board strips ---- */
+.lstatus .ls{ grid-template-columns:auto 1fr auto; grid-template-areas:"b n s" "strip strip strip"; }
+.lstatus .ls .lstrip{ grid-area:strip; }
+.lstrip{ position:relative; height:10px; margin:6px 2px 2px; border-radius:5px; background:linear-gradient(to right, transparent 0, transparent 50%, transparent 100%); }
+.lstrip::before{ content:""; position:absolute; left:0; right:0; top:4px; height:2px; background:var(--c); opacity:.55; border-radius:1px; }
+.lstrip .tick{ position:absolute; top:2px; width:6px; height:6px; margin-left:-3px; border-radius:50%; background:var(--bg-1); border:1.5px solid var(--c); }
+.lstrip .tr{ position:absolute; top:0; width:10px; height:10px; margin-left:-5px; border-radius:3px; background:var(--c); border:1.5px solid #05090D; box-shadow:0 0 6px var(--c); }
+.lstrip .tr.f::after, .lstrip .tr.r::after{ content:""; position:absolute; top:2px; width:0; height:0; border:2.5px solid transparent; }
+.lstrip .tr.f::after{ right:-1px; border-left:3px solid #05090D; } .lstrip .tr.r::after{ left:-1px; border-right:3px solid #05090D; }
+.lstrip .tr.dw{ animation:pulse 1.2s ease-in-out infinite; }
+.rt-sum .big{ white-space:nowrap; }
+/* ---- the building editor: collapsible sections with summaries, and a jump bar ---- */
+details.fsect > summary{ list-style:none; cursor:pointer; user-select:none; }
+details.fsect > summary::-webkit-details-marker{ display:none; }
+details.fsect > summary h4{ margin:0; min-height:28px; }
+details.fsect[open] > summary h4{ margin-bottom:10px; }
+details.fsect > summary h4::after{ order:1; }
+details.fsect .h4hint{ font-weight:400; letter-spacing:0; color:var(--ink-4); font-family:var(--font-mono); font-size:10.5px; }
+details.fsect[open] .h4hint{ display:inline; } details.fsect:not([open]) .h4hint{ display:none; }
+details.fsect .fs-sum{ order:2; font-weight:400; letter-spacing:0; text-transform:none; color:var(--ink-2); font-family:var(--font-mono); font-size:11px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; max-width:58%; }
+details.fsect[open] .fs-sum{ display:none; }
+details.fsect .fs-chev{ order:3; display:inline-flex; color:var(--ink-3); } details.fsect .fs-chev svg{ width:12px; height:12px; transition:transform var(--dur-2); }
+details.fsect[open] .fs-chev svg{ transform:rotate(180deg); }
+details.fsect > summary:hover h4{ color:var(--ink); }
+details.fsect.dimmed{ opacity:.7; }
+.fs-bar{ position:sticky; top:0; z-index:3; display:flex; gap:4px; flex-wrap:wrap; align-items:center; padding:8px 0 8px; margin:0 0 4px; background:var(--bg-1); border-bottom:1px solid var(--line); }
+.fs-bar .k{ font-family:var(--font-mono); font-size:10px; letter-spacing:.1em; color:var(--ink-4); margin-right:4px; }
+.fs-bar button{ height:24px; padding:0 9px; border-radius:12px; border:1px solid var(--line-2); color:var(--ink-2); font-size:11.5px; background:var(--bg-2); }
+.fs-bar button:hover{ color:var(--ink); border-color:var(--line-3); }
+.fs-bar button.ghost{ background:transparent; border-color:transparent; color:var(--ink-3); }
+.fs-bar .spacer{ flex:1; }
+#drawer .photo.empty{ aspect-ratio:auto; min-height:0; padding:14px 18px; }
+#drawer .photo.empty .ph{ flex-direction:row; gap:10px; font-size:12.5px; }
+#drawer .photo.empty .ph svg{ width:18px; height:18px; }

@@ -30,7 +30,7 @@ document.addEventListener('click', async e => {
   if (t.dataset.tseg) { UI.tseg = t.dataset.tseg; renderView(false); return; }
   if (t.dataset.cseg) { UI.cseg = t.dataset.cseg; renderView(false); return; }
   if (t.dataset.cfToggle) { UI.cf[t.dataset.cfToggle] = !UI.cf[t.dataset.cfToggle]; renderView(false); return; }
-  if (t.dataset.mode) { setMapMode(t.dataset.mode); return; }
+  if (t.dataset.mode && !t.dataset.act) { setMapMode(t.dataset.mode); return; }   // the map's tool buttons only — the directions panel's mode buttons carry data-act
   if (t.dataset.dock) { MAPW.dock = t.dataset.dock; renderDock(); return; }
   const act = t.dataset.act; if (!act) return;
   if (act.startsWith('insp-')) { inspectorAction(act, t); return; }
@@ -96,7 +96,7 @@ document.addEventListener('click', async e => {
     case 'gm-directions-to': openDirections(MAPW.sel ? { kind: MAPW.sel.kind, id: MAPW.sel.id } : null); break;
     case 'gm-dir-close': closeDirections(); break;
     case 'rt-swap': { const f = EXPLORE.from; EXPLORE.from = EXPLORE.to; EXPLORE.to = f; computeRoute(); break; }
-    case 'rt-mode': EXPLORE.mode = t.dataset.mode; renderPlaceCard(); break;
+    case 'rt-mode': { const was = EXPLORE.mode; EXPLORE.mode = t.dataset.mode; if (MAPW.route && (ROUTE_MODES[was]?.oneWay !== ROUTE_MODES[EXPLORE.mode]?.oneWay)) computeRoute({ keepView: true }); else renderPlaceCard(); break; }
     case 'pc-open': if (MAPW.sel) openRecord(MAPW.sel.kind === 'junction' ? 'road' : MAPW.sel.kind, MAPW.sel.kind === 'junction' ? MAPW.sel.j?.a : MAPW.sel.id); break;
     case 'pc-edit': { const sel = MAPW.sel; setMapEdit(true); MAPW.sel = sel; if (sel && ['region', 'district', 'hood'].includes(sel.kind) && !(nodeById(sel.id)?.polygons || []).length) setMapMode('border', { target: { kind: sel.kind, id: sel.id } }); renderDock(); mapDraw(); break; }
     case 'pc-fit': { const ext = selExtent(MAPW.sel); if (ext) mapFlyTo(ext); break; }
@@ -251,7 +251,7 @@ document.addEventListener('click', async e => {
     case 'draft-delete': { const d = (S.news.drafts || []).find(x => x.id === t.dataset.id); if (!d) break; const r = await confirmDialog({ title: 'Delete this draft?', body: '<p>The text is removed from the registry. Nothing on the site is affected.</p>', ok: 'Delete', danger: true }); if (r !== 'ok') break; S.news.drafts = S.news.drafts.filter(x => x.id !== d.id); commit({ silentRender: true }); closeModal(); clawRender(); toast('Draft deleted', 'warn'); break; }
     // civic · service · city
     case 'civic-map': UI.layers.civic = true; UI.layers.buildings = true; setNav('map'); break;
-    case 'civic-new': { const bid = await buildingPickDialog([], 'Which building is the civic facility?', 'Open to edit'); if (bid) { openBuilding(bid, 'edit'); setTimeout(() => { const el = $('#f-civicType'); if (el) { el.scrollIntoView({ block: 'center' }); el.focus(); } }, 150); } break; }
+    case 'civic-new': { const bid = await buildingPickDialog([], 'Which building is the civic facility?', 'Open to edit'); if (bid) { openBuilding(bid, 'edit'); setTimeout(() => { const el = $('#f-civicType'); if (el) { const d = el.closest('details'); if (d) d.open = true; el.scrollIntoView({ block: 'center' }); el.focus(); } }, 150); } break; }
     case 'official-new': openOfficialModal(null); break;
     case 'official-edit': openOfficialModal(t.dataset.id); break;
     case 'official-delete': deleteOfficial(t.dataset.id); break;
