@@ -10,7 +10,7 @@
        bridge, never into S, Registry.json, exports, backups or the vault.
    ===================================================================== */
 const SL_DEFAULT_URL = 'https://newa-site.vercel.app';
-const SL_CFG = 'newa-os.site', SL_KEYS = 'newa-os.site.keys';
+const SL_CFG = 'newa-os.site', SL_KEYS = 'newa-os.site.keys', SL_SENT = 'newa-os.site.photos-sent', SL_CHANGED = 'newa-os.site.photos-changed';
 const SL_AUTO_DELAY = 45e3, SL_POLL_MS = 60e3, SL_PHOTO_MAX = 880000, SL_PHOTO_BATCH = 4;
 const SL_OUTLETS = [
   { id: 'press-office', name: 'Press Office', short: 'CITY HALL', color: '#0B1F3A', accent: '#E7C36A' },
@@ -35,6 +35,7 @@ const SITE = {
   politics: null, politicsBase: '', politicsError: null,
   review: null, reviewError: null, photos: null, photosError: null, log: null, logError: null,
   localPhotos: null, publishing: false, busy: new Set(), mem: {}, storage: true,
+  photoSync: null, photosDirty: false, photoDialog: 0, photoTimer: null,   // photos that follow each publish (slSyncPhotos)
   auto: { timer: null, due: 0, check: null, seenFp: null, failures: 0, retryAt: 0, held: null, error: null, ticker: null },
   local: null, poll: null, entered: false, seg: null, apprFilter: 'featured', apprQ: '',
   form: { story: null, alert: { level: 'advisory', text: '', hours: 12 }, post: { leaderId: 'mayor', text: '' } },
@@ -278,7 +279,7 @@ async function slPublishClick() {
     const r = await confirmDialog({ title: 'Replace the site’s registry?', body: `<p>The site reads a registry ${from}${site.uploaded ? ` <b>${esc(slAgo(site.uploaded))}</b>` : ''} that ${last ? 'is not the one this browser published last' : 'this browser has not published'} — another computer, a revert or a desk upload. It holds <b class="num">${fmtInt(site.counts?.buildings)}</b> standing and <b class="num">${fmtInt(site.counts?.historical)}</b> historical buildings; this registry has <b class="num">${fmtInt(activeBuildings().length)}</b> and <b class="num">${fmtInt(histBuildings().length)}</b>.</p><p class="muted" style="font-size:12.5px">Publishing replaces it with this copy. Desk edits on the site stay on top, and the site logs exactly what changed.</p>`, ok: 'Publish this copy', cancel: 'Cancel' });
     if (r !== 'ok') return;
   }
-  try { const d = await slPublish({ reason: 'manual' }); slChangesModal(d); }
+  try { const d = await slPublish({ reason: 'manual' }); slChangesModal(d); slSyncPhotos({ reason: 'publish' }); }
   catch (e) { slPublishError(e); }
 }
 function slPublishError(e) {
@@ -337,7 +338,7 @@ async function slAutoRun() {
   if (navigator.onLine === false) { A.error = 'This computer is offline'; A.retryAt = Date.now() + 60e3; slAutoArm(0); return; }
   const last = slLast(base); const { fp } = slLocalState();
   if (!last) { slAutoConsider(fp, null); slStatusBar(); slPaint(); return; }
-  if (fp === last.fp) { slStatusBar(); return; }
+  if (fp === last.fp) { if (SITE.photosDirty) slSyncPhotos({ reason: 'auto' }); slStatusBar(); return; }
   try {
     const st = (await slJSON('/api/registry', { auth: true, timeout: 15000 })).data; SITE.conn.info = st;
     if (!st?.authorized) throw new SiteError('The site refused the access key', 'auth');
@@ -345,6 +346,7 @@ async function slAutoRun() {
     const d = await slPublish({ reason: 'auto' });
     A.failures = 0; A.retryAt = 0; A.error = null;
     if (!d.unchanged) toast(`Auto-published to ${slHost(base)} — ${d.summary || 'registry updated'}`, 'good');
+    slSyncPhotos({ reason: 'auto' });
   } catch (e) {
     if (e.kind === 'auth') { A.held = { kind: 'auth', message: 'The site refused the access key — auto-publish is paused. Check the key under Site link.' }; slTest(); }
     else if (e.kind === 'held') A.held = { kind: 'removal', message: e.message };
@@ -370,6 +372,7 @@ function slStatusBar() {
   let cls = 'off', text = 'site · not linked';
   if (base) {
     if (SITE.publishing) { cls = 'pend'; text = `site · publishing to ${slHost(base)}…`; }
+    else if (SITE.photoSync) { cls = 'pend'; text = SITE.photoSync.total ? `site · sending photos ${Math.min(SITE.photoSync.done + 1, SITE.photoSync.total)}/${SITE.photoSync.total}…` : 'site · checking photos…'; }
     else if (['badkey', 'off', 'unreachable', 'notfound', 'error'].includes(st)) { cls = 'bad'; text = `site · ${SL_STATES[st][2]}`; }
     else if (c.auto && A.held && A.held.kind !== 'first') { cls = 'warn'; text = 'site · auto-publish paused'; }
     else if (c.auto && A.due) { cls = 'pend'; const s = Math.max(0, Math.ceil((A.due - Date.now()) / 1000)); text = A.error ? `site · retry in ${slClock(s)}` : `site · auto-publish in ${slClock(s)}`; }
@@ -398,7 +401,6 @@ async function slLocalPhotos() {
   SITE.localPhotos = { count: out.length, ids: new Set(out.map(p => p.id)), list: out, at: Date.now(), stamp: S.meta.updated };
   return out;
 }
-const slPhotoPending = (local, have) => local.filter(p => !have[p.id] || p.ts > have[p.id]);
 /* ≤ 1400 px, JPEG ~0.82, under 900 KB — smaller and softer only when it has to be */
 async function slJpegUnder(blob, max = 1400) {
   for (const [m, q] of [[max, 0.82], [max, 0.72], [Math.round(max * 0.85), 0.68], [Math.round(max * 0.7), 0.64], [Math.round(max * 0.55), 0.6], [Math.round(max * 0.4), 0.55]]) {
@@ -406,20 +408,141 @@ async function slJpegUnder(blob, max = 1400) {
   }
   throw new Error('it does not fit under 900 KB even at 560 px');
 }
+/* ---- photos that follow each publish ---- */
+/* Two small records in this browser decide what an automatic run sends besides what the site lacks:
+   • changed — photos added or replaced here and not yet sent: { [id]: when } (slNotePhotos);
+   • sent    — per site, the bytes and type of what was last sent: { [base]: { [id]: 'bytes:type' } }.
+   Dates alone are not used: re-importing the vault stamps every photo with a fresh date, which would send the whole
+   collection again, and a photo replaced while a send runs could be stamped before the site's copy of the old one. */
+const slPhotoSig = rec => `${rec?.full?.size || 0}:${rec?.full?.type || ''}`;
+function slReadMap(key) { const v = slRead(key, {}); return v && typeof v === 'object' && !Array.isArray(v) ? v : {}; }
+const slSentMap = (base = slBase()) => { const m = slReadMap(SL_SENT)[base]; return m && typeof m === 'object' ? m : {}; };
+const slChangedMap = () => slReadMap(SL_CHANGED);
+/* one photo reached `base`: remember what was sent; clear its change mark unless it changed again after we read it */
+function slNoteSent(base, id, sig, readAt) {
+  if (!base) return;
+  const all = slReadMap(SL_SENT); slWrite(SL_SENT, { ...all, [base]: { ...(all[base] || {}), [id]: sig } });
+  const ch = slChangedMap(); if (ch[id] != null && ch[id] <= readAt) { delete ch[id]; slWrite(SL_CHANGED, ch); }
+}
+/* does a local photo still need to reach the site? (manual: the Push photos… dialog also honours newer dates) */
+function slPhotoNeeds(p, have, sent, changed, { manual = false } = {}) {
+  if (!have[p.id]) return true;
+  if (changed[p.id] != null) return true;
+  if (sent[p.id] && sent[p.id] !== slPhotoSig(p.rec)) return true;
+  return manual && !sent[p.id] && p.ts > have[p.id];
+}
+const slPhotosToSync = (local, have, opts) => { const sent = slSentMap(), changed = slChangedMap(); return local.filter(p => slPhotoNeeds(p, have, sent, changed, opts)); };
+/* photos were added or replaced here: mark them, and send them with the next publish — or, while auto-publish is on,
+   about 45 s from now even if nothing else changed (a photo-only change leaves the registry fingerprint alone) */
+function slNotePhotos(ids = []) {
+  try {
+    if (ids.length) { const ch = slChangedMap(); const t = Date.now(); for (const id of ids) ch[id] = t; slWrite(SL_CHANGED, ch); }
+    SITE.photosDirty = true;
+    if (slCfg().auto && slCfg().photos !== false && slBase() && slKey() && slLast()) { clearTimeout(SITE.photoTimer); SITE.photoTimer = setTimeout(() => slSyncPhotos({ reason: 'auto' }), SL_AUTO_DELAY); }
+  } catch { /* the Site link is not set up yet */ }
+}
+/* Send photos in batches under the request budget — shared by Push photos… and the automatic run. Each photo is read
+   fresh from this browser's store just before it is sent, so a replacement made meanwhile is the one that goes.
+   paint(l1, l2, done) reports progress; alive() going false (dialog closed, switch turned off) stops between batches.
+   → { saved, errors (per photo), done, sentBytes, stopped: null | { message, kind } } */
+async function slSendPhotos(pending, { ctl = { cancel: false, abort: null }, paint = () => {}, alive = () => true } = {}) {
+  const base = slBase();
+  const budget = Math.max(600000, Math.min(SITE.conn.info?.limits?.photoRequestBytes || 4000000, 4000000) - 120000);
+  const saved = [], errors = []; let done = 0, sentBytes = 0, carry = null, i = 0, stopped = null;
+  const prepare = async p => {
+    try {
+      const readAt = Date.now(); const fresh = await idbGet('images', p.id).catch(() => null); const rec = fresh?.full ? fresh : p.rec;
+      const blob = await slJpegUnder(rec.full); return { p, dataUrl: await blobToDataURL(blob), bytes: blob.size, sig: slPhotoSig(rec), readAt };
+    } catch (e) { errors.push({ key: p.id, label: p.label, error: 'Could not prepare it: ' + e.message }); done++; return null; }
+  };
+  try {
+    while ((carry || i < pending.length) && !ctl.cancel && alive()) {
+      const batch = []; let size = 0;
+      while (batch.length < SL_PHOTO_BATCH && (carry || i < pending.length) && !ctl.cancel) {
+        const item = carry || await prepare(pending[i++]); carry = null; if (!item) continue;
+        if (batch.length && size + item.dataUrl.length > budget) { carry = item; break; }
+        batch.push(item); size += item.dataUrl.length;
+        paint(`Preparing ${done + batch.length} of ${pending.length}`, item.p.label, done);
+      }
+      if (!batch.length || ctl.cancel) break;
+      let tries = 0, posted = false;
+      for (;;) {
+        paint(`Sending ${done + 1}–${done + batch.length} of ${pending.length}`, slBytes(sentBytes + batch.reduce((a, b) => a + b.bytes, 0)), done);
+        ctl.abort = new AbortController();
+        try {
+          const r = await slJSON('/api/registry/photos', { method: 'POST', auth: true, body: JSON.stringify({ items: batch.map(b => ({ key: b.p.id, dataUrl: b.dataUrl })) }), timeout: 120000, signal: ctl.abort.signal });
+          posted = true; const d = r.data || {}; const ok = new Set(d.saved || []);
+          for (const k of ok) saved.push(k); for (const er of d.errors || []) errors.push({ key: er.key, label: batch.find(b => b.p.id === er.key)?.p.label || er.key, error: er.error });
+          for (const b of batch) if (ok.has(b.p.id)) slNoteSent(base, b.p.id, b.sig, b.readAt);
+          if (SITE.photos) { for (const k of ok) SITE.photos.have[k] = Date.now(); SITE.photos.count = Object.keys(SITE.photos.have).length; }
+          break;
+        } catch (e) {
+          if (e.kind === 'invalid' && e.data) { posted = true; for (const er of e.data.errors || []) errors.push({ key: er.key, label: batch.find(b => b.p.id === er.key)?.p.label || er.key, error: er.error }); break; }
+          if (e.kind === 'rate' && tries < 6) { const wait = Math.max(3, e.retryAfter || 20); for (let s = wait; s > 0 && !ctl.cancel && alive(); s--) { paint('The site asks for a pause', `resuming in ${s} s`, done); await new Promise(r => setTimeout(r, 1000)); } tries++; if (ctl.cancel || !alive()) break; continue; }
+          if ((e.kind === 'network' || e.kind === 'timeout' || e.kind === 'server') && tries < 2) { tries++; paint('Connection hiccup', `retrying (${tries}/2)…`, done); await new Promise(r => setTimeout(r, 2000 * tries)); continue; }
+          throw e;
+        }
+      }
+      if (!posted) break;                                   // stopped while waiting out a pause: this batch was not sent
+      done += batch.length; sentBytes += batch.reduce((a, b) => a + b.bytes, 0);
+      paint(`Sent ${done} of ${pending.length}`, slBytes(sentBytes), done);
+    }
+  } catch (e) { if (e.kind !== 'cancel') stopped = { message: e.message, kind: e.kind || 'error' }; if (e.kind === 'auth') slTest(); }
+  return { saved, errors, done, sentBytes, stopped };
+}
+/* After every publish (by hand or auto): send, in the background, the photos the site lacks and the ones added or
+   replaced here since they were last sent. Off with "Send photos with every publish" (turning it off stops a send
+   after the batch in flight). Removing a photo here never removes it from the site. */
+async function slSyncPhotos({ reason = 'publish' } = {}) {
+  const base = slBase();
+  clearTimeout(SITE.photoTimer); SITE.photoTimer = null;
+  if (!base || !slKey(base) || slCfg().photos === false) return null;
+  if (SITE.photoSync || SITE.photoDialog) { SITE.photosDirty = true; return null; }
+  const ctl = { cancel: false, abort: null };
+  SITE.photoSync = { done: 0, total: 0, ctl }; SITE.photosDirty = false; slStatusBar(); slPhotoLinePaint();
+  const site = () => ({ label: 'SITE LINK', fn: () => { SITE.seg = 'publish'; setNav('site'); } });
+  try {
+    const [local] = await Promise.all([slLocalPhotos(), slLoadPhotos()]);
+    if (SITE.photosError) throw SITE.photosError;
+    const todo = slPhotosToSync(local, SITE.photos?.have || {});
+    if (!todo.length) return { saved: [], errors: [], done: 0, sentBytes: 0, stopped: null };
+    SITE.photoSync.total = todo.length; slStatusBar(); slPhotoLinePaint();
+    const out = await slSendPhotos(todo, { ctl, alive: () => slCfg().photos !== false, paint: (l1, l2, done) => { if (SITE.photoSync) { SITE.photoSync.done = done; slStatusBar(); slPhotoLinePaint(); } } });
+    const n = out.saved.length, bad = out.errors.length, left = todo.length - n - bad, host = slHost(base);
+    if (out.stopped) toast(`Photos stopped after ${n} of ${todo.length} — ${out.stopped.message}. The rest go with the next publish.`, 'warn', site());
+    else if (ctl.cancel || slCfg().photos === false) { if (n) toast(`${plural(n, 'photo')} sent to ${host} · the other ${left} stay here (photos switched off)`, ''); }
+    else if (n || bad) toast(`${plural(n, 'photo')} sent to ${host}${bad ? ` · ${bad} refused — open Push photos… to see why` : ''}`, bad ? 'warn' : 'good', bad ? site() : undefined);
+    if (n) slLoadLog().catch(() => {});
+    return out;
+  } catch (e) {
+    if (e.kind === 'auth') slTest();
+    toast(`Photos were not sent — ${e.message}`, 'warn', site());
+    return null;
+  } finally {
+    SITE.photoSync = null; slStatusBar(); slPaint(['tiles', SITE.seg === 'publish' ? 'body' : null]);
+    if (SITE.photosDirty) setTimeout(() => slSyncPhotos({ reason: 'again' }), 3000);   // a photo changed, or a publish arrived, while sending
+  }
+}
+/* the Publish panel's photo line, updated in place while a background send runs */
+function slPhotoLineText() {
+  const c = slCfg();
+  return c.photos === false ? 'Off — send photos with Push photos… below.' : SITE.photoSync ? (SITE.photoSync.total ? `Sending ${Math.min(SITE.photoSync.done + 1, SITE.photoSync.total)} of ${SITE.photoSync.total}…` : 'Checking which photos the site needs…') : 'New and replaced building and chronicle photos follow every publish, by hand or auto. Removing a photo here does not remove it from the site.';
+}
+function slPhotoLinePaint() { const el = document.getElementById('sl-photo-line'); if (el) el.textContent = slPhotoLineText(); }
 async function slPushPhotos() {
   if (!slCanWrite()) { slNeedKey(); return; }
   const ctl = { cancel: false, abort: null, running: false };
   openModal({ title: 'Push photos to the site', kicker: `PHOTOS · ${slHost()}`, cls: 'narrow',
     body: `<div id="sl-ph"><p class="muted" style="margin:14px 0 0;font-size:12.5px">Comparing this registry’s photos with the site…</p></div>`,
     foot: `<button class="btn ghost" id="sl-ph-close">Close</button><span class="spacer"></span><button class="btn primary" id="sl-ph-go" disabled>${icon('up')} Send</button>` });
-  const m = $('#modal-root .modal'); const box = () => $('#sl-ph');
-  const closeBtn = $('#sl-ph-close'); const goBtn = $('#sl-ph-go');
+  const m = $('#modal-root .modal'); const q = sel => m.querySelector(sel); const box = () => (m.isConnected ? q('#sl-ph') : null);
+  const closeBtn = q('#sl-ph-close'); const goBtn = q('#sl-ph-go');
   closeBtn.onclick = () => { if (ctl.running) { ctl.cancel = true; ctl.abort?.abort(); closeBtn.disabled = true; closeBtn.textContent = 'Stopping…'; } else closeModal(); };
   let local, have;
   try { [local] = await Promise.all([slLocalPhotos(), slLoadPhotos()]); if (SITE.photosError) throw SITE.photosError; have = SITE.photos.have; }
   catch (e) { if (box()) box().innerHTML = `<div class="callout bad"><b>Could not compare.</b> ${esc(e.message)}</div>`; return; }
   if (!box()) return;
-  const pending = slPhotoPending(local, have); const newer = pending.filter(p => have[p.id]).length;
+  let pending = slPhotosToSync(local, have, { manual: true }); const newer = pending.filter(p => have[p.id]).length;
   box().innerHTML = `<div class="sl-photo-stats" style="margin-top:14px"><div><b>${fmtInt(local.length)}</b><span>photos here</span></div><div><b>${fmtInt(local.filter(p => have[p.id]).length)}</b><span>already on the site</span></div><div><b style="color:${pending.length ? 'var(--amber)' : 'var(--good)'}">${fmtInt(pending.length)}</b><span>to send${newer ? ` · ${newer} newer` : ''}</span></div></div>
     ${pending.length ? `<div class="list" style="max-height:200px;overflow:auto">${pending.slice(0, 40).map(p => `<div class="li" style="grid-template-columns:1fr auto"><div><div class="t">${esc(p.label)}</div><div class="s">${p.kind}${have[p.id] ? ` · the site’s copy is from ${esc(slWhen(have[p.id]))}` : ' · not on the site'}</div></div></div>`).join('')}${pending.length > 40 ? `<div class="li empty">… and ${pending.length - 40} more</div>` : ''}</div>
     <p class="desc-line" style="margin-top:10px">Each photo is resized in this browser to at most 1400 px (JPEG, under 900 KB) and sent ${SL_PHOTO_BATCH} at a time. Photos added at the desk stay as they are.</p>` : `<div class="callout good"><b>Nothing to send.</b> Every building and chronicle photo here is already on the site.</div>`}
@@ -427,49 +550,29 @@ async function slPushPhotos() {
   if (!pending.length) { goBtn.hidden = true; return; }
   goBtn.disabled = false; goBtn.innerHTML = `${icon('up')} Send ${plural(pending.length, 'photo')}`;
   goBtn.onclick = async () => {
-    goBtn.disabled = true; ctl.running = true; closeBtn.textContent = 'Cancel'; $('#sl-ph-prog').hidden = false;
-    const budget = Math.max(600000, Math.min(SITE.conn.info?.limits?.photoRequestBytes || 4000000, 4000000) - 120000);
-    const saved = [], errors = []; let done = 0, sentBytes = 0, carry = null, i = 0;
-    const paint = (l1, l2) => { if (!$('#sl-ph-prog')) return; $('#sl-ph-prog .bar i').style.width = `${Math.round(done / pending.length * 100)}%`; $('#sl-ph-l1').textContent = l1; $('#sl-ph-l2').textContent = l2 || ''; };
-    const prepare = async p => { try { const blob = await slJpegUnder(p.rec.full); return { p, dataUrl: await blobToDataURL(blob), bytes: blob.size }; } catch (e) { errors.push({ key: p.id, label: p.label, error: 'Could not prepare it: ' + e.message }); done++; return null; } };
-    try {
-      while ((carry || i < pending.length) && !ctl.cancel && $('#sl-ph')) {
-        const batch = []; let size = 0;
-        while (batch.length < SL_PHOTO_BATCH && (carry || i < pending.length) && !ctl.cancel) {
-          const item = carry || await prepare(pending[i++]); carry = null; if (!item) continue;
-          if (batch.length && size + item.dataUrl.length > budget) { carry = item; break; }
-          batch.push(item); size += item.dataUrl.length;
-          paint(`Preparing ${done + batch.length} of ${pending.length}`, item.p.label);
-        }
-        if (!batch.length || ctl.cancel) break;
-        let tries = 0;
-        for (;;) {
-          paint(`Sending ${done + 1}–${done + batch.length} of ${pending.length}`, slBytes(sentBytes + batch.reduce((a, b) => a + b.bytes, 0)));
-          ctl.abort = new AbortController();
-          try {
-            const r = await slJSON('/api/registry/photos', { method: 'POST', auth: true, body: JSON.stringify({ items: batch.map(b => ({ key: b.p.id, dataUrl: b.dataUrl })) }), timeout: 120000, signal: ctl.abort.signal });
-            const d = r.data || {}; for (const k of d.saved || []) saved.push(k); for (const er of d.errors || []) errors.push({ key: er.key, label: batch.find(b => b.p.id === er.key)?.p.label || er.key, error: er.error });
-            break;
-          } catch (e) {
-            if (e.kind === 'invalid' && e.data) { for (const er of e.data.errors || []) errors.push({ key: er.key, label: batch.find(b => b.p.id === er.key)?.p.label || er.key, error: er.error }); break; }
-            if (e.kind === 'rate' && tries < 6) { const wait = Math.max(3, e.retryAfter || 20); for (let s = wait; s > 0 && !ctl.cancel; s--) { paint('The site asks for a pause', `resuming in ${s} s`); await new Promise(r => setTimeout(r, 1000)); } tries++; if (ctl.cancel) break; continue; }
-            if ((e.kind === 'network' || e.kind === 'timeout' || e.kind === 'server') && tries < 2) { tries++; paint('Connection hiccup', `retrying (${tries}/2)…`); await new Promise(r => setTimeout(r, 2000 * tries)); continue; }
-            throw e;
-          }
-        }
-        done += batch.length; sentBytes += batch.reduce((a, b) => a + b.bytes, 0);
-        paint(`Sent ${done} of ${pending.length}`, slBytes(sentBytes));
-      }
-    } catch (e) { if (e.kind !== 'cancel') errors.push({ key: '', label: 'Stopped', error: e.message }); if (e.kind === 'auth') slTest(); }
-    ctl.running = false;
-    for (const k of saved) if (SITE.photos) SITE.photos.have[k] = Date.now();
-    if (SITE.photos) SITE.photos.count = Object.keys(SITE.photos.have).length;
+    if (SITE.photoSync) { toast('Photos are already on their way to the site with the last publish — Send again when the status bar says they are done', 'warn'); return; }
+    // the list was made when the dialog opened: a publish may have sent some of these since
+    goBtn.disabled = true; await slLoadPhotos();
+    if (!m.isConnected) return;
+    if (SITE.photos) pending = slPhotosToSync(pending, SITE.photos.have, { manual: true });
+    if (!pending.length) { q('#sl-ph-res').innerHTML = `<div class="callout good"><b>Nothing left to send.</b> The last publish already took them to the site.</div>`; goBtn.hidden = true; return; }
+    ctl.running = true; SITE.photoDialog++; closeBtn.textContent = 'Cancel'; q('#sl-ph-prog').hidden = false;
+    const total = pending.length;
+    const paint = (l1, l2, done) => { if (!m.isConnected) return; q('#sl-ph-prog .bar i').style.width = `${Math.round(done / total * 100)}%`; q('#sl-ph-l1').textContent = l1; q('#sl-ph-l2').textContent = l2 || ''; };
+    let out;
+    try { out = await slSendPhotos(pending, { ctl, paint, alive: () => m.isConnected }); }
+    finally {
+      ctl.running = false; SITE.photoDialog = Math.max(0, SITE.photoDialog - 1);
+      if (SITE.photosDirty && !SITE.photoDialog) setTimeout(() => slSyncPhotos({ reason: 'again' }), 1500);   // a publish waited for this dialog
+    }
+    const { saved, done, sentBytes } = out; const errors = out.stopped ? [...out.errors, { key: '', label: 'Stopped', error: out.stopped.message }] : out.errors;
     slLoadLog().catch(() => {}); slPaint();
-    const stopped = ctl.cancel; const res = $('#sl-ph-res'); if (!res) { toast(`${plural(saved.length, 'photo')} sent to the site${errors.length ? ` · ${errors.length} refused` : ''}${stopped ? ' · stopped' : ''}`, errors.length ? 'warn' : 'good'); return; }
-    if ($('#sl-ph-prog .bar i')) $('#sl-ph-prog .bar i').style.width = `${Math.round(done / pending.length * 100)}%`;
-    $('#sl-ph-l1').textContent = stopped ? `Stopped — ${saved.length} sent` : `Done — ${saved.length} sent`; $('#sl-ph-l2').textContent = slBytes(sentBytes);
-    const stats = $$('#sl-ph .sl-photo-stats b'); if (stats.length === 3 && SITE.photos) { const onSiteNow = local.filter(p => SITE.photos.have[p.id]).length; const left = slPhotoPending(local, SITE.photos.have).length; stats[1].textContent = fmtInt(onSiteNow); stats[2].textContent = fmtInt(left); stats[2].style.color = left ? 'var(--amber)' : 'var(--good)'; }
-    res.innerHTML = `${saved.length ? `<div class="callout good"><b>${plural(saved.length, 'photo')} on the site.</b> Cards, record pages and the history pick them up on their next load.</div>` : ''}${errors.length ? `<div class="issues-wrap sl-errs" style="margin:12px 0 0">${errors.map(er => `<div class="issue bad">${icon('warn')}<span><b>${esc(er.label)}</b> — ${esc(er.error)}</span></div>`).join('')}</div>` : ''}`;
+    const stopped = ctl.cancel || !!out.stopped;
+    if (!m.isConnected) { toast(`${plural(saved.length, 'photo')} sent to the site${out.errors.length ? ` · ${out.errors.length} refused` : ''}${stopped || done < total ? ' · stopped' : ''}`, out.errors.length || stopped ? 'warn' : 'good'); return; }
+    q('#sl-ph-prog .bar i').style.width = `${Math.round(done / total * 100)}%`;
+    q('#sl-ph-l1').textContent = stopped ? `Stopped — ${saved.length} sent` : `Done — ${saved.length} sent`; q('#sl-ph-l2').textContent = slBytes(sentBytes);
+    const stats = m.querySelectorAll('#sl-ph .sl-photo-stats b'); if (stats.length === 3 && SITE.photos) { const onSiteNow = local.filter(p => SITE.photos.have[p.id]).length; const left = slPhotosToSync(local, SITE.photos.have, { manual: true }).length; stats[1].textContent = fmtInt(onSiteNow); stats[2].textContent = fmtInt(left); stats[2].style.color = left ? 'var(--amber)' : 'var(--good)'; }
+    q('#sl-ph-res').innerHTML = `${saved.length ? `<div class="callout good"><b>${plural(saved.length, 'photo')} on the site.</b> Cards, record pages and the history pick them up on their next load.</div>` : ''}${errors.length ? `<div class="issues-wrap sl-errs" style="margin:12px 0 0">${errors.map(er => `<div class="issue bad">${icon('warn')}<span><b>${esc(er.label)}</b> — ${esc(er.error)}</span></div>`).join('')}</div>` : ''}`;
     closeBtn.disabled = false; closeBtn.textContent = 'Close'; goBtn.hidden = true;
     toast(stopped ? `Stopped — ${plural(saved.length, 'photo')} sent` : `${plural(saved.length, 'photo')} sent to the site${errors.length ? ` · ${errors.length} refused` : ''}`, errors.length || stopped ? 'warn' : 'good');
   };
@@ -510,6 +613,7 @@ async function slPushBasemap() {
       m.querySelector('#sl-bm-sel')?.addEventListener('change', e => { cur = all.find(b => b.id === e.target.value) || cur; paintThumb(); });
       paintThumb();
       m.querySelector('#sl-bm-go').onclick = async () => {
+        if (SITE.photoSync) { toast('Photos are on their way to the site — send the basemap when the status bar says they are done', 'warn'); return; }
         const go = m.querySelector('#sl-bm-go'); go.disabled = true; const prog = m.querySelector('#sl-bm-prog'); prog.hidden = false;
         const step = (pct, a, b = '') => { prog.querySelector('.bar i').style.width = pct + '%'; m.querySelector('#sl-bm-l1').textContent = a; m.querySelector('#sl-bm-l2').textContent = b; };
         try {
@@ -752,6 +856,7 @@ function slPublishHTML() {
   const siteState = !info?.hash ? ['', '—', base ? 'not read yet — test the connection' : 'no site linked'] : last && info.hash === last.hash ? ['ok', `${esc(slShort(info.hash))} ✓`, 'the site has your last publish'] : last ? ['wn', esc(slShort(info.hash)), info.source === 'bundled' ? 'the site went back to its bundled file' : 'changed outside this browser since'] : ['', esc(slShort(info.hash)), info.source === 'registry-app' ? 'published from New A OS elsewhere' : info.source === 'bundled' ? 'the bundled file' : 'a desk upload'];
   const localState = !last ? ['', 'not compared', 'publish once — later edits are counted here'] : loc?.inStep ? ['ok', 'in step', 'nothing new since the last publish'] : loc?.diff ? ['wn', plural(loc.diff.total, 'change'), 'since the last publish'] : ['', '…', 'checking'];
   const autoLine = !c.auto ? 'Off — publish by hand.' : A.held ? A.held.message : SITE.publishing ? 'Publishing now…' : A.due ? `${A.error ? `Last try failed (${A.error}) — retrying` : 'Edits settled — publishing'} in about ${Math.max(1, Math.ceil((A.due - Date.now()) / 1000))} s.` : 'On — about 45 seconds after edits stop, changes go to the site. Waits when offline and backs off on errors.';
+  const photoLine = slPhotoLineText();
   const photosHere = SITE.localPhotos?.count; const P = SITE.photos; const onSite = P && SITE.localPhotos ? [...SITE.localPhotos.ids].filter(id => P.have[id]).length : null;
   const { all: bms, active: bm } = slBasemapList();
   const log = SITE.log;
@@ -762,11 +867,12 @@ function slPublishHTML() {
         ${loc?.diff?.total ? `<div class="sl-changes">${slDiffChips(loc.diff)}</div>` : ''}
         ${last?.summary ? `<div class="desc-line" style="margin-top:10px">Last publish: ${esc(last.summary)}</div>` : ''}
         <div class="sl-auto"><div><div class="t">Auto-publish while open ${c.auto ? `<span class="mk ${A.held && A.held.kind !== 'first' ? 'warn' : 'good'}">${A.held && A.held.kind !== 'first' ? 'PAUSED' : 'ON'}</span>` : ''}</div><div class="d">${esc(autoLine)}</div></div><label class="switch"><input type="checkbox" data-sl-auto ${c.auto ? 'checked' : ''} ${base ? '' : 'disabled'} aria-label="Auto-publish while open"></label></div>
+        <div class="sl-auto"><div><div class="t">Send photos with every publish ${c.photos !== false ? '<span class="mk good">ON</span>' : ''}</div><div class="d" id="sl-photo-line">${esc(photoLine)}</div></div><label class="switch"><input type="checkbox" data-sl-photos ${c.photos !== false ? 'checked' : ''} ${base ? '' : 'disabled'} aria-label="Send photos with every publish"></label></div>
         <div class="sl-acts"><button class="btn sm ghost" data-sl="revert" ${can ? '' : 'disabled'} title="The site goes back to its bundled data/Registry.json; desk edits stay">${icon('undo')} Revert the site to its bundled registry…</button></div>`)}
       ${slPanel('SYNC LOG', 'what the site recorded', !can ? '<div class="sl-empty">Connect with the access key to read the site’s sync log.</div>' : SITE.logError ? `<div class="sl-empty">${esc(SITE.logError.message)}</div>` : !log ? '<div class="sl-empty">Reading the log…</div>' : !log.length ? '<div class="sl-empty"><b>Nothing logged yet</b>Every publish, photo batch, basemap and revert lands here.</div>' : `<div class="sl-log">${log.map(e => `<div class="sl-le"><div class="tm">${esc(slTime(e.ts))}<small>${esc(slDay(e.ts))}</small></div><div><div class="sm">${esc(e.summary || e.kind)}</div><div class="mt"><span class="mk ${e.kind === 'reset' ? 'warn' : e.kind === 'push' ? 'info' : 'good'}">${esc(String(e.kind || '').toUpperCase())}</span>${e.reason ? `<span>${esc(e.reason)}</span>` : ''}${e.via ? `<span>· ${esc(e.via)}</span>` : ''}${e.version ? `<span>· ${esc(e.app || '')} ${esc(e.version)}</span>` : ''}${e.hash ? `<span>· ${esc(slShort(e.hash))}</span>` : ''}${e.unchanged ? '<span>· unchanged</span>' : ''}</div></div></div>`).join('')}</div><div class="sl-acts"><button class="btn sm ghost" data-sl="log-refresh">${icon('redo')} Refresh</button></div>`)}
     </div>
     <div class="sl-col">
-      ${slPanel('PHOTOS', 'buildings · chronicle', `<div class="sl-photo-stats"><div><b>${fmtInt(photosHere)}</b><span>here</span></div><div><b>${onSite == null ? '—' : fmtInt(onSite)}</b><span>on the site</span></div><div><b>${P ? '…' : '—'}</b><span id="sl-ph-pending">to send</span></div></div><p class="desc-line" style="margin-top:10px">Only what the site lacks, or holds an older copy of. Resized here (≤ 1400 px, JPEG, under 900 KB), ${SL_PHOTO_BATCH} at a time, with a progress bar and cancel.</p><div class="sl-acts"><button class="btn primary sm" data-sl="photos" ${can ? '' : 'disabled'}>${icon('img')} Push photos…</button></div>`)}
+      ${slPanel('PHOTOS', 'buildings · chronicle', `<div class="sl-photo-stats"><div><b>${fmtInt(photosHere)}</b><span>here</span></div><div><b>${onSite == null ? '—' : fmtInt(onSite)}</b><span>on the site</span></div><div><b>${P ? '…' : '—'}</b><span id="sl-ph-pending">to send</span></div></div><p class="desc-line" style="margin-top:10px">Only what the site lacks, or holds an older copy of. Resized here (≤ 1400 px, JPEG, under 900 KB), ${SL_PHOTO_BATCH} at a time, with a progress bar and cancel. ${slCfg().photos !== false ? 'They also follow every publish on their own.' : 'Turn on “Send photos with every publish” to send them automatically.'}</p><div class="sl-acts"><button class="btn primary sm" data-sl="photos" ${can ? '' : 'disabled'}>${icon('img')} Push photos…</button></div>`)}
       ${slPanel('BASEMAP', bms.length ? plural(bms.length, 'image') : 'none yet', `<div class="sl-bm"><div class="th" id="sl-bm-mini">${icon('sat')}</div><div class="i">${bm ? `<b>${esc(bm.name)}</b><br>X ${fmtInt(bm.x)} · Z ${fmtInt(bm.z)} · ${fmtInt((bm.w || 0) * (bm.scale || 1))} × ${fmtInt((bm.h || 0) * (bm.scale || 1))} blocks` : 'Add a render on the map (Satellite chip) or under Vault → Basemap.'}${P?.basemap ? `<br><span class="sl-up">On the site</span> <span class="muted">· ${esc(slWhen(P.basemap.ts))}</span>` : P ? '<br><span class="muted">The site has no basemap yet.</span>' : ''}</div></div><div class="sl-acts"><button class="btn sm" data-sl="basemap" ${can && bm ? '' : 'disabled'}>${icon('sat')} Push basemap…</button></div>`)}
     </div>
   </div>`;
@@ -872,7 +978,7 @@ function slPaint(parts) {
   const want = (parts || ['head', 'conn', 'tiles', 'segbar', 'body']).filter(Boolean);
   const act = document.activeElement;
   const typing = act && (act.tagName === 'TEXTAREA' || act.tagName === 'SELECT' || (act.tagName === 'INPUT' && !['checkbox', 'radio', 'button', 'submit', 'reset'].includes(act.type)));
-  const refocus = act && act !== document.body ? (act.id ? '#' + act.id : act.matches('[data-sl-auto]') ? '[data-sl-auto]' : act.dataset?.sl ? `[data-sl="${act.dataset.sl}"]${act.dataset.seg ? `[data-seg="${act.dataset.seg}"]` : ''}${act.dataset.id ? `[data-id="${CSS.escape(act.dataset.id)}"]` : ''}` : null) : null;
+  const refocus = act && act !== document.body ? (act.id ? '#' + act.id : act.matches('[data-sl-auto]') ? '[data-sl-auto]' : act.matches('[data-sl-photos]') ? '[data-sl-photos]' : act.dataset?.sl ? `[data-sl="${act.dataset.sl}"]${act.dataset.seg ? `[data-seg="${act.dataset.seg}"]` : ''}${act.dataset.id ? `[data-id="${CSS.escape(act.dataset.id)}"]` : ''}` : null) : null;
   let moved = false;
   for (const p of want) {
     const el = $('#sl-' + p); if (!el || !map[p]) continue;
@@ -919,7 +1025,7 @@ function slLoadPoliticsIfAny() { if (slHas('politics.setApproval') === false) re
 async function slPhotoPendingPaint() {
   const el = $('#sl-ph-pending'); if (!el || !SITE.photos) return;
   const fresh = SITE.localPhotos?.list && SITE.localPhotos.stamp === S.meta.updated;
-  const local = fresh ? SITE.localPhotos.list : await slLocalPhotos(); const n = slPhotoPending(local, SITE.photos.have).length;
+  const local = fresh ? SITE.localPhotos.list : await slLocalPhotos(); const n = slPhotosToSync(local, SITE.photos.have, { manual: true }).length;
   if (!fresh) slPaint(['tiles']);
   const b = el.previousElementSibling; if (b && $('#sl-ph-pending') === el) { b.textContent = fmtInt(n); b.style.color = n ? 'var(--amber)' : 'var(--good)'; }
 }
@@ -1108,6 +1214,12 @@ const slOnField = e => {
   const el = e.target; if (!el?.dataset) return;
   if (el.dataset.slQ === 'appr') { if (e.type === 'input') { SITE.apprQ = el.value; slApprSearch(); } return; }
   if (el.matches?.('[data-sl-auto]') && e.type === 'change') { slSetAuto(el.checked); return; }
+  if (el.matches?.('[data-sl-photos]') && e.type === 'change') {
+    slSetCfg({ photos: el.checked });
+    if (!el.checked) { clearTimeout(SITE.photoTimer); SITE.photoTimer = null; if (SITE.photoSync) SITE.photoSync.ctl.cancel = true; }
+    toast(el.checked ? 'Photos now follow every publish' : SITE.photoSync ? 'Photos stop after the batch being sent — the rest stay here until you press Push photos…' : 'Photos stay here until you press Push photos…', el.checked ? 'good' : '');
+    if (el.checked && slLast()) slSyncPhotos({ reason: 'publish' }); slPaint(); return;
+  }
   const path = el.dataset.slf; if (!path) return;
   const v = el.type === 'checkbox' ? el.checked : el.value; slFormSet(path, v);
   const lbl = el.closest('.f')?.querySelector('[data-sl-count]'); if (lbl) { const max = +lbl.dataset.slCount; lbl.textContent = `${String(v).length} / ${max}`; lbl.classList.toggle('over', String(v).length > max); }

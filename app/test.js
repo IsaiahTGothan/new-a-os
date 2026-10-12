@@ -1103,6 +1103,40 @@ const FEED = (extra = '') => `<?xml version="1.0"?><rss version="2.0"><channel><
   await page.evaluate(ids => { S.roads = S.roads.filter(r => !ids.includes(r.id)); commit(); JUNCTION_CACHE.key = ''; ROAD_GRAPH.key = ''; setMapEdit(false); }, brT.ids);
   noErrors('bridge landings, layover trains');
 
+  // ---------- Z · 3.5.2: photos follow every publish (ported from the site's 3.2.0) — against a stand-in site ----------
+  console.log('\nZ · 3.5.2 — photos follow every publish, against a stand-in site');
+  const GOODZ = 'harness-key-not-real'; const photoPosts = []; const HAVE = {};
+  await page.route('https://newa-site.vercel.app/**', async route => {
+    const req = route.request(); const u = new URL(req.url()); const auth = req.headers()['authorization'] || ''; const good = auth === 'Bearer ' + GOODZ;
+    const json = (status, body) => route.fulfill({ status, contentType: 'application/json', headers: { 'access-control-allow-origin': '*' }, body: JSON.stringify(body) });
+    if (u.pathname === '/api/registry' && req.method() === 'GET') return auth && !good ? json(401, { error: 'refused' }) : json(200, { source: 'registry-app', counts: { buildings: 119, historical: 34 }, hash: 'h-z', authorized: good, limits: { masterBytes: 8388608, photoRequestBytes: 4000000 }, ignored: null });
+    if (u.pathname === '/api/registry' && req.method() === 'POST') return good ? json(200, { ok: true, hash: 'h-z2', changes: {}, summary: 'ok' }) : json(401, { error: 'refused' });
+    if (u.pathname === '/api/registry/photos' && req.method() === 'GET') return json(200, { have: { ...HAVE } });
+    if (u.pathname === '/api/registry/photos' && req.method() === 'POST') { if (!good) return json(401, { error: 'refused' }); const body = JSON.parse(req.postDataBuffer().toString('utf8')); const keys = (body.items || []).map(i => i.key); photoPosts.push({ keys, kinds: (body.items || []).map(i => String(i.dataUrl).slice(0, 15)) }); for (const k of keys) HAVE[k] = Date.now(); return json(200, { saved: keys, errors: [] }); }
+    if (u.pathname === '/api/agent') return good ? json(200, { ok: true, featureActions: [] }) : json(401, { error: 'refused' });
+    if (u.pathname === '/api/feed') return json(200, { stories: [], hash: 'h-z' });
+    return json(200, {});
+  });
+  const zSetup = await page.evaluate(async key => {
+    closeModal(); closeDrawer(true); setNav('overview'); const base = 'https://newa-site.vercel.app'; slSetCfg({ url: base, auto: false, photos: true }); slSetKey(base, key); if (!slLast(base)) slSetLast(base, { fp: 'fp-z', hash: 'h-z', at: Date.now() });
+    SITE.photos = null; SITE.localPhotos = null; const b = S.buildings.find(x => !x.image) || S.buildings.find(x => isActive(x)); if (!b) return { none: true };   // every active building on file already has a photo; a historical one without is replaced here and cleaned up at the end
+    const mkFile = async (size, seed) => { const c = document.createElement('canvas'); c.width = c.height = size; const g = c.getContext('2d'); for (let i = 0; i < 40; i++) { g.fillStyle = `hsl(${(seed * 37 + i * 29) % 360} 70% 50%)`; g.fillRect((i * 7 * seed) % size, (i * 13) % size, size / 3, size / 4); } const blob = await new Promise(r => c.toBlob(r, 'image/png')); return new File([blob], `z${seed}.png`, { type: 'image/png' }); };
+    window.__zMkFile = mkFile; await setBuildingImage(b, await mkFile(64, 1));
+    return { id: b.id, changed: slChangedMap()[b.id] != null, dirty: SITE.photosDirty, timer: !!SITE.photoTimer, cfg: slCfg().photos };
+  }, GOODZ);
+  ok(!zSetup.none && zSetup.changed && zSetup.dirty && !zSetup.timer && zSetup.cfg === true, `a new photo is marked as changed and waits for the next publish (auto-publish off, so no timer) ${JSON.stringify({ changed: zSetup.changed, dirty: zSetup.dirty, timer: zSetup.timer })}`);
+  const zSend = await page.evaluate(async id => { const out = await slSyncPhotos({ reason: 'publish' }); return { saved: out?.saved || [], sent: slSentMap()[id] || null, changed: slChangedMap()[id] != null, dirty: SITE.photosDirty, sync: !!SITE.photoSync }; }, zSetup.id); const zPosts1 = photoPosts.length; const zKeys1 = photoPosts.flatMap(p => p.keys); const zKind1 = photoPosts.flatMap(p => p.kinds);
+  ok(zSend.saved.includes(zSetup.id) && zPosts1 >= 1 && zKeys1.includes(zSetup.id) && zKind1.every(k => /^data:image\/jpeg/.test(k)) && /^\d+:image\/jpeg$/.test(zSend.sent) && !zSend.changed && !zSend.sync, `the sync sends it as a JPEG with the other photos the site lacked (${zKeys1.length} in ${zPosts1} request${zPosts1 === 1 ? '' : 's'}) and records what was sent (${zSend.sent}); the change mark clears`);
+  const zAgain = await page.evaluate(async () => { const out = await slSyncPhotos({ reason: 'publish' }); return out?.saved?.length ?? null; });
+  ok(zAgain === 0 && photoPosts.length === zPosts1, 'a second publish sends nothing again — the site already has them');
+  const zReplace = await page.evaluate(async id => { const b = byId(id); await setBuildingImage(b, await window.__zMkFile(160, 7)); const marked = slChangedMap()[id] != null; const out = await slSyncPhotos({ reason: 'auto' }); return { marked, saved: out?.saved || [] }; }, zSetup.id);
+  ok(zReplace.marked && zReplace.saved.join() === zSetup.id && photoPosts.length === zPosts1 + 1, 'a replaced photo is marked again and goes up with the next (auto) publish — only that one');
+  const zOff = await page.evaluate(async id => { slSetCfg({ photos: false }); const b = byId(id); await setBuildingImage(b, await window.__zMkFile(96, 3)); const out = await slSyncPhotos({ reason: 'publish' }); slSetCfg({ photos: true }); setNav('site'); SITE.seg = 'publish'; await new Promise(r => setTimeout(r, 400)); slPaint(); await new Promise(r => setTimeout(r, 200)); const sw = $('[data-sl-photos]'); const line = $('#sl-photo-line')?.textContent || ''; SITE.photoSync = { done: 2, total: 9, ctl: {} }; slStatusBar(); const bar = $('#st-site-t')?.textContent || ''; SITE.photoSync = null; slStatusBar(); return { out, sw: !!sw, checked: sw?.checked, line, bar }; }, zSetup.id);
+  ok(zOff.out === null && photoPosts.length === zPosts1 + 1 && zOff.sw && zOff.checked && /follow every publish/.test(zOff.line) && /sending photos 3\/9/.test(zOff.bar), `with the switch off nothing is sent; the Publish panel shows the switch (${zOff.checked ? 'on' : 'off'}) and the status bar counts a send (${zOff.bar})`);
+  await page.evaluate(async id => { const b = byId(id); await removeBuildingImage(b); commit({ now: true }); const ch = slChangedMap(); delete ch[id]; slWrite(SL_CHANGED, ch); }, zSetup.id);
+  await page.unroute('https://newa-site.vercel.app/**');
+  noErrors('photos follow every publish');
+
   await ctx.close(); await browser.close();
   console.log(`\n${checks - failures}/${checks} checks passed${failures ? ` · ${failures} FAILED` : ''}`);
   process.exit(failures ? 1 : 0);

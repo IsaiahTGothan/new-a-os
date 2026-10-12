@@ -501,7 +501,7 @@ async function deleteBuilding(id) {
     S.buildings.splice(Math.min(idx, S.buildings.length), 0, b);
     for (const { o, rels } of removedLinks) o.relations.push(...rels);
     S.tenancies.push(...tens); for (const s of stns) s.buildingId = id;
-    if (imgRec) { await idbPut('images', b.id, imgRec); setImgUrls(b.id, imgRec); b.image = true; SAVE.dirtyImages.add(b.id); SAVE.deletedImages.delete(b.id); }
+    if (imgRec) { await idbPut('images', b.id, imgRec); setImgUrls(b.id, imgRec); b.image = true; SAVE.dirtyImages.add(b.id); SAVE.deletedImages.delete(b.id); slNotePhotos([b.id]); }
     commit(); renderView(false);
   } });
 }

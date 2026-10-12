@@ -8,7 +8,7 @@
 
 | | New A OS | New A Site |
 |---|---|---|
-| What it is | One HTML file I open in Chrome or Edge on my computer — the Land Registry app (version **3.2.0**, schema 4 — round 3 plus the Site link) | A Next.js 15 website on Vercel: **https://newa-site.vercel.app** (repo `IsaiahTGothan/newa-site`, deploys from `main`) |
+| What it is | One HTML file I open in Chrome or Edge on my computer — the Land Registry app (version **3.5.2**, schema 4 — rounds 1–3, 3.5 and the Site link; photos follow every publish from 3.2) | A Next.js 15 website on Vercel: **https://newa-site.vercel.app** (repo `IsaiahTGothan/newa-site`, deploys from `main`) |
 | Role | **The master.** Every building, road, border, business, official and chronicle entry is edited here | **The public copy** — New A's cloud, news and data relay to the internet |
 | Where data lives | Inside the browser (IndexedDB `newa-registry`; the Site address and key in localStorage) — separate for each browser and browser profile — plus an optional "vault" folder on disk | **Upstash Redis** connected to the Vercel project (the stored registry, photos, the sync log, desk edits) plus the registry file bundled with each deploy (`data/Registry.json`) |
 
@@ -23,6 +23,7 @@
    - **Upstash Redis must be connected** (Vercel → Storage), which sets `UPSTASH_REDIS_REST_URL` / `UPSTASH_REDIS_REST_TOKEN` (or `KV_REST_API_*`). Without it, publishes *look* successful but live only in temporary server memory and vanish.
 2. **Get the current New A OS.** Older copies have no Site screen.
    - Open `https://newa-site.vercel.app/downloads/new-a-os.html` (or Mayor's Desk → Registry link → **Download New A OS**). It **downloads a file named `New-A-OS.html`** to the Downloads folder — it does not open in the tab.
+   - The download is whatever the site's `main` branch carries. New A OS is developed in the `new-a-os` repo (`app/NewA-Land-Registry.html`, built from `app/parts/`); the site's branch `claude/new-a-os-3.5` holds the same file — merging it into `main` updates the download. A newer New A OS always keeps the data (it lives in the browser, not in the file); an older copy would not know the newer records' fields.
    - Move it to where the old New A OS file is and replace the old file (rename it to the old name if you like).
    - Open it in the **same browser and the same profile** as always. Each browser/profile keeps its own data, so the same one sees everything as before. (Inside New A OS, Ctrl+S just saves the registry.)
 3. **Link.** In New A OS click **Site** in the left bar, or press **S** from any screen except the Map (on the Map, S is the Select tool). The screen is headed **Site link**. Then:
@@ -31,7 +32,7 @@
    - **Save & test** → the badge should read **CONNECTED** and a message says "Connected to newa-site.vercel.app — publishing and the manager are ready".
    - Other badges: **WRONG KEY** (retype it — but see the lockout in §8), **LINK OFF ON THE SITE** (no passcode/token set in Vercel), **NO KEY · READ ONLY** (key box left empty), **CAN'T REACH THE SITE**.
 4. **First publish by hand.** **Publish to site**. If the site holds a copy this browser didn't publish, it asks "Replace the site's registry?" → **Publish this copy**.
-5. **Photos and basemap.** **Push photos…** and **Push basemap…** (greyed out until a basemap exists in New A OS — add one on the map via Satellite, or Vault & settings → Basemap).
+5. **Photos and basemap.** Photos follow the publish on their own (**Send photos with every publish**, on by default; status bar shows *sending photos 3/27…*). Push the basemap once with **Push basemap…** (greyed out until a basemap exists in New A OS — add one on the map via Satellite, or Vault & settings → Basemap).
 6. **Turn on Auto-publish while open.**
 
 **Check:** newa-site.vercel.app/map shows every border, road and rotated lot; Mayor's Desk → Registry link shows **Live from New A OS**.
@@ -46,7 +47,8 @@
   - an auto push would remove **more than half of all building records** (standing + historical, and more than 10) → the site holds it (409); confirm with a manual publish;
   - the **access key is refused** → fix it under Site link (Save & test until CONNECTED), then publish by hand;
   - the site **refused the file** (422 invalid / 413 too large) → fix what it lists; auto-publish tries again after the next edit (a manual publish would be refused the same way).
-- **Photos and the basemap are never automatic** — push them by hand when they change. Push photos sends what the site lacks plus any photo replaced since the site got it. **Removing** a photo in New A OS does not remove it from the site — use the Mayor's Desk (the record's photo → **Remove photo**).
+- **Photos follow every publish** (New A OS 3.2+, switch **Send photos with every publish**, on by default): after each publish — by hand or auto — New A OS sends, in the background, the building and chronicle photos the site lacks plus any photo replaced since. Adding or replacing a photo triggers the next auto-publish by itself. A photo re-imported from the vault unchanged is not sent twice. **Push photos…** still works by hand. **Removing** a photo in New A OS does not remove it from the site — use the Mayor's Desk (the record's photo → **Remove photo**).
+- **The basemap is never automatic** — push it by hand when it changes.
 - **Reading back:** while the Site screen is open and the window is in front, New A OS re-reads `/api/feed` every **60 seconds** (stories, the city alert, the NASE market, politics, the Square, and the *number* of pending market moves). The market review queue itself loads through the agent API when connecting, opening the Site screen or opening Market — reopen Market to refresh it. The news inbox can also read `/feed.xml`.
 - **Unchanged pushes** don't rewrite anything; a manual one is still logged.
 
@@ -66,9 +68,7 @@
 
 ## 5. What gets sent — and what never leaves my computer
 
-**Sent with Publish:** regions, districts (boroughs) and neighborhoods with polygon borders, buildings (lifecycle, lots incl. `lotRotated` and, from 3.2.0, drawn lot outlines `lot`), roads and tracks (from 3.2.0 with their dated shapes, `versions[].toYear/toHalf`), lines and stations (from 3.2.0 with hours, construction dates, costs, `partial` status and `transferIds`), businesses, tenancies, officials, projects, the chronicle archive, `settings.valuation` and `settings.fabricYear`.
-
-**The public site does not draw the 3.2.0 additions yet** (drawn lot outlines, dated shapes, transfers, hours): its validator keeps them, and they show once the site's map learns them.
+**Sent with Publish:** regions, districts (boroughs) and neighborhoods with polygon borders, buildings (lifecycle, lots incl. `lotRotated`, valuations), roads, tracks, lines, stations, businesses, tenancies, officials, projects, the chronicle archive, `settings.valuation` and `settings.fabricYear`.
 
 **Never sent:** app settings and keys (e.g. the AI key), the news inbox, world scans, the sandbox, embedded photos.
 
@@ -121,20 +121,15 @@ All answer cross-origin (CORS `*`), so the app works straight from a file. 🔑 
 | Publish says done, but the site keeps going back to the bundled registry / sync log or photos vanish | Upstash Redis isn't connected — connect it in Vercel → Storage, redeploy, then Publish to site and Push photos… again |
 | Site still shows old or missing data | Desk → Registry link: check the pill (Live from New A OS / Uploaded at the desk / Bundled registry); publish from New A OS. Yellow **"An outdated registry is stored here and ignored."** → publish, or **Clear the outdated copy…** → **Clear now**. One record/area still wrong → a desk removal or edit is overriding it (§4); undo it at the desk |
 | New A OS opened but empty (and no saved Site address) | Opened in a different place — another browser, another profile, or a website tab. Open the saved file in the usual browser and profile, or import the vault's `Registry.json` |
-| Photos / basemap missing on the site | Push photos… / Push basemap… (never automatic). Push basemap greyed out → add a basemap in New A OS first |
+| Photos missing on the site (History shows "In the Registry vault" placeholders) | The photos never reached the site. Make sure **Send photos with every publish** is on (New A OS 3.2+) and publish, or press **Push photos…**. Older copies of New A OS only send photos with Push photos… |
+| Basemap missing on the site | Push basemap… (never automatic). Greyed out → add a basemap in New A OS first |
 | Publish refused as **stale** | The file was exported before the site's bundled registry — publish from New A OS (fresh stamp) instead of uploading an old file |
 
 ---
 
-## 9. Where things live (code)
+## 9. Where things live in the repo (for code changes)
 
-**New A OS** is developed in `IsaiahTGothan/new-a-os` and built from parts:
-- `app/parts/p30_site.js` — the Site link (`sl…` functions; constants `SL_AUTO_DELAY` 45 s, `SL_POLL_MS` 60 s, `SL_PHOTO_BATCH` 4), `app/parts/site_css.css` its styles; hooks in `p04_persist.js` (commit → `slOnCommit`), `p05_shell.js` (Site view), `p17_news.js` (feed / markets read back), `p19_interactions.js` (`S` key), `p24_clawson.js` (draft → newsroom), `p20_boot.js`.
-- `python3 app/build.py` → `app/NewA-Land-Registry.html`; tests `node app/test.js` (section U runs the Site link against a stand-in site — the real one is never contacted).
-
-**Publishing a new New A OS to the site's download:** copy `app/NewA-Land-Registry.html` from new-a-os over `registry-app/NewA-Land-Registry.html` in newa-site and deploy; `scripts/package-registry-app.js` serves it at `/downloads/new-a-os.html` with its version in `new-a-os.json`.
-
-**The site** (`IsaiahTGothan/newa-site`):
+- `registry-app/NewA-Land-Registry.html` — New A OS itself (a copy of `app/NewA-Land-Registry.html` from the `new-a-os` repo, built by `python3 app/build.py` from `app/parts/`; the Site link is `p30_site.js`, the photo change marks are in `p04_persist.js`). Site link code = the `sl…` functions; constants `SL_AUTO_DELAY` (45 s), `SL_POLL_MS` (60 s), `SL_PHOTO_BATCH` (4); photos after each publish = `slSyncPhotos` / `slSendPhotos`. Copied to `/downloads/new-a-os.html` (+ `new-a-os.json` manifest) by `scripts/package-registry-app.js` on every build.
 - `lib/sync.js` — push, diff, reset, status, photos, push/photo rate limits, which key mode applies.
 - `lib/desk.js` — desk passcode, the access-key check (`AGENT_TOKEN`, else `DESK_PASSCODE`) and the wrong-key lockout.
 - `lib/registry.js` — reading the registry; `effectiveOverride` (newest export wins); desk-edit precedence.

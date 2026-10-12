@@ -95,7 +95,7 @@ async function setBuildingImage(b, file) {
   const rec = { full, thumb, updated: now() };
   await idbPut('images', b.id, rec); setImgUrls(b.id, rec);
   b.image = true; b.updated = now(); SAVE.dirtyImages.add(b.id); SAVE.deletedImages.delete(b.id);
-  commit(); toast('Photo saved', 'good');
+  commit(); slNotePhotos([b.id]); toast('Photo saved', 'good');
 }
 async function removeBuildingImage(b) {
   await idbDel('images', b.id); const u = IMG.get(b.id); if (u) { URL.revokeObjectURL(u.full); URL.revokeObjectURL(u.thumb); IMG.delete(b.id); }
@@ -337,7 +337,7 @@ async function importFile(file) {
     const full = await dataURLToBlob(url); const thumb = await downscale(full, 240, 0.8);
     const rec = { full, thumb, updated: now() }; await idbPut('images', id, rec); setImgUrls(id, rec); b.image = true; SAVE.dirtyImages.add(id);
   }
-  normalizeScope(); commit({ now: true }); renderAll(); toast(`Imported ${info.counts.buildings} buildings`, 'good');
+  normalizeScope(); commit({ now: true }); renderAll(); if (payload.images) slNotePhotos(Object.keys(payload.images).filter(id => ownerById(id))); toast(`Imported ${info.counts.buildings} buildings`, 'good');
 }
 async function importCSVText(text, name) {
   const rows = parseCSV(text); if (!rows.length) { toast('No rows in that CSV', 'warn'); return; }
